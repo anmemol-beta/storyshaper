@@ -28,9 +28,20 @@ function renderChapters(active) {
   $("chapters").innerHTML = CHAPTERS.map((c, i) => `<li class="${i < active ? "past" : i === active ? "on" : ""}">${c}</li>`).join("");
 }
 
+// Reading speed from the slider (1 = as generated). Remembered per browser.
+const rate = () => +$("speed").value;
+try { const saved = localStorage.getItem("story-speed"); if (saved) $("speed").value = saved; } catch (e) {}
+const showSpeed = () => ($("speedVal").textContent = `${rate().toFixed(2)}×`);
+$("speed").oninput = () => {
+  showSpeed();
+  if (playing) playing.playbackRate = rate();
+  try { localStorage.setItem("story-speed", $("speed").value); } catch (e) {}
+};
+showSpeed();
+
 // Browser voice, only used for lines that have no pre-generated clip.
 function speak(text) {
-  try { const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 0.95; speechSynthesis.speak(u); } catch (e) {}
+  try { const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 0.95 * rate(); speechSynthesis.speak(u); } catch (e) {}
 }
 
 // Light up words one by one, spread evenly over `ms`.
@@ -50,8 +61,8 @@ function readLines(lines, done) {
     const text = queue[i], words = text.split(" ");
     line.innerHTML = words.map((w) => `<span class="todo">${w}</span>`).join(" ");
     const spans = [...line.children];
-    const lineDone = () => { spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450); };
-    const timed = () => { highlight(spans, words.length * 300); laterRead(lineDone, words.length * 300 + 200); };
+    const lineDone = () => { spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450 / rate()); };
+    const timed = () => { const ms = (words.length * 300) / rate(); highlight(spans, ms); laterRead(lineDone, ms + 200); };
     const clip = $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
     if (!clip) {
       if ($("voice").checked) speak(text);
@@ -60,7 +71,9 @@ function readLines(lines, done) {
     const audio = (playing = new Audio(`audio/${clip}`));
     let fellBack = false;
     const fallBack = () => { if (fellBack) return; fellBack = true; playing = null; timed(); };
-    audio.onloadedmetadata = () => highlight(spans, audio.duration * 1000);
+    audio.preservesPitch = true; // slower, same voice pitch
+    audio.playbackRate = rate();
+    audio.onloadedmetadata = () => highlight(spans, (audio.duration * 1000) / rate());
     audio.onended = () => { playing = null; lineDone(); };
     audio.onerror = fallBack;
     audio.play().catch(fallBack);

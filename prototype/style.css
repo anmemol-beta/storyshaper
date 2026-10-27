@@ -104,3 +104,6 @@ aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .muted { color: var(--chalk-dim); font-size: .86rem; margin: 6px 0 0; }
 label.tog { display: flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; transition-duration: .01s !important; } }
+.tog.speed { margin-top: 10px; }
+.tog.speed input[type="range"] { flex: 1; min-width: 0; accent-color: var(--sun); }
+.tog.speed output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--chalk-dim); }
