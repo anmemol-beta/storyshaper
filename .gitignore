@@ -3,3 +3,5 @@ Meta Global AI Developer Hackathon Kickoff*.html
 .DS_Store
 .env
 experiments/out/
+*.m4a
+voice/
