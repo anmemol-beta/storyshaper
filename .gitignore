@@ -4,4 +4,4 @@ Meta Global AI Developer Hackathon Kickoff*.html
 .env
 experiments/out/
 *.m4a
-voice/
+voice/.venv*/

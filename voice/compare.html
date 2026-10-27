@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>목소리 복제 블라인드 비교</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1d2333; --muted:#5b6378; --line:#dde1ea; --accent:#2f4fb5; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system, "Apple SD Gothic Neo", sans-serif; line-height:1.55; }
+  main { max-width:900px; margin:0 auto; padding:28px 16px 60px; display:flex; flex-direction:column; gap:18px; }
+  h1 { margin:0; font-size:1.5rem; }
+  p { margin:0; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; display:flex; flex-direction:column; gap:10px; }
+  .q { font-weight:600; }
+  .row { display:grid; grid-template-columns:44px minmax(0,1fr) auto auto; gap:12px; align-items:center; }
+  .tag { font-weight:700; color:var(--accent); font-size:1.1rem; }
+  audio { width:100%; height:36px; }
+  select { font-size:.9rem; padding:4px; }
+  label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:2px; }
+  .model { font-size:.85rem; color:var(--accent); font-weight:600; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { border-bottom:1px solid var(--line); padding:8px; text-align:left; font-variant-numeric:tabular-nums; }
+  button { font-size:1rem; padding:10px 18px; border-radius:10px; border:none; background:var(--accent); color:#fff; cursor:pointer; align-self:flex-start; }
+  @media (max-width:640px) { .row { grid-template-columns:36px minmax(0,1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>목소리 복제 블라인드 비교</h1>
+  <p>같은 기준 음성으로 세 모델이 같은 대사를 읽었습니다. A·B·C는 줄마다 순서가 섞여 있어요. 들어보고 점수를 매긴 뒤 맨 아래 "결과 보기"를 누르세요.</p>
+
+  <div class="card">
+    <div class="q">원본 (기준 음성 6.5초)</div>
+    <audio controls src="ref_clip.wav"></audio>
+    <p>전체 녹음: <audio controls src="parent_24k.wav"></audio></p>
+  </div>
+
+  <div id="lines"></div>
+  <button id="reveal" type="button">결과 보기</button>
+  <div id="result" class="card" hidden></div>
+</main>
+<script>
+const MODELS = { f5: "F5-TTS", chatterbox: "Chatterbox", qwen3: "Qwen3-TTS" };
+const LINES = ["Once upon a time, a mother pig lived with her three little pigs.", "What do you think he built his house with?", "Paper! The oldest pig folded, and folded, and folded.", "Then along came a hungry wolf. Whoo... whoo...", "And the three little pigs danced in front of their brick house. The End!"];
+const TIMES = {"f5": [7.0, 6.0, 6.3, 6.0, 7.2], "chatterbox": [44.6, 4.3, 6.1, 5.4, 5.5], "qwen3": [9.8, 2.8, 4.5, 2.9, 4.4]};
+// fixed per-line shuffles so the order differs line to line
+const ORDERS = [["chatterbox","f5","qwen3"],["qwen3","chatterbox","f5"],["f5","qwen3","chatterbox"],["chatterbox","qwen3","f5"],["qwen3","f5","chatterbox"]];
+const opts = '<option value="">-</option>' + [1,2,3,4,5].map(n => `<option>${n}</option>`).join("");
+const load = () => { try { return JSON.parse(localStorage.getItem("voice-scores") || "{}"); } catch (e) { return {}; } };
+const scores = load();
+
+document.getElementById("lines").innerHTML = LINES.map((text, i) => `
+  <div class="card" style="margin-bottom:14px">
+    <div class="q">${i + 1}. ${text}</div>
+    ${ORDERS[i].map((m, k) => `
+      <div class="row">
+        <span class="tag">${"ABC"[k]}</span>
+        <audio controls preload="none" src="out/${m}/line_${i + 1}.wav"></audio>
+        <label>닮음<select id="sim-${i}-${m}">${opts}</select></label>
+        <label>자연스러움<select id="nat-${i}-${m}">${opts}</select></label>
+      </div>`).join("")}
+  </div>`).join("");
+
+document.querySelectorAll("select").forEach(s => {
+  if (scores[s.id]) s.value = scores[s.id];
+  s.onchange = () => { scores[s.id] = s.value; try { localStorage.setItem("voice-scores", JSON.stringify(scores)); } catch (e) {} };
+});
+
+document.getElementById("reveal").onclick = () => {
+  const avg = (kind, m) => {
+    const v = LINES.map((_, i) => +document.getElementById(`${kind}-${i}-${m}`).value).filter(Boolean);
+    return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "-";
+  };
+  const t = (m) => TIMES[m] ? (TIMES[m].reduce((a, b) => a + b, 0) / TIMES[m].length).toFixed(1) + "초" : "-";
+  const r = document.getElementById("result");
+  r.innerHTML = `<div class="q">결과</div><table><tr><th>모델</th><th>닮음 평균</th><th>자연스러움 평균</th><th>한 줄 생성 (Mac)</th></tr>` +
+    Object.keys(MODELS).map(m => `<tr><td class="model">${MODELS[m]}</td><td>${avg("sim", m)}</td><td>${avg("nat", m)}</td><td>${t(m)}</td></tr>`).join("") +
+    `</table><p>줄별 정답: ` + ORDERS.map((o, i) => `${i + 1}번 ` + o.map((m, k) => "ABC"[k] + "=" + MODELS[m]).join(", ")).join(" / ") + `</p>`;
+  r.hidden = false;
+};
+</script>
+</body>
+</html>
