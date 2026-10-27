@@ -1,12 +1,4 @@
 // Story data shared by the prototype (app.js) and the narration generator (experiments/narration_lines.mjs).
-const STEPS = [
-  { t: "Read aloud", d: "Each word lights up as it is read. The child just looks at the picture and listens.", time: "Parent's voice (Chatterbox, pre-generated)" },
-  { t: "Ask", d: "The story pauses and the green mic gently pulses, so even a child who can't read yet knows it's their turn.", time: "Waiting" },
-  { t: "Child speaks", d: "The child holds the mic and talks, like a walkie-talkie. When they let go, their words pop up in a yellow bubble.", time: "Speech to text ~3s" },
-  { t: "Redraw the page", d: "The story repeats the child's idea first to buy time, while the old picture fades and a paintbrush animation plays.", time: "Text 3–7s + image 12–20s (started together)" },
-  { t: "Turn the page", d: "Fixed story pages appear instantly from pre-made pictures. Pages that depend on the child's answer can be generated as soon as the answer comes in.", time: "Instant (pre-generated)" }
-];
-
 const CHAPTERS = ["Start", "1st house", "2nd house", "3rd house", "The End"];
 const LABEL = { paper: "paper house", straw: "straw house", wood: "wood house", brick: "brick house" };
 

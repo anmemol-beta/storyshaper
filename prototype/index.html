@@ -3,62 +3,104 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StoryShaper Prototype</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@400;600&display=swap">
+<meta name="theme-color" content="#FFF9EF">
+<title>StoryShaper</title>
+<script>
+  // Apply the saved look before first paint so there is no light/dark flash. "system" = no attribute.
+  try { const t = localStorage.getItem("story-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <h1>StoryShaper Prototype</h1>
-  <p>The Three Little Pigs · the child decides what each pig builds with, and the pictures and story change</p>
-</header>
-
-<div class="wrap">
-  <div class="tablet">
-    <div class="screen">
-      <div class="art" id="art">
-        <img id="imgCur" alt="" src="img/intro.jpg">
-        <img id="imgNext" alt="" src="img/intro.jpg">
-        <ol class="chapters" id="chapters" aria-label="Story progress"></ol>
-        <div class="brush" id="brush" hidden><span>The paint fairy is redrawing…</span><span class="bar"><i></i></span></div>
-        <div class="bubble" id="bubble" hidden></div>
-        <div class="hints" id="hints" hidden></div>
-        <div class="summary" id="summary" hidden></div>
-        <button class="cover" id="cover" type="button"><span>The Three Little Pigs</span><b>▶ Start the story</b></button>
-      </div>
-      <div class="text">
-        <p class="line" id="line"></p>
-        <button class="mic" id="mic" aria-label="Hold to talk" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+<div class="shell">
+  <header class="bar">
+    <div class="logo"><span aria-hidden="true">✿</span> StoryShaper</div>
+    <div class="tools">
+      <button class="tool" id="themeBtn" type="button"></button>
+      <div class="pop-wrap">
+        <button class="tool" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <button class="next" id="next" type="button" hidden>Read again →</button>
+        <div class="settings" id="settings" role="dialog" aria-label="Settings" hidden>
+          <fieldset class="seg">
+            <legend>Look</legend>
+            <div class="seg-row">
+              <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+              <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+              <label><input type="radio" name="theme" value="system"><span>Auto</span></label>
+            </div>
+          </fieldset>
+          <label class="tog"><input type="checkbox" id="voice" checked> Read aloud in a parent's voice</label>
+          <label class="tog speed" for="speed">Reading speed
+            <input type="range" id="speed" min="0.6" max="1.2" step="0.05" value="0.85">
+            <output id="speedVal">0.85×</output>
+          </label>
+          <label class="tog"><input type="checkbox" id="demoToggle"> Show demo answers</label>
+          <div class="restart">
+            <button class="btn" id="restart" type="button">Start over</button>
+            <div class="confirm" id="confirm" role="group" aria-labelledby="confirmQ" hidden>
+              <p id="confirmQ">Start from the beginning?</p>
+              <div class="confirm-btns">
+                <button class="btn strong" id="restartYes" type="button">Yes</button>
+                <button class="btn" id="restartNo" type="button">No</button>
+              </div>
+            </div>
+          </div>
+          <p class="help">Redrawing really takes 12–20 seconds; it is shortened to 5 here. Narration is a parent's voice cloned from a short recording. Pictures were made with Muse Image.</p>
+        </div>
       </div>
+      <button class="tool" id="fsBtn" type="button" aria-label="Full screen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
     </div>
-  </div>
+  </header>
 
-  <aside>
-    <div class="panel">
-      <h2>Right now</h2>
-      <ol class="steps" id="steps"></ol>
-    </div>
-    <div class="panel">
-      <h2>Answer for the child</h2>
-      <div class="answers" id="answers"></div>
-      <p class="muted">Holding the green mic on the tablet counts as saying the first answer.</p>
-    </div>
-    <div class="panel">
-      <div class="row">
-        <button class="btn" id="restart" type="button">Start over</button>
-        <button class="btn" id="skip" type="button">Skip reading</button>
-        <label class="tog"><input type="checkbox" id="voice" checked> Read aloud in a parent's voice</label>
+  <main class="book" id="book" data-state="COVER">
+    <div class="art" id="art">
+      <img id="imgCur" alt="" src="img/intro.jpg">
+      <img id="imgNext" alt="" src="img/intro.jpg">
+      <div class="painting" id="painting" hidden>
+        <i style="left:12%;top:18%;animation-delay:0s">✦</i>
+        <i style="left:30%;top:62%;animation-delay:.6s">✦</i>
+        <i style="left:48%;top:24%;animation-delay:1.2s">✦</i>
+        <i style="left:66%;top:56%;animation-delay:.3s">✦</i>
+        <i style="left:82%;top:20%;animation-delay:.9s">✦</i>
+        <i style="left:90%;top:68%;animation-delay:1.5s">✦</i>
+        <span class="pill">Painting a new picture…</span>
       </div>
-      <label class="tog speed" for="speed">Reading speed
-        <input type="range" id="speed" min="0.6" max="1.2" step="0.05" value="0.85">
-        <output id="speedVal">0.85×</output>
-      </label>
-      <p class="muted">Redrawing really takes 12–20 seconds; it is shortened to 5 here. Narration is a parent's voice cloned with Chatterbox from a short recording, pre-generated for every line. All pictures were made with Muse Image.</p>
+      <div class="bubble" id="bubble" hidden></div>
+      <div class="hints" id="hints" hidden></div>
+      <div class="summary" id="summary" hidden></div>
     </div>
-  </aside>
+
+    <section class="text-panel">
+      <button class="cover" id="cover" type="button"><span>The Three Little Pigs</span><b>▶ Start the story</b></button>
+      <p class="line" id="line"></p>
+      <div class="mic-col">
+        <button class="mic" id="mic" type="button" aria-label="Tap to talk" disabled>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        </button>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <button class="retry" id="retry" type="button">Try again</button>
+        <button class="again" id="again" type="button" hidden>Read again ↻</button>
+      </div>
+    </section>
+
+    <div class="demo" id="demo" hidden>
+      <span class="demo-label">Demo answers</span>
+      <div class="answers" id="answers"></div>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <ol class="journey" id="chapters" aria-label="Story progress"></ol>
+    <button class="skip" id="skip" type="button" disabled>Next ›</button>
+  </footer>
 </div>
 
 <script src="story.js"></script>
