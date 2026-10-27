@@ -51,6 +51,10 @@ header.top p { margin: 0; color: var(--chalk-dim); }
 .chapters li.past { background: rgba(255,253,248,.85); color: var(--ink); }
 .chapters li.on { background: var(--sun); color: var(--ink); }
 .summary { position: absolute; left: 50%; top: 14%; transform: translateX(-50%); background: rgba(255,253,248,.95); border: 3px solid var(--sun); border-radius: 20px; padding: 10px 24px; text-align: center; font-family: var(--font-story); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.cover { position: absolute; inset: 0; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(20,26,46,.35); font-family: var(--font-story); color: var(--page); }
+.cover span { font-size: clamp(24px, 4.5vw, 48px); text-shadow: 0 3px 12px rgba(0,0,0,.45); }
+.cover b { font-weight: 500; font-size: clamp(18px, 2.8vw, 30px); background: var(--sun); color: var(--ink); padding: 12px 28px; border-radius: 999px; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+.cover:focus-visible b { outline: 3px solid var(--leaf); outline-offset: 4px; }
 .summary strong { display: block; font-weight: 400; font-size: clamp(13px, 1.6vw, 17px); color: #8d8778; }
 .summary span { font-size: clamp(18px, 2.8vw, 30px); }
 .bubble { position: absolute; right: 4%; bottom: 6%; max-width: 46%; background: var(--sun); color: var(--ink); font-family: var(--font-story); font-size: clamp(16px, 2.6vw, 28px); padding: 8px 18px; border-radius: 22px 22px 6px 22px; box-shadow: 0 6px 14px rgba(0,0,0,.2); }
@@ -100,3 +104,6 @@ aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .muted { color: var(--chalk-dim); font-size: .86rem; margin: 6px 0 0; }
 label.tog { display: flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; transition-duration: .01s !important; } }
+.tog.speed { margin-top: 10px; }
+.tog.speed input[type="range"] { flex: 1; min-width: 0; accent-color: var(--sun); }
+.tog.speed output { min-width: 3.2em; font-variant-numeric: tabular-nums; color: var(--chalk-dim); }
