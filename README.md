@@ -16,7 +16,7 @@
 
 ## 디자인 프로토타입
 
-`prototype/index.html`을 브라우저로 열면 아이가 말로 답하고 그림이 바뀌는 흐름을 클릭해 볼 수 있습니다 (마이크와 API는 연결되지 않은 시안).
+`prototype/index.html`을 브라우저로 열면 아기돼지 삼형제 전체를 클릭해 볼 수 있습니다. 아이가 각 돼지의 집 재료를 말로 정하면 그림과 이야기가 바뀝니다 (마이크와 API는 연결되지 않은 시안, 그림 13장은 Muse Image로 생성).
 
 ```bash
 open prototype/index.html
