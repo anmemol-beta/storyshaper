@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StoryShaper 프로토타입</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<title>StoryShaper Prototype</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Nunito:wght@400;600&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
-  <h1>StoryShaper 프로토타입</h1>
-  <p>아기돼지 삼형제 전체 · 아이가 돼지들의 집 재료를 정하면 그림과 이야기가 바뀌는 흐름</p>
+  <h1>StoryShaper Prototype</h1>
+  <p>The Three Little Pigs · the child decides what each pig builds with, and the pictures and story change</p>
 </header>
 
 <div class="wrap">
@@ -19,39 +19,39 @@
       <div class="art" id="art">
         <img id="imgCur" alt="" src="img/intro.jpg">
         <img id="imgNext" alt="" src="img/intro.jpg">
-        <ol class="chapters" id="chapters" aria-label="이야기 진행"></ol>
-        <div class="brush" id="brush" hidden><span>그림 요정이 다시 그리는 중</span><span class="bar"><i></i></span></div>
+        <ol class="chapters" id="chapters" aria-label="Story progress"></ol>
+        <div class="brush" id="brush" hidden><span>The paint fairy is redrawing…</span><span class="bar"><i></i></span></div>
         <div class="bubble" id="bubble" hidden></div>
         <div class="hints" id="hints" hidden></div>
         <div class="summary" id="summary" hidden></div>
       </div>
       <div class="text">
         <p class="line" id="line"></p>
-        <button class="mic" id="mic" aria-label="꾹 누르고 말하기" disabled>
+        <button class="mic" id="mic" aria-label="Hold to talk" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         </button>
-        <button class="next" id="next" type="button" hidden>처음부터 →</button>
+        <button class="next" id="next" type="button" hidden>Read again →</button>
       </div>
     </div>
   </div>
 
   <aside>
     <div class="panel">
-      <h2>지금 이 순간</h2>
+      <h2>Right now</h2>
       <ol class="steps" id="steps"></ol>
     </div>
     <div class="panel">
-      <h2>아이 대신 답하기</h2>
+      <h2>Answer for the child</h2>
       <div class="answers" id="answers"></div>
-      <p class="muted">태블릿의 초록 마이크를 꾹 누르면 첫 번째 답으로 말한 것으로 처리돼요.</p>
+      <p class="muted">Holding the green mic on the tablet counts as saying the first answer.</p>
     </div>
     <div class="panel">
       <div class="row">
-        <button class="btn" id="restart" type="button">처음부터</button>
-        <button class="btn" id="skip" type="button">읽기 건너뛰기</button>
-        <label class="tog"><input type="checkbox" id="voice"> 읽어주기 소리 켜기</label>
+        <button class="btn" id="restart" type="button">Start over</button>
+        <button class="btn" id="skip" type="button">Skip reading</button>
+        <label class="tog"><input type="checkbox" id="voice"> Read aloud with sound</label>
       </div>
-      <p class="muted">그림 다시 그리기는 실제로 12~20초 걸려요. 여기서는 5초로 줄였어요. 소리는 브라우저 기본 음성이라 실제 낭독과 다릅니다. 그림은 모두 Muse Image로 생성했어요.</p>
+      <p class="muted">Redrawing really takes 12–20 seconds; it is shortened to 5 here. The sound uses the browser's built-in voice, not the final narration. All pictures were made with Muse Image.</p>
     </div>
   </aside>
 </div>

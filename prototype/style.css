@@ -9,8 +9,8 @@
   --sun: #ffc94a;
   --leaf: #4fbf8b;
   --rose: #ff8a8a;
-  --font-story: "Jua", "Apple SD Gothic Neo", sans-serif;
-  --font-ui: "Gowun Dodum", "Apple SD Gothic Neo", sans-serif;
+  --font-story: "Fredoka", "Trebuchet MS", sans-serif;
+  --font-ui: "Nunito", "Helvetica Neue", sans-serif;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
