@@ -12,6 +12,7 @@
 
 - [기획 메모](docs/plan.md): 문제 정의, 동작 방식, 아직 정할 것, 할 일
 - [킥오프 정리 (PDF)](docs/kickoff-summary.pdf): 킥오프 라이브스트림 내용, 규칙, 심사 기준, 일정
+- [Meta API 기능 테스트](docs/api-test.md): 각 모델을 한 번씩 호출한 결과와 속도
 
 ## 상태
 
