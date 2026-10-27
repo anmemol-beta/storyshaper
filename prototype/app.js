@@ -179,4 +179,8 @@ function restart() {
 $("restart").onclick = restart;
 next.onclick = restart;
 $("skip").onclick = () => skipReading && skipReading();
-restart();
+// Wait for a first tap: browsers only allow sound after the user interacts with the page.
+renderChapters(0);
+renderSteps(0);
+setAnswers(null);
+$("cover").onclick = () => { $("cover").hidden = true; restart(); };
