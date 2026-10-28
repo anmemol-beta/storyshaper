@@ -333,3 +333,7 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
   .line mark { animation: none; background-size: 100% 100%; }
   .painting i { animation: none; opacity: .8; }
 }
+
+/* Picture cards after missed tries, and "Say it again" right after an answer is heard */
+.hint .num { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; border-radius: 50%; background: var(--action-primary); color: var(--on-action-primary); font-size: .8em; font-weight: 700; }
+[data-state="HEARD"] .retry { display: inline-block; }

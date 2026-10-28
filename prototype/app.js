@@ -13,24 +13,37 @@ const COPY = { // the short words the child sees; one place to edit or translate
   GENERATING: "Painting a new picture…",
   UPDATED: "Look what happened!",
   ERROR: "I didn't catch that. Say it again?",
+  CHOICES: "Let's pick a picture! Tap the one you like.",
   DONE: "The End"
 };
 const HOLD_MS = 600;       // pressing longer than this works like a walkie-talkie: letting go sends the answer
 const MIN_HEARD_MS = 500;  // a shorter "recording" counts as not heard
 const LISTEN_MAX_MS = 8000;
+const HEARD_MS = 2500;     // time to tap "Say it again" before a heard answer is used; tune with a real child
+const MAX_TRIES = 3;       // missed tries on one question before picture cards (development-roadmap.md, 4)
+const PAINT_MS = 5000;     // stand-in for the 12-20 s redraw
 const BASE_ICON = ["🌱", "🏡", "🏡", "🏡", "🌟"];
 const MATERIAL_ICON = { paper: "📄", straw: "🌾", wood: "🪵", brick: "🧱" };
 
 let timers = [], readTimers = [], current = null, state = {}, phase = "COVER", skipReading = null, playing = null;
-let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0;
+let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0; // errors: missed tries on the current question
+
+// One audio element for every clip. iOS Safari only lets an element play without a tap once it has played inside one,
+// so a fresh `new Audio()` per line would stay silent there after the first line.
+const voiceEl = new Audio();
+voiceEl.preservesPitch = true; // slower, same voice pitch
+// Bumped whenever reading stops or restarts, so callbacks from an older read (a late play() rejection,
+// a clip that ends after a skip) cannot advance the new one.
+let readGen = 0;
 
 const val = (v) => (typeof v === "function" ? v(state) : v);
 const src = (name) => `img/${name}.jpg`;
 function later(fn, ms) { const t = setTimeout(fn, ms); timers.push(t); return t; }
 function laterRead(fn, ms) { readTimers.push(setTimeout(fn, ms)); }
 function stopVoice() {
+  readGen++;
   try { speechSynthesis.cancel(); } catch (e) {}
-  if (playing) { playing.onended = playing.onerror = null; playing.pause(); playing = null; }
+  if (playing) { playing.onloadedmetadata = playing.onended = playing.onerror = null; playing.pause(); playing = null; }
 }
 function clearTimers() { timers.forEach(clearTimeout); readTimers.forEach(clearTimeout); timers = []; readTimers = []; stopVoice(); }
 function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
@@ -47,6 +60,7 @@ function setPhase(p, text) {
   statusEl.textContent = text !== undefined ? text : (COPY[p] || "");
   mic.disabled = !(p === "LISTENING" || p === "ERROR" || (p === "ASKING" && current && current.ask));
   mic.setAttribute("aria-label", p === "LISTENING" ? "Tap to finish" : "Tap to talk");
+  $("retry").textContent = p === "HEARD" ? "Say it again" : "Try again";
   skipBtn.disabled = !(p === "READING" && skipReading);
   updateDemo();
 }
@@ -98,11 +112,12 @@ $("speed").oninput = () => {
 };
 showSpeed();
 
-// Demo answers: hidden by default; on with the settings toggle, ?demo=1, or after the voice failed twice.
+// Demo answers: a grown-up's panel, hidden by default; on with the settings toggle or ?demo=1.
+// A child who keeps missing gets picture cards instead (showChoices).
 let demoOn = new URLSearchParams(location.search).has("demo") || stored("story-demo") === "1";
 $("demoToggle").checked = demoOn;
 $("demoToggle").onchange = () => { demoOn = $("demoToggle").checked; store("story-demo", demoOn ? "1" : "0"); updateDemo(); };
-function updateDemo() { demo.hidden = !(demoOn || errors >= 2); }
+function updateDemo() { demo.hidden = !demoOn; }
 
 // Browser voice, only used for lines that have no pre-generated clip.
 function speak(text) {
@@ -118,15 +133,20 @@ function highlight(spans, ms) {
 // Read lines one after another. With sound on, play the parent-voice clip for the line
 // (pre-generated, see audio/lines.js) and pace the highlight to its length.
 function readLines(lines, done) {
-  const queue = lines.map(val);
+  const queue = lines.map(val), gen = ++readGen;
+  const live = () => gen === readGen;
   const finish = () => { skipReading = null; skipBtn.disabled = true; done && done(); };
   skipReading = () => { readTimers.forEach(clearTimeout); readTimers = []; stopVoice(); line.textContent = queue[queue.length - 1]; finish(); };
   skipBtn.disabled = phase !== "READING";
   const readOne = (i) => {
+    if (!live()) return;
     if (i >= queue.length) return finish();
     const text = queue[i], words = text.split(" ");
-    line.innerHTML = `<span class="words">${words.map((w) => `<span class="todo">${w} </span>`).join("")}</span>`;
-    const spans = [...line.firstChild.children];
+    // Built as text nodes: lines will come from the model and the child's words, never parse them as HTML.
+    const spans = words.map((w) => { const s = document.createElement("span"); s.className = "todo"; s.textContent = w + " "; return s; });
+    const box = document.createElement("span");
+    box.className = "words"; box.append(...spans);
+    line.replaceChildren(box);
     const lineDone = () => { spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450 / rate()); };
     const timed = () => { const ms = (words.length * 300) / rate(); highlight(spans, ms); laterRead(lineDone, ms + 200); };
     const clip = $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
@@ -134,14 +154,14 @@ function readLines(lines, done) {
       if ($("voice").checked) speak(text);
       return timed();
     }
-    const audio = (playing = new Audio(`audio/${clip}`));
     let fellBack = false;
-    const fallBack = () => { if (fellBack) return; fellBack = true; playing = null; timed(); };
-    audio.preservesPitch = true; // slower, same voice pitch
-    audio.playbackRate = rate();
-    audio.onloadedmetadata = () => highlight(spans, (audio.duration * 1000) / rate());
-    audio.onended = () => { playing = null; lineDone(); };
+    const fallBack = () => { if (fellBack || !live()) return; fellBack = true; playing = null; timed(); };
+    const audio = (playing = voiceEl);
+    audio.onloadedmetadata = () => live() && highlight(spans, (audio.duration * 1000) / rate());
+    audio.onended = () => { if (!live()) return; playing = null; lineDone(); };
     audio.onerror = fallBack;
+    audio.src = `audio/${clip}`;
+    audio.defaultPlaybackRate = audio.playbackRate = rate(); // loading a new src resets playbackRate to the default
     audio.play().catch(fallBack);
   };
   readOne(0);
@@ -171,26 +191,56 @@ function turnPage(name) {
 }
 
 function setAnswers(list) {
-  answers.innerHTML = "";
-  if (!list) { answers.innerHTML = '<span class="none">Listening time. Nothing to answer yet.</span>'; return; }
+  answers.replaceChildren();
+  if (!list) {
+    const none = document.createElement("span");
+    none.className = "none"; none.textContent = "Listening time. Nothing to answer yet.";
+    answers.append(none);
+    return;
+  }
   list.forEach((a) => {
     const b = document.createElement("button");
     b.className = "btn"; b.type = "button";
-    b.innerHTML = a.say + (a.note ? `<em>${a.note}</em>` : "");
+    b.textContent = a.say;
+    if (a.note) { const em = document.createElement("em"); em.textContent = a.note; b.append(em); }
     b.onclick = () => (a.tap ? go(a.go) : answer(a));
     answers.appendChild(b);
   });
 }
 
-function showHints(list) {
-  hints.innerHTML = list.map((h, i) => `<button class="hint" type="button" data-i="${i}"><b>${h.b}</b>${h.label}</button>`).join("");
+// Picture buttons over the page. `numbered` adds 1, 2, 3 for the cards a child gets after missed tries.
+function showHints(list, numbered) {
+  hints.replaceChildren(...list.map((h, i) => {
+    const btn = document.createElement("button"), icon = document.createElement("b");
+    btn.className = "hint"; btn.type = "button";
+    icon.textContent = h.b;
+    btn.append(icon, h.label);
+    if (numbered) { const n = document.createElement("span"); n.className = "num"; n.textContent = i + 1; btn.prepend(n); }
+    btn.onclick = () => go(h.go);
+    return btn;
+  }));
   hints.hidden = false;
-  hints.querySelectorAll(".hint").forEach((el) => (el.onclick = () => go(list[+el.dataset.i].go)));
+}
+
+// After MAX_TRIES missed tries on one question: numbered picture cards, read aloud, so a child who cannot read
+// or be understood can still answer. The mic stays on for a child who wants to talk again.
+function showChoices() {
+  const cards = current.ask.filter((a) => a.icon).slice(0, 3).map((a) => ({ b: a.icon, label: a.say.replace(/!$/, ""), go: a.go }));
+  if (!cards.length) return false;
+  clearTimeout(listenTimer);
+  bubble.hidden = true;
+  showHints(cards, true);
+  setAnswers(current.ask);
+  setPhase("ASKING", COPY.PICK);
+  // The longer invitation is only read aloud, in the browser voice: it has no pre-generated parent-voice clip yet.
+  if ($("voice").checked) speak(`${COPY.CHOICES} ${cards.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")}`);
+  return true;
 }
 
 function go(key) {
   clearTimers(); settleImage();
   current = SCENES[key];
+  errors = 0; // a new scene is a new question; retrying the same one never passes through here
   bubble.hidden = true; hints.hidden = true; $("summary").hidden = true; againBtn.hidden = true; painting.hidden = true;
   mic.hidden = false;
   setAnswers(null);
@@ -217,7 +267,9 @@ function afterReading() {
     later(() => go(current.then), 500);
   } else if (current.end) {
     const built = ["h1", "h2", "h3"].map((k) => LABEL[state[k]]).filter(Boolean);
-    $("summary").innerHTML = `<strong>Houses you built today</strong><span>${built.join(" · ")}</span>`;
+    const title = document.createElement("strong"), list = document.createElement("span");
+    title.textContent = "Houses you built today"; list.textContent = built.join(" · ");
+    $("summary").replaceChildren(title, list);
     $("summary").hidden = false;
     setPhase("DONE");
     mic.hidden = true; againBtn.hidden = false; againBtn.focus();
@@ -239,17 +291,20 @@ function stopListening() {
   if (performance.now() - listenStart < MIN_HEARD_MS) return fail();
   heard(current.ask[0]); // no speech-to-text in the prototype: the mic always "hears" the first answer
 }
+// A missed try: not heard, or the child said "that's not what I said". Both count toward the picture cards.
 function fail() {
   clearTimeout(listenTimer);
   errors++;
+  if (errors >= MAX_TRIES && showChoices()) return;
   setPhase("ERROR");
 }
+// Show what was heard and wait a moment, so a misheard answer can be taken back before it starts a redraw.
 function heard(a) {
   hints.hidden = true;
   setAnswers(null);
   bubble.textContent = a.say; bubble.hidden = false;
   setPhase("HEARD", `You said “${a.say}”`);
-  later(() => go(a.go), 1200);
+  later(() => go(a.go), HEARD_MS);
 }
 // A demo answer button: act out a short listening moment first, then the same path as the mic.
 function answer(a) {
@@ -276,16 +331,28 @@ mic.onpointerup = mic.onpointerleave = mic.onpointercancel = release;
 mic.onkeydown = (e) => {
   if ((e.key === "Enter" || e.key === " ") && !e.repeat) { e.preventDefault(); phase === "LISTENING" ? stopListening() : startListening(); }
 };
-$("retry").onclick = () => { startListening(); mic.focus(); };
+$("retry").onclick = () => {
+  if (phase === "HEARD") { // "Say it again": the heard answer was wrong, so drop it before it is used
+    clearTimers();
+    bubble.hidden = true;
+    setAnswers(current.ask);
+    fail();
+    if (phase === "ERROR") startListening();
+    return;
+  }
+  startListening(); mic.focus();
+};
 
+// The new picture shows once it is painted and the line about it has been read, so a slow reading speed
+// is not cut off by the page turn.
 function redraw() {
   setPhase("GENERATING");
   imgNext.src = src(current.build);
   art.classList.remove("reveal", "turn");
   painting.hidden = false;
-  readLines(current.lines);
-  skipReading = null; skipBtn.disabled = true;
-  later(() => {
+  let painted = false, narrated = false;
+  const reveal = () => {
+    if (!painted || !narrated) return;
     painting.hidden = true; bubble.hidden = true;
     setPhase("UPDATED");
     art.classList.add("reveal");
@@ -294,7 +361,10 @@ function redraw() {
       art.classList.remove("reveal");
       go(current.then); // re-renders the journey, where the house icon turns into what was built
     }, 1700);
-  }, 5000);
+  };
+  readLines(current.lines, () => { narrated = true; reveal(); });
+  skipReading = null; skipBtn.disabled = true;
+  later(() => { painted = true; reveal(); }, PAINT_MS);
 }
 
 function restart() {
