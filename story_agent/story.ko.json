@@ -1,0 +1,202 @@
+{
+  "storyId": "three-little-pigs",
+  "language": "ko",
+  "title": "아기돼지 삼형제",
+  "lesson": "재료의 특징을 생각하고, 일어난 일에서 배우며, 함께 문제를 해결해요.",
+  "fixedCharacters": [
+    "narrator",
+    "pig1",
+    "pig2",
+    "pig3",
+    "wolf"
+  ],
+  "fixedEvents": [
+    "first_house_cannot_shelter",
+    "second_house_cannot_shelter",
+    "third_house_stands",
+    "pigs_safe_together",
+    "wolf_leaves"
+  ],
+  "fixedEnding": "아기돼지 삼형제는 튼튼한 집에서 함께 안전하게 지내고, 늑대도 다치지 않고 떠나요.",
+  "houses": [
+    {
+      "id": "house1",
+      "pigId": "pig1",
+      "pigLabel": "첫째 돼지",
+      "allowedMaterials": [
+        "paper",
+        "straw",
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "defaultChoices": [
+        "paper",
+        "straw",
+        "cookie"
+      ],
+      "intro": "첫째 돼지는 햇살이 따뜻한 풀밭에 작은 집을 지으려고 해요.",
+      "question": "첫째 돼지는 어떤 재료로 작은 집을 지으면 좋을까요?"
+    },
+    {
+      "id": "house2",
+      "pigId": "pig2",
+      "pigLabel": "둘째 돼지",
+      "allowedMaterials": [
+        "paper",
+        "straw",
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "defaultChoices": [
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "intro": "형제들은 숲 옆에 있는 둘째 돼지의 집터에 도착했어요.",
+      "question": "둘째 돼지는 이번 집을 어떤 재료로 지어 볼까요?"
+    },
+    {
+      "id": "house3",
+      "pigId": "pig3",
+      "pigLabel": "막내 돼지",
+      "allowedMaterials": [
+        "brick",
+        "stone"
+      ],
+      "defaultChoices": [
+        "brick",
+        "stone",
+        "brick_team"
+      ],
+      "intro": "세 돼지는 막내 돼지와 함께 튼튼한 집을 지을 계획을 세워요.",
+      "question": "마지막 집은 어떤 튼튼한 재료로 지으면 좋을까요?"
+    }
+  ],
+  "materials": {
+    "paper": {
+      "label": "종이",
+      "aliases": [
+        "paper",
+        "papers",
+        "종이"
+      ],
+      "outcome": "blown_away",
+      "build": "종이 벽은 가볍고 가지런히 접혀 있어요.",
+      "event": "늑대가 후 불자 가벼운 종이 벽이 바람에 날아갔어요. 돼지들은 안전하게 비켜섰어요.",
+      "predict": "늑대가 가벼운 종이집을 향해 후 불려고 해요. 무슨 일이 생길까요?",
+      "reflect": "가벼운 종이 벽이 바람에 날아갔어요. 가벼운 벽의 어떤 점을 알게 되었나요?"
+    },
+    "straw": {
+      "label": "짚",
+      "aliases": [
+        "straw",
+        "hay",
+        "짚",
+        "지푸라기"
+      ],
+      "outcome": "blown_away",
+      "build": "짚 벽은 가벼운 지푸라기를 묶어서 만들었어요.",
+      "event": "늑대가 후 불자 가벼운 짚 벽이 바람에 날아갔어요. 돼지들은 안전하게 비켜섰어요.",
+      "predict": "늑대가 가벼운 짚집을 향해 후 불려고 해요. 무슨 일이 생길까요?",
+      "reflect": "가벼운 짚 벽이 바람에 날아갔어요. 가벼운 벽의 어떤 점을 알게 되었나요?"
+    },
+    "wood": {
+      "label": "나무",
+      "aliases": [
+        "wood",
+        "wooden",
+        "log",
+        "logs",
+        "timber",
+        "나무",
+        "목재",
+        "통나무"
+      ],
+      "outcome": "collapsed",
+      "build": "돼지는 나무를 느슨하게 쌓고 연결 부분을 단단히 묶지 않았어요.",
+      "event": "늑대가 후 불자 느슨하게 쌓인 나무가 흔들렸어요. 벽이 무너졌지만 돼지들은 안전하게 비켜섰어요.",
+      "predict": "나무가 느슨하게 쌓여 있어요. 늑대가 후 불면 나무집에 무슨 일이 생길까요?",
+      "reflect": "느슨하게 쌓인 나무집이 무너졌어요. 느슨한 연결 부분에서 무엇을 알게 되었나요?"
+    },
+    "cookie": {
+      "label": "과자",
+      "aliases": [
+        "cookie",
+        "cookies",
+        "candy",
+        "candies",
+        "biscuit",
+        "biscuits",
+        "gingerbread",
+        "과자",
+        "쿠키",
+        "사탕",
+        "비스킷"
+      ],
+      "outcome": "eaten",
+      "build": "돼지는 과자로 벽을 만들었어요. 배고픈 늑대가 달콤한 냄새를 맡았어요.",
+      "event": "늑대가 과자 벽을 조금씩 먹자 집이 돼지들을 지켜 줄 수 없게 되었어요. 돼지들은 안전하게 다음 집터로 걸어갔어요.",
+      "predict": "배고픈 늑대가 과자 벽의 냄새를 맡았어요. 늑대는 과자집을 어떻게 할까요?",
+      "reflect": "늑대가 과자 벽을 먹는 동안 돼지들은 안전하게 있었어요. 음식으로 만든 벽의 어떤 점을 알게 되었나요?"
+    },
+    "icecream": {
+      "label": "아이스크림",
+      "aliases": [
+        "ice cream",
+        "icecream",
+        "아이스크림"
+      ],
+      "outcome": "melted",
+      "build": "돼지는 따뜻한 햇살 아래 아이스크림으로 집을 만들었어요.",
+      "event": "따뜻한 햇살에 아이스크림 벽이 녹아 물웅덩이가 되었어요. 돼지들은 안전한 곳에서 더 튼튼한 집을 찾아봐요.",
+      "predict": "아이스크림집에 따뜻한 햇살이 비쳐요. 아이스크림은 어떻게 될까요?",
+      "reflect": "아이스크림 벽이 따뜻한 햇살에 녹았어요. 따뜻한 곳에 있는 아이스크림의 어떤 점을 알게 되었나요?"
+    },
+    "brick": {
+      "label": "벽돌",
+      "aliases": [
+        "brick",
+        "bricks",
+        "벽돌"
+      ],
+      "outcome": "stood",
+      "build": "돼지들은 무거운 벽돌을 모르타르로 단단히 붙이며 서로 도왔어요.",
+      "event": "늑대가 단단히 붙인 벽돌집을 향해 후 불었지만 집은 튼튼하게 서 있었어요. 세 돼지는 모두 안에서 안전하게 있었어요.",
+      "predict": "벽돌 벽은 무겁고 단단히 붙어 있어요. 늑대가 벽돌집을 향해 후 불면 어떻게 될까요?",
+      "reflect": "단단히 붙인 벽돌집은 튼튼하게 서 있었어요. 튼튼한 재료와 함께한 노력이 돼지들에게 어떤 도움이 되었나요?"
+    },
+    "stone": {
+      "label": "돌",
+      "aliases": [
+        "stone",
+        "stones",
+        "rock",
+        "rocks",
+        "돌",
+        "돌멩이",
+        "바위"
+      ],
+      "outcome": "stood",
+      "build": "돼지들은 무거운 돌을 모르타르로 단단히 붙이며 서로 도왔어요.",
+      "event": "늑대가 단단히 붙인 돌집을 향해 후 불었지만 집은 튼튼하게 서 있었어요. 세 돼지는 모두 안에서 안전하게 있었어요.",
+      "predict": "돌 벽은 무겁고 단단히 붙어 있어요. 늑대가 돌집을 향해 후 불면 어떻게 될까요?",
+      "reflect": "단단히 붙인 돌집은 튼튼하게 서 있었어요. 튼튼한 재료와 함께한 노력이 돼지들에게 어떤 도움이 되었나요?"
+    }
+  },
+  "endingLines": [
+    {
+      "speakerId": "narrator",
+      "text": "늑대는 튼튼한 집이 끄떡없이 서 있는 것을 보고 다치지 않고 떠났어요."
+    },
+    {
+      "speakerId": "pig3",
+      "text": "우리는 잘 생각하고 함께 집을 지어서 모두가 안전하게 지낼 집을 만들었어!"
+    },
+    {
+      "speakerId": "narrator",
+      "text": "아기돼지 삼형제는 안전한 집에서 함께 지냈어요. 끝."
+    }
+  ]
+}
