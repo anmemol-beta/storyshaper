@@ -198,19 +198,12 @@ function markQuestion() {
   line.replaceChildren(words);
 }
 
-// A page turn fades imgNext in, then swaps it into imgCur. If the child answers mid-turn, clearTimers()
-// would drop that swap and leave the old picture behind, so every path settles a pending turn first.
-let pendingImg = null;
-function settleImage() {
-  if (pendingImg) { imgCur.src = pendingImg; pendingImg = null; }
-  art.classList.remove("turn");
-}
+// Page turns and redraws share one decode-aware crossfade controller.
+const picture = new StoryImageTransition(imgCur, imgNext);
+function settleImage() { picture.settle(); }
 function turnPage(name) {
-  settleImage();
-  if (!name || imgCur.getAttribute("src") === src(name)) return;
-  imgNext.src = pendingImg = src(name);
-  art.classList.remove("reveal", "turn"); void art.offsetWidth; art.classList.add("turn");
-  later(settleImage, 500);
+  if (!name) return;
+  picture.show(src(name), {onError: () => { statusEl.textContent = copy().imageUnavailable; }});
 }
 
 function setAnswers(list) {
@@ -381,32 +374,31 @@ $("retry").onclick = () => {
 // is not cut off by the page turn.
 function redraw() {
   setPhase("GENERATING");
-  imgNext.src = src(current.build);
-  art.classList.remove("reveal", "turn");
   painting.hidden = false;
-  let painted = false, narrated = false;
-  const reveal = () => {
-    if (!painted || !narrated) return;
+  const image = src(current.build), nextScene = current.then;
+  let painted = false, narrated = false, ready = false, failed = false, revealed = false;
+  function reveal() {
+    if (!painted || !narrated || !(ready || failed) || revealed) return;
+    revealed = true;
     painting.hidden = true; bubble.hidden = true;
-    setPhase("UPDATED");
-    art.classList.add("reveal");
-    later(() => {
-      imgCur.src = src(current.build);
-      art.classList.remove("reveal");
-      go(current.then); // re-renders the journey, where the house icon turns into what was built
-    }, 1700);
-  };
+    setPhase("UPDATED", failed ? copy().imageUnavailable : copy().UPDATED);
+    if (failed) later(() => go(nextScene), 1200);
+    else picture.reveal(() => go(nextScene));
+  }
+  picture.prepare(image, {
+    onReady: () => { ready = true; reveal(); },
+    onError: () => { failed = true; reveal(); }
+  });
   readLines(current.lines, () => { narrated = true; reveal(); });
   skipReading = null; skipBtn.disabled = true;
   later(() => { painted = true; reveal(); }, PAINT_MS);
 }
 
 function restart() {
-  clearTimers(); pendingImg = null; state = {}; errors = 0;
-  art.classList.remove("reveal", "turn");
-  imgCur.src = src("intro");
+  clearTimers(); picture.cancel(); state = {}; errors = 0;
   go("intro");
 }
+
 $("restart").onclick = () => { $("confirm").hidden = false; $("restartNo").focus(); }; // "No" first: the safe answer
 $("restartNo").onclick = () => ($("confirm").hidden = true);
 $("restartYes").onclick = () => { showSettings(false); restart(); };
@@ -453,4 +445,4 @@ renderChapters(0);
 setAnswers(null);
 setPhase("COVER", "");
 $("cover").onclick = () => { $("cover").hidden = true; restart(); };
-window.addEventListener("pagehide", clearTimers);
+window.addEventListener("pagehide", () => { clearTimers(); picture.cancel(); });

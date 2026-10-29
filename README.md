@@ -58,7 +58,7 @@ one shared screen for child and parent, Light / Dark / Auto themes (design token
 and a story state machine (`READING → ASKING → LISTENING → HEARD → GENERATING → UPDATED`, plus `ERROR`) in `prototype/app.js`.
 
 The layout is mobile-first and was checked at 320 × 568 up to 430 × 932 phones, on their side, and at the sizes of a Galaxy Z Fold8 (outer and inner screen) and an iPhone Duo (outer and inner screen):
-upright it stacks picture, text and mic; on a wide upright screen the text sits beside the mic; on a short landscape screen it becomes a two-page spread (picture left, story right).
+upright it stacks picture, text and controls; the microphone stays on the right of the control row at every screen size; on a short landscape screen it becomes a two-page spread (picture left, story right).
 A half-folded "Flex" posture (picture on the top half, story and mic on the bottom half) and dual-screen devices are handled through the Viewport Segments media queries at the end of `prototype/style.css`.
 
 ## Meta models we use

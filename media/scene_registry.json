@@ -1,0 +1,18 @@
+{
+  "revision": 1,
+  "images": {
+    "house1/choose": {"file": "empty1.jpg", "cast": ["pig1"]},
+    "house2/choose": {"file": "pig2_empty.jpg", "cast": ["pig2"]},
+    "house3/choose": {"file": "pig3_empty.jpg", "cast": ["pig3"]},
+    "house1/paper/build": {"file": "paper_house.jpg", "cast": ["pig1"]},
+    "house1/straw/build": {"file": "straw_house.jpg", "cast": ["pig1"]},
+    "house1/paper/blown_away": {"file": "wolf_paper.jpg", "cast": ["pig1", "wolf"]},
+    "house1/straw/blown_away": {"file": "wolf_straw.jpg", "cast": ["pig1", "wolf"]},
+    "house2/wood/build": {"file": "wood.jpg", "cast": ["pig2"]},
+    "house2/wood/collapsed": {"file": "wolf_wood.jpg", "cast": ["pig1", "pig2", "wolf"]},
+    "house3/brick/build": {"file": "brick.jpg", "cast": ["pig3"]},
+    "house3/brick/stood": {"file": "wolf_brick.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"]},
+    "ending": {"file": "ending.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"]}
+  },
+  "clips": {}
+}

@@ -1,0 +1,48 @@
+test_http_language_change_cancels_previous_binding_and_guards_hosts (test_media.APITests.test_http_language_change_cancels_previous_binding_and_guards_hosts) ... ok
+test_http_request_poll_cancel_and_untrusted_plan_rejection (test_media.APITests.test_http_request_poll_cancel_and_untrusted_plan_rejection) ... ok
+test_media_startup_has_no_live_key_and_expired_sessions_cannot_poll (test_media.APITests.test_media_startup_has_no_live_key_and_expired_sessions_cannot_poll) ... ok
+test_restart_uses_new_session_and_explicit_cancel_invalidates_old_binding (test_media.APITests.test_restart_uses_new_session_and_explicit_cancel_invalidates_old_binding) ... ok
+test_reviewed_clip_has_video_mime_and_unreviewed_file_remains_hidden (test_media.APITests.test_reviewed_clip_has_video_mime_and_unreviewed_file_remains_hidden) ... ok
+test_static_files_do_not_expose_credentials_or_unregistered_clips (test_media.APITests.test_static_files_do_not_expose_credentials_or_unregistered_clips) ... ok
+test_all_authored_material_combinations_and_ending_normalize (test_media.ContractTests.test_all_authored_material_combinations_and_ending_normalize) ... ok
+test_authored_choice_and_localization_are_valid (test_media.ContractTests.test_authored_choice_and_localization_are_valid) ... ok
+test_build_does_not_reveal_future_event_and_move_uses_destination (test_media.ContractTests.test_build_does_not_reveal_future_event_and_move_uses_destination) ... ok
+test_invalid_or_unaccepted_plans_never_start_media (test_media.ContractTests.test_invalid_or_unaccepted_plans_never_start_media) ... ok
+test_no_false_image_for_unsupported_material_or_pig (test_media.ContractTests.test_no_false_image_for_unsupported_material_or_pig) ... ok
+test_registry_missing_unreviewed_and_escaping_assets_are_not_served (test_media.ContractTests.test_registry_missing_unreviewed_and_escaping_assets_are_not_served) ... ok
+test_advance_and_out_of_order_activation_do_not_restore_old_scene (test_media.JobTests.test_advance_and_out_of_order_activation_do_not_restore_old_scene) ... ok
+test_cancel_and_late_completion_cannot_publish_or_resubmit (test_media.JobTests.test_cancel_and_late_completion_cannot_publish_or_resubmit) ... ok
+test_cancel_does_not_abort_another_sessions_shared_local_work (test_media.JobTests.test_cancel_does_not_abort_another_sessions_shared_local_work) ... ok
+test_error_session_boundary_and_capacity (test_media.JobTests.test_error_session_boundary_and_capacity) ... ok
+test_language_change_during_resolution_shares_inflight_content (test_media.JobTests.test_language_change_during_resolution_shares_inflight_content) ... ok
+test_localization_reuses_reviewed_content_but_rebinds_version (test_media.JobTests.test_localization_reuses_reviewed_content_but_rebinds_version) ... ok
+test_missing_clip_and_missing_image_return_truthful_fallback (test_media.JobTests.test_missing_clip_and_missing_image_return_truthful_fallback) ... ok
+test_new_session_after_cancel_can_display_same_scene (test_media.JobTests.test_new_session_after_cancel_can_display_same_scene) ... FAIL
+test_new_version_after_cancel_does_not_inherit_cancelled_content (test_media.JobTests.test_new_version_after_cancel_does_not_inherit_cancelled_content) ... FAIL
+test_rejected_answer_and_service_error_do_not_schedule_jobs (test_media.JobTests.test_rejected_answer_and_service_error_do_not_schedule_jobs) ... ok
+test_simultaneous_duplicate_requests_call_provider_once (test_media.JobTests.test_simultaneous_duplicate_requests_call_provider_once) ... ok
+test_timeout_ignores_late_success_and_preserves_still_image (test_media.JobTests.test_timeout_ignores_late_success_and_preserves_still_image) ... ok
+test_unregistered_provider_output_never_becomes_ready (test_media.JobTests.test_unregistered_provider_output_never_becomes_ready) ... ok
+
+======================================================================
+FAIL: test_new_session_after_cancel_can_display_same_scene (test_media.JobTests.test_new_session_after_cancel_can_display_same_scene)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\storyshaper\tests\test_media.py", line 196, in test_new_session_after_cancel_can_display_same_scene
+    self.assertTrue(second['apply'])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_new_version_after_cancel_does_not_inherit_cancelled_content (test_media.JobTests.test_new_version_after_cancel_does_not_inherit_cancelled_content)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\storyshaper\tests\test_media.py", line 213, in test_new_version_after_cancel_does_not_inherit_cancelled_content
+    self.assertTrue(second['apply'])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 25 tests in 3.556s
+
+FAILED (failures=2)
