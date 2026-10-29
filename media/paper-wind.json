@@ -1,0 +1,12 @@
+{
+  "sceneKey": "three-pigs.paper.wind.poc",
+  "sourceImage": "prototype/img/wolf_paper.jpg",
+  "prompt": "Locked-off camera, one continuous gentle watercolor storybook shot. The gray wolf on the left exhales steadily toward the folded paper house on the right. Loose paper roof pieces flutter and drift to the right in the breeze. The pink pig in the foreground stays safely in place and blinks. Preserve the existing characters, their clothes, colors, proportions, garden and painted texture throughout. Keep the movement small and playful.",
+  "acceptance": [
+    "The same wolf and pig remain recognizable; no new characters or changed anatomy.",
+    "Paper pieces flutter in the direction of the wolf's breath; the house does not melt or burn.",
+    "The pig stays unharmed and the scene remains suitable for a gentle picture book.",
+    "A single stable shot preserves the original watercolor style.",
+    "A human reviews the complete clip before it becomes a playable app asset."
+  ]
+}
