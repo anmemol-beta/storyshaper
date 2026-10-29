@@ -1,0 +1,57 @@
+{
+  "dateKst": "2026-10-29",
+  "branch": "codex/integrate-media-ui",
+  "base": "18f92d5",
+  "mergedBranches": {
+    "img2vid": "2934c07",
+    "ui_mvp": "b193c6a"
+  },
+  "python": "3.13.3",
+  "node": "v22.14.0",
+  "commands": [
+    {
+      "command": "python -m unittest discover -s tests -v",
+      "tests": 81,
+      "failures": 0,
+      "exitCode": 0,
+      "seconds": 4.992,
+      "log": "python.log"
+    },
+    {
+      "command": "node --test tests/book-ui.test.cjs tests/agent-ui.test.cjs tests/image-transitions.test.cjs",
+      "tests": 35,
+      "failures": 0,
+      "exitCode": 0,
+      "milliseconds": 117.3444,
+      "log": "ui.log"
+    }
+  ],
+  "browser": {
+    "viewport": "1280x720",
+    "observed": "start story, skip intro, choose paper, completed house and subsequent wolf scene",
+    "screenshot": "ui-preview.png",
+    "frameRate": "unmeasured",
+    "fold8": "unexecuted"
+  },
+  "externalApiCalls": 0,
+  "actualModel": null,
+  "campaign": false,
+  "sourceHashes": {
+    "media\\assets.py": "1b7b9951892f8f3b7dc13bc7a58886c436ee362d6dccc4dd7a59a8d4f0c30ad8",
+    "media\\contracts.py": "d9fe931937255f8b2307153ed3887d9ddeb1d71ded44ffc72f96522acaeb35c3",
+    "media\\jobs.py": "a8981365b9a3dece22f544cb0bd64bd4e29b8c48545cb8b40941d66c68ff99d6",
+    "media\\prepare.py": "dac7ecf0314a27c0dddcdec8f1e19a66ad2e3e6a10914a3beac2ca3cc9a179fb",
+    "media\\server.py": "420f35e8e1cf344688ea1ff56afc911203e0c6a8c9126064d8126342ddb11795",
+    "media\\__init__.py": "21178861cc8bc672e8eb1b16cd1420ef63ee43a506bac869c62e08b57c9863d2",
+    "media\\scene_registry.json": "ccac27365ad92b92604c3e32421804b318cbd2c086a06bd7e6f9fb1ef0ebacaa",
+    "prototype\\app.js": "5b1365279c515961f55eefc88b975a9c27c063545970932edefaa3cadce5baf7",
+    "prototype\\style.css": "9a4b1ac4e9545995a388a399b67fd7fdcc4a3d3e6fca6cc00058f4796b9b3f19",
+    "prototype\\index.html": "64996f6c890064fd302276920365b0e9af08c346990e126170a9904db44c92f0",
+    "prototype\\book-i18n.js": "5682ce592a39d128c1c05f023b889f474d86761a1a49c5c9d16ae4cba82c99f6",
+    "prototype\\image-transitions.js": "ac02e6c218c935cb48512a419b6c28ff8b18512e3e6f145ad246eeadaa4789eb",
+    "tests\\test_media.py": "9b910f548129550d49af77d9bcae0183e1565bb141a876f2a0af4122d5830705",
+    "tests\\book-ui.test.cjs": "19587c7fd323ef256a0abe312e2d5244a09cfbc80f4f7702566e2c02d8eb653d",
+    "tests\\agent-ui.test.cjs": "4d2add6212561f6f930f8b8b7f0b901e062952584fb3468963299e559c5ff566",
+    "tests\\image-transitions.test.cjs": "09c1cc6561b8905dd7074b60dd6a5523e8d21699b676ca4f4ef360f7f6c08902"
+  }
+}

@@ -1,0 +1,185 @@
+TAP version 13
+# Subtest: changing from an active mock session to live starts a real live session
+ok 1 - changing from an active mock session to live starts a real live session
+  ---
+  duration_ms: 5.4755
+  ...
+# Subtest: mode selection before a session only changes the selected mode
+ok 2 - mode selection before a session only changes the selected mode
+  ---
+  duration_ms: 1.5384
+  ...
+# Subtest: refreshing connection discovers a newly configured live key
+ok 3 - refreshing connection discovers a newly configured live key
+  ---
+  duration_ms: 0.9514
+  ...
+# Subtest: connection refresh does not disguise an active mock session as live
+ok 4 - connection refresh does not disguise an active mock session as live
+  ---
+  duration_ms: 1.0314
+  ...
+# Subtest: en: three misses show numbered picture cards and the next question resets misses
+ok 5 - en: three misses show numbered picture cards and the next question resets misses
+  ---
+  duration_ms: 26.2958
+  ...
+# Subtest: en: every prepared question has a fallback card without adding story branches
+ok 6 - en: every prepared question has a fallback card without adding story branches
+  ---
+  duration_ms: 2.235
+  ...
+# Subtest: ko: three misses show numbered picture cards and the next question resets misses
+ok 7 - ko: three misses show numbered picture cards and the next question resets misses
+  ---
+  duration_ms: 1.3626
+  ...
+# Subtest: ko: every prepared question has a fallback card without adding story branches
+ok 8 - ko: every prepared question has a fallback card without adding story branches
+  ---
+  duration_ms: 1.6324
+  ...
+# Subtest: changing language preserves misses, visible fallback cards and chosen materials
+ok 9 - changing language preserves misses, visible fallback cards and chosen materials
+  ---
+  duration_ms: 1.5087
+  ...
+# Subtest: a heard answer waits 2.5 seconds and retry cancels it even across a language change
+ok 10 - a heard answer waits 2.5 seconds and retry cancels it even across a language change
+  ---
+  duration_ms: 1.4842
+  ...
+# Subtest: a heard answer proceeds after its confirmation interval when it is not cancelled
+ok 11 - a heard answer proceeds after its confirmation interval when it is not cancelled
+  ---
+  duration_ms: 1.343
+  ...
+# Subtest: English clips reuse one audio element and Korean never starts an English clip
+ok 12 - English clips reuse one audio element and Korean never starts an English clip
+  ---
+  duration_ms: 1.6404
+  ...
+# Subtest: slow redraw waits for narration completion before revealing and turning the page
+ok 13 - slow redraw waits for narration completion before revealing and turning the page
+  ---
+  duration_ms: 1.5578
+  ...
+# Subtest: redraw waits for a slow picture after paint and narration finish
+ok 14 - redraw waits for a slow picture after paint and narration finish
+  ---
+  duration_ms: 1.8421
+  ...
+# Subtest: failed redraw keeps the old picture and can continue the story
+ok 15 - failed redraw keeps the old picture and can continue the story
+  ---
+  duration_ms: 1.1988
+  ...
+# Subtest: skip ignores callbacks and play rejections from the skipped reading
+ok 16 - skip ignores callbacks and play rejections from the skipped reading
+  ---
+  duration_ms: 1.1673
+  ...
+# Subtest: pagehide stops narration and prevents delayed callbacks from advancing the story
+ok 17 - pagehide stops narration and prevents delayed callbacks from advancing the story
+  ---
+  duration_ms: 1.1326
+  ...
+# Subtest: story text and answer labels render as text instead of HTML
+ok 18 - story text and answer labels render as text instead of HTML
+  ---
+  duration_ms: 1.1363
+  ...
+# Subtest: a language change reopens the translated heard answer for a full confirmation interval
+ok 19 - a language change reopens the translated heard answer for a full confirmation interval
+  ---
+  duration_ms: 1.2188
+  ...
+# Subtest: a translated heard answer commits only after its new full confirmation interval
+ok 20 - a translated heard answer commits only after its new full confirmation interval
+  ---
+  duration_ms: 1.6798
+  ...
+# Subtest: switching language during a simulated demo answer also requires confirmation
+ok 21 - switching language during a simulated demo answer also requires confirmation
+  ---
+  duration_ms: 1.2662
+  ...
+# Subtest: Korean browser narration waits for real onend before starting the next line
+ok 22 - Korean browser narration waits for real onend before starting the next line
+  ---
+  duration_ms: 1.1003
+  ...
+# Subtest: Korean redraw waits for real browser narration completion
+ok 23 - Korean redraw waits for real browser narration completion
+  ---
+  duration_ms: 1.145
+  ...
+# Subtest: browser narration errors fall back once and ignore a later onend
+ok 24 - browser narration errors fall back once and ignore a later onend
+  ---
+  duration_ms: 1.1898
+  ...
+# Subtest: browser narration unavailable falls back to estimated reading without hanging
+ok 25 - browser narration unavailable falls back to estimated reading without hanging
+  ---
+  duration_ms: 1.7503
+  ...
+# Subtest: browser narration throw falls back to estimated reading without hanging
+ok 26 - browser narration throw falls back to estimated reading without hanging
+  ---
+  duration_ms: 1.1703
+  ...
+# Subtest: browser narration without callbacks times out after 30 seconds and ignores late completion
+ok 27 - browser narration without callbacks times out after 30 seconds and ignores late completion
+  ---
+  duration_ms: 1.0832
+  ...
+# Subtest: stopping browser narration invalidates onend and onerror callbacks
+ok 28 - stopping browser narration invalidates onend and onerror callbacks
+  ---
+  duration_ms: 1.0667
+  ...
+# Subtest: translated confirmation preserves the selected label when two answers share one target
+ok 29 - translated confirmation preserves the selected label when two answers share one target
+  ---
+  duration_ms: 1.1216
+  ...
+# Subtest: changing language invalidates callbacks from the previous browser narration
+ok 30 - changing language invalidates callbacks from the previous browser narration
+  ---
+  duration_ms: 1.1264
+  ...
+# Subtest: new bitmap is decoded before fading, and completion swaps layers without changing visible src
+ok 31 - new bitmap is decoded before fading, and completion swaps layers without changing visible src
+  ---
+  duration_ms: 1.5338
+  ...
+# Subtest: cancelled decode and stale load callbacks cannot display an older request
+ok 32 - cancelled decode and stale load callbacks cannot display an older request
+  ---
+  duration_ms: 0.6423
+  ...
+# Subtest: a failed image or a load timeout keeps the last good picture and calls fallback once
+ok 33 - a failed image or a load timeout keeps the last good picture and calls fallback once
+  ---
+  duration_ms: 1.9567
+  ...
+# Subtest: rapid page changes settle the prepared layer but never run the old scene callback
+ok 34 - rapid page changes settle the prepared layer but never run the old scene callback
+  ---
+  duration_ms: 0.6366
+  ...
+# Subtest: reduced motion and a repeated current picture complete without a fade delay
+ok 35 - reduced motion and a repeated current picture complete without a fade delay
+  ---
+  duration_ms: 0.6315
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 117.3444

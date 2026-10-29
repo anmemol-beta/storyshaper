@@ -143,14 +143,11 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
 /* the book: picture on top, text underneath, one shared surface. It stretches to fill a phone's height. */
 .book { container-type: inline-size; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg-story); border: 1px solid var(--border-soft); border-radius: var(--radius-card); box-shadow: var(--shadow-book); overflow: hidden; transition: background-color .2s, border-color .2s; }
 .art { position: relative; flex: none; overflow: hidden; aspect-ratio: 3 / 2; background: var(--bg-app); }
-.art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; /* never filtered: paintings keep their own colors in both themes */ }
-#imgNext { clip-path: inset(0 100% 0 0); }
-.art.turn #imgNext { clip-path: none; animation: fadein .45s ease forwards; }
-@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
-.art.reveal #imgNext { animation: wipe 1.6s cubic-bezier(.6,.1,.3,1) forwards; }
-@keyframes wipe { to { clip-path: inset(0 0 0 0); } }
+.art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; /* paintings keep their own colors in both themes */ }
+.art img.is-current { opacity: 1; }
+.art img.is-entering { opacity: 1; z-index: 1; transition: opacity .42s cubic-bezier(.22, .61, .36, 1); }
 /* the watercolor edge melts into the paper */
-.art::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 22px 8px var(--bg-story); }
+.art::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 22px 8px var(--bg-story); }
 
 /* GENERATING: the old picture stays; soft stars twinkle and a short note says what is happening. No percentages. */
 .painting { position: absolute; inset: 0; pointer-events: none; z-index: 2; }

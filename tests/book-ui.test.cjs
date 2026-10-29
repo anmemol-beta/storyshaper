@@ -68,6 +68,7 @@ function harness(language = 'en') {
   element('voice').checked = true;
   element('speed').value = '0.85';
   element('imgCur').src = 'img/intro.jpg';
+  for (const id of ['imgCur', 'imgNext']) { element(id).complete = true; element(id).naturalWidth = 1024; }
   const root = new Element('html');
   const languageButtons = ['en', 'ko'].map(value => {
     const button = new Element('button');
@@ -109,7 +110,7 @@ function harness(language = 'en') {
     performance: {now: () => now},
     setTimeout, clearTimeout: id => timers.delete(id)
   });
-  for (const script of ['story.js', 'book-i18n.js', 'audio/lines.js', 'app.js']) {
+  for (const script of ['story.js', 'book-i18n.js', 'audio/lines.js', 'image-transitions.js', 'app.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../prototype', script), 'utf8'), context, {filename: script});
   }
   const run = source => vm.runInContext(source, context);
@@ -239,6 +240,36 @@ test('slow redraw waits for narration completion before revealing and turning th
   assert.equal(h.snapshot().phase, 'UPDATED');
   h.tick(1700);
   assert.equal(h.snapshot().currentKey, 'd1');
+});
+
+test('redraw waits for a slow picture after paint and narration finish', () => {
+  const h = harness();
+  h.element('imgNext').complete = false;
+  h.element('imgNext').naturalWidth = 0;
+  h.run("go('b1paper')");
+  h.plays.at(-1).ended();
+  h.tick(5000);
+  assert.equal(h.snapshot().phase, 'GENERATING');
+  h.element('imgNext').naturalWidth = 1024;
+  h.element('imgNext').onload();
+  assert.equal(h.snapshot().phase, 'UPDATED');
+  h.tick(490);
+  assert.equal(h.snapshot().currentKey, 'd1');
+  assert.equal(h.run('picture.current.getAttribute("src")'), 'img/paper_house.jpg');
+});
+
+test('failed redraw keeps the old picture and can continue the story', () => {
+  const h = harness();
+  h.element('imgNext').complete = false;
+  h.run("go('b1paper')");
+  h.element('imgNext').onerror();
+  h.plays.at(-1).ended();
+  h.tick(5000);
+  assert.equal(h.snapshot().phase, 'UPDATED');
+  assert.match(h.element('status').textContent, /previous picture/);
+  h.tick(1200);
+  assert.equal(h.snapshot().currentKey, 'd1');
+  assert.equal(h.run('picture.current.getAttribute("src")'), 'img/intro.jpg');
 });
 
 test('skip ignores callbacks and play rejections from the skipped reading', () => {
