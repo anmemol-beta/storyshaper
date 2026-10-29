@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f5ee">
+  <title>Story agent lab · StoryShaper</title>
+  <link rel="stylesheet" href="agent.css">
+  <script src="agent-i18n.js" defer></script>
+  <script src="agent.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#questionTitle" data-copy>Skip to the current question</a>
+  <div class="lab">
+    <header class="topbar">
+      <a class="wordmark" href="index.html"><span aria-hidden="true">✿</span> StoryShaper</a>
+      <div class="header-tools">
+        <div class="language-switch" role="group" aria-label="Display language" data-copy-aria-label>
+          <button type="button" data-language="en" lang="en" aria-pressed="true">English</button>
+          <button type="button" data-language="ko" lang="ko" aria-pressed="false">한국어</button>
+        </div>
+        <a class="back-link" href="index.html" data-copy>Fixed story demo ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <div class="introduction">
+        <div>
+          <p class="eyebrow" data-copy>Developer prototype · Text input</p>
+          <h1 data-copy>Story agent lab</h1>
+          <p class="lead" data-copy>Try an answer. See how the next scene and question follow it.</p>
+        </div>
+        <span class="mode-badge" id="modeBadge">Checking connection…</span>
+      </div>
+
+      <section class="session-bar" aria-label="Session controls" data-copy-aria-label>
+        <div class="mode-control">
+          <label for="mode" data-copy>Mode · changing starts a new session</label>
+          <select id="mode" disabled>
+            <option value="mock" data-copy>Deterministic mock</option>
+            <option value="live" disabled data-copy>Live model</option>
+          </select>
+        </div>
+        <p class="connection-note" id="configNote">Connecting to the local agent server…</p>
+        <button class="button" id="refreshConfig" type="button" data-copy>Refresh connection</button>
+        <button class="button primary" id="startButton" type="button" disabled>Start session</button>
+      </section>
+
+      <div class="notice" id="connectionError" role="alert" hidden>
+        <p id="connectionErrorText"></p>
+        <button class="button" id="reconnectButton" type="button" data-copy>Reconnect</button>
+      </div>
+
+      <div class="workspace">
+        <section class="story-card" aria-labelledby="storyTitle" id="storyCard" aria-busy="false">
+          <div class="story-heading">
+            <div>
+              <p class="eyebrow" data-copy>The Three Little Pigs</p>
+              <h2 id="storyTitle" data-copy>Your version of the story</h2>
+            </div>
+            <span class="decision" id="decisionBadge">Not started</span>
+          </div>
+
+          <figure class="reference-art">
+            <img src="img/intro.jpg" alt="Reference illustration of the three little pigs in a sunny woodland." data-copy-alt>
+            <figcaption data-copy>Original reference illustration · not generated for this answer</figcaption>
+          </figure>
+
+          <div class="narrative" id="narrative" aria-label="Current story passage" data-copy-aria-label>
+            <p class="empty-note" data-copy>Start a session to choose a material, explore what happens, and help the pigs find a safe home.</p>
+          </div>
+
+          <section class="question-panel" aria-labelledby="questionTitle">
+            <p class="eyebrow" id="questionLabel">Current question</p>
+            <h3 id="questionTitle" tabindex="-1">The story is ready when you are.</h3>
+            <p class="question-intent" id="questionIntent" hidden></p>
+          </section>
+
+          <form id="answerForm">
+            <label class="input-label" for="answer" data-copy>Your test answer</label>
+            <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
+            <div class="answer-footer">
+              <p class="field-hint" id="answerHint" data-copy>Text input is for testing the story agent. Voice and media generation are separate integrations.</p>
+              <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
+            </div>
+          </form>
+
+          <fieldset class="choice-panel" id="choicePanel" hidden>
+            <legend data-copy>Choose a story-safe option</legend>
+            <p data-copy>Tap an option, or try another answer above.</p>
+            <div class="choice-list" id="choices"></div>
+          </fieldset>
+
+          <p class="request-status" id="requestStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div class="notice" id="requestError" role="alert" hidden>
+            <p id="requestErrorText"></p>
+            <button class="button" id="retryButton" type="button" hidden>Retry this request</button>
+          </div>
+        </section>
+
+        <aside class="sidebar" aria-label="Test information" data-copy-aria-label>
+          <section class="info-card question-design">
+            <span class="mini-icon" aria-hidden="true">↳</span>
+            <h2 data-copy>A fixed goal. A question that fits.</h2>
+            <p data-copy>The learning intent and key events are authored. Question wording follows the accepted story state: a cookie wall invites a different question from a wooden wall.</p>
+            <p class="small" data-copy>The agent can adapt the conversation while the server checks the permitted changes and story progression.</p>
+          </section>
+
+          <section class="info-card" aria-labelledby="runTitle">
+            <h2 id="runTitle" data-copy>Current run</h2>
+            <dl class="run-facts">
+              <div><dt data-copy>Scene</dt><dd id="sceneValue">—</dd></div>
+              <div><dt data-copy>Version</dt><dd id="versionValue">—</dd></div>
+              <div><dt data-copy>Question retries</dt><dd id="attemptsValue">—</dd></div>
+              <div><dt data-copy>Input mode</dt><dd id="inputModeValue">Free text</dd></div>
+            </dl>
+            <p class="small" id="reasonValue">No session yet.</p>
+            <details class="inspector">
+              <summary data-copy>Inspect story state</summary>
+              <pre id="stateJson">No state yet.</pre>
+            </details>
+            <details class="inspector">
+              <summary data-copy>Inspect media handoff</summary>
+              <p class="small" data-copy>Validated data for image, video, and narration services. This lab does not generate media.</p>
+              <pre id="mediaJson">No media plan yet.</pre>
+            </details>
+            <details class="inspector">
+              <summary data-copy>Inspect diagnostics</summary>
+              <pre id="diagnosticsJson">No diagnostics yet.</pre>
+            </details>
+          </section>
+        </aside>
+      </div>
+
+      <section class="history-card" aria-labelledby="historyTitle">
+        <div class="history-heading">
+          <div>
+            <p class="eyebrow" data-copy>This browser session only</p>
+            <h2 id="historyTitle" data-copy>Turn history</h2>
+          </div>
+          <span class="small" id="historyCount">0 turns</span>
+        </div>
+        <p class="empty-note" id="historyEmpty" data-copy>Your questions, test answers, and validated responses will appear here.</p>
+        <p class="small history-language-note" data-copy>Earlier story passages and your answers stay in their original language.</p>
+        <ol class="history-list" id="history"></ol>
+      </section>
+    </main>
+
+    <footer class="page-footer" data-copy>Prototype for checking story behavior. Educational quality and age-specific personas will be evaluated separately.</footer>
+  </div>
+</body>
+</html>
