@@ -4,7 +4,7 @@
    Layout is mobile-first. The base rules are a small phone held upright (320px wide).
    Layers on top, in this order:
      1. >= 440px   bigger phones, and the narrow cover/outer screens of foldables
-     2. >= 700px   wide upright screens (unfolded foldables, tablets): the text sits beside the mic
+     2. >= 700px   wide upright screens (unfolded foldables, tablets): larger type and controls
      3. landscape and <= 760px tall   two-page spread: picture left, text + mic right (phones on their side, small unfolded screens)
      4. folded-hinge hooks (Viewport Segments): half-open "Flex" fold, and dual-screen devices */
 :root {
@@ -185,9 +185,9 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
 .line mark { color: var(--text-main); background: linear-gradient(transparent 52%, var(--hl) 52%) no-repeat left / 0% 100%; animation: pen .9s ease-out forwards; padding: 0 .1em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 @keyframes pen { to { background-size: 100% 100%; } }
 
-/* mic on the left, its words (and the retry button) on the right */
-.mic-col { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 14px; row-gap: 6px; }
-.mic { grid-row: 1 / span 2; position: relative; width: var(--mic); aspect-ratio: 1; border-radius: var(--radius-action); border: 0; background: var(--action-primary); color: var(--on-action-primary); display: grid; place-items: center; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: background-color .2s; }
+/* Shared control dock: status/retry on the left, microphone on the right at every size. */
+.mic-col { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 14px; row-gap: 6px; }
+.mic { grid-column: 2; grid-row: 1 / span 2; position: relative; width: var(--mic); aspect-ratio: 1; border-radius: var(--radius-action); border: 0; background: var(--action-primary); color: var(--on-action-primary); display: grid; place-items: center; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: background-color .2s; }
 .mic:disabled { background: color-mix(in srgb, var(--action-primary) 22%, var(--bg-story)); color: var(--text-subtle); cursor: default; }
 .mic:focus-visible { outline-offset: 5px; }
 .mic .ico { width: 46%; height: 46%; }
@@ -205,11 +205,11 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
 @keyframes ping { from { transform: scale(1); opacity: .8; } to { transform: scale(1.5); opacity: 0; } }
 
 /* the state is also written in words, never by color alone */
-.status { grid-column: 2; justify-self: start; margin: 0; min-height: 1.6em; padding: 2px 12px; border-radius: 16px; font-size: 1rem; font-weight: 500; line-height: 1.35; color: var(--text-subtle); transition: background-color .2s; }
+.status { grid-column: 1; grid-row: 1; justify-self: start; margin: 0; min-height: 1.6em; padding: 2px 12px; border-radius: 16px; font-size: 1rem; font-weight: 500; line-height: 1.35; color: var(--text-subtle); transition: background-color .2s; }
 .status:empty { padding: 0; }
 [data-state="ASKING"] .status { background: var(--hl); color: var(--text-main); }
 [data-state="LISTENING"] .status, [data-state="ERROR"] .status, [data-state="HEARD"] .status { background: var(--accent-answer); color: var(--text-main); }
-.retry { grid-column: 2; justify-self: start; display: none; min-height: 44px; padding: 0 20px; border: 2px solid var(--action-primary); background: transparent; color: var(--text-main); border-radius: var(--radius-action); font-size: 1rem; font-weight: 600; cursor: pointer; }
+.retry { grid-column: 1; grid-row: 2; justify-self: start; display: none; min-height: 44px; padding: 0 20px; border: 2px solid var(--action-primary); background: transparent; color: var(--text-main); border-radius: var(--radius-action); font-size: 1rem; font-weight: 600; cursor: pointer; }
 [data-state="ERROR"] .retry { display: inline-block; }
 .again { grid-column: 1 / -1; justify-self: center; min-height: 56px; padding: 0 28px; border: 0; border-radius: var(--radius-action); background: var(--action-primary); color: var(--on-action-primary); font-family: var(--font-story); font-size: 1.25rem; cursor: pointer; }
 [data-state="DONE"] .mic, [data-state="DONE"] .status { display: none; }
@@ -256,13 +256,11 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
   .shell:has(.demo:not([hidden])) { --chrome: 395px; }
   .logo { font-size: 1.6rem; }
   .book { flex: none; }
-  .text-panel { flex: none; flex-direction: row; align-items: center; gap: 18px; padding: clamp(14px, 2.4cqi, 26px) clamp(16px, 3cqi, 34px); }
+  .text-panel { flex: none; gap: 18px; padding: clamp(14px, 2.4cqi, 26px) clamp(16px, 3cqi, 34px); }
   .line { font-size: clamp(24px, 3.4cqi, 34px); }
   .cover { flex-direction: row; justify-content: space-between; gap: 18px; padding: 0 clamp(16px, 3cqi, 34px); }
   .cover span { text-align: left; font-size: clamp(28px, 4.4cqi, 48px); }
-  .mic-col { width: clamp(140px, 19cqi, 210px); grid-template-columns: 1fr; justify-items: center; row-gap: 8px; }
-  .mic { grid-row: auto; }
-  .status, .retry { grid-column: 1; justify-self: center; text-align: center; font-size: clamp(16px, 1.7cqi, 20px); }
+  .status, .retry { font-size: clamp(16px, 1.7cqi, 20px); }
   .demo { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px clamp(16px, 3cqi, 34px) 14px; }
   .answers { flex-wrap: wrap; overflow: visible; }
   .journey li:not(:last-child) { margin-right: clamp(14px, 3vw, 30px); }
