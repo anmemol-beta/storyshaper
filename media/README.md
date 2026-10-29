@@ -1,6 +1,10 @@
 # Image-to-video POC
 
-Status: local request preparation only. No generated video yet.
+Status: stages 1–2 implemented as a local-only media contract, asset resolver, job manager and HTTP API. No generated video yet.
+
+Run `python -m media.server --port 8000`. See [the API guide](API.md) for requests, polling, cancellation, fallback behavior and client integration. The CLI does not load credentials or call external APIs.
+
+See the [agent integration plan](integration-plan.md) for the proposed MediaSpec, action routing and staged PRs based on current main.
 
 ## Initial approach
 
