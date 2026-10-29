@@ -187,6 +187,76 @@ class JobTests(unittest.TestCase):
         self.assertIsNone(result['video'])
         self.assertEqual(gate.calls, 1)
 
+    def test_new_session_after_cancel_can_display_same_scene(self):
+        manager, gate = self.manager(gated=True)
+        first = manager.request(self.event)
+        self.assertTrue(gate.started.wait(1))
+        manager.cancel(first['jobId'], 'session')
+        second = manager.request(snapshots(session='new-session')[3])
+        self.assertTrue(second['apply'])
+        self.assertIsNotNone(second['image'])
+        self.assertNotEqual(second['status'], 'cancelled')
+        gate.release.set()
+        self.assertEqual(wait_job(manager, second)['status'], 'ready')
+        self.assertEqual(gate.calls, 2)
+        replay = manager.request(self.event)
+        self.assertEqual(replay['jobId'], first['jobId'])
+        self.assertFalse(replay['apply'])
+
+    def test_new_version_after_cancel_does_not_inherit_cancelled_content(self):
+        manager, gate = self.manager(gated=True)
+        first = manager.request(self.event)
+        self.assertTrue(gate.started.wait(1))
+        manager.cancel(first['jobId'], 'session')
+        translated = self.engine.change_language(self.event, 'ko')
+        second = manager.request(translated)
+        self.assertTrue(second['apply'])
+        self.assertIsNotNone(second['image'])
+        gate.release.set()
+        self.assertEqual(wait_job(manager, second)['status'], 'ready')
+
+    def test_old_completion_timeout_and_recancel_cannot_change_replacement_work(self):
+        manager, _ = self.manager()
+        registry = self.registry
+        class SeparateGates:
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.started = [threading.Event(), threading.Event()]
+                self.release = [threading.Event(), threading.Event()]
+                self.calls = 0
+
+            def resolve(self, spec, cancelled):
+                with self.lock:
+                    index = self.calls
+                    self.calls += 1
+                self.started[index].set()
+                self.release[index].wait(3)
+                return registry.clip(spec)
+        provider = SeparateGates()
+        manager.provider = provider
+        try:
+            first = manager.request(self.event)
+            self.assertTrue(provider.started[0].wait(1))
+            old_work = manager.jobs[first['jobId']]['work']
+            manager.cancel(first['jobId'], 'session')
+            second = manager.request(snapshots(session='replacement')[3])
+            self.assertTrue(provider.started[1].wait(1))
+            provider.release[0].set()
+            # The only free worker runs this barrier after the old callback finishes.
+            manager.pool.submit(lambda: None).result(timeout=1)
+            manager._expire(old_work)
+            manager.cancel(first['jobId'], 'session')
+            current = manager.get(second['jobId'], 'replacement')
+            self.assertEqual(current['status'], 'running')
+            self.assertTrue(current['apply'])
+            self.assertIsNone(current['video'])
+            provider.release[1].set()
+            self.assertEqual(wait_job(manager, second)['status'], 'ready')
+            self.assertEqual(provider.calls, 2)
+        finally:
+            for event in provider.release:
+                event.set()
+
     def test_advance_and_out_of_order_activation_do_not_restore_old_scene(self):
         manager, gate = self.manager(gated=True)
         job = manager.request(self.event)
@@ -361,6 +431,29 @@ class APITests(unittest.TestCase):
         _, cancelled = self.http('POST', '/api/media/cancel', {
             'jobId': old['jobId'], 'sessionId': self.state['sessionId']})
         self.assertFalse(cancelled['apply'])
+
+    def test_http_new_session_gets_image_after_old_session_cancel(self):
+        self.app.media.close()
+        registry = AssetRegistry()
+        gate = GateProvider(registry)
+        self.app.media = MediaJobs(registry, provider=gate)
+        try:
+            _, old = self.http('POST', '/api/media/jobs', self.binding())
+            self.assertTrue(gate.started.wait(1))
+            self.http('POST', '/api/media/cancel', {
+                'sessionId': self.state['sessionId'], 'jobId': old['jobId']})
+            _, fresh = self.http('POST', '/api/sessions', {'mode': 'mock'})
+            _, built = self.http('POST', '/api/answer', {
+                'sessionId': fresh['sessionId'], 'version': fresh['version'],
+                'questionId': fresh['question']['id'], 'requestId': 'fresh-answer', 'answer': 'paper'})
+            status, job = self.http('POST', '/api/media/jobs', {
+                key: built[key] for key in ('sessionId', 'sceneId', 'version')})
+            self.assertEqual(status, 200)
+            self.assertTrue(job['apply'])
+            self.assertEqual(job['image']['url'], '/prototype/img/paper_house.jpg')
+            self.assertNotEqual(job['status'], 'cancelled')
+        finally:
+            gate.release.set()
 
     def test_media_startup_has_no_live_key_and_expired_sessions_cannot_poll(self):
         self.assertFalse(self.app.config()['liveAvailable'])

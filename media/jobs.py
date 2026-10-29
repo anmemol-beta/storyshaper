@@ -52,25 +52,30 @@ class MediaJobs:
                 raise JobError('job_limit')
             key = self.registry.content_key(spec)
             job_id = uuid.uuid4().hex
-            reused = key in self.works
+            # Only a new binding may replace cancelled content. The requests map
+            # above still preserves the old binding's dedup/cancellation tombstone.
+            reused = key in self.works and self.works[key]['status'] != 'cancelled'
+            if not reused:
+                self.works[key] = {'spec': spec, 'status': 'queued', 'video': None,
+                                   'reason': None, 'event': threading.Event(), 'timer': None}
+            work = self.works[key]
             job = {'id': job_id, 'spec': spec, 'key': key,
-                   'image': self.registry.image(spec), 'cancelled': None, 'reused': reused}
+                   'image': self.registry.image(spec), 'cancelled': None, 'reused': reused,
+                   'work': work}
             self.jobs[job_id] = job
             self.requests[spec.token] = job_id
             if not reused:
-                work = {'spec': spec, 'status': 'queued', 'video': None, 'reason': None,
-                        'event': threading.Event(), 'timer': None}
-                self.works[key] = work
-                timer = threading.Timer(self.timeout, self._expire, args=(key,))
+                # Workers and timers hold this exact work instance. A late callback
+                # from a cancelled generation must never resolve the replacement.
+                timer = threading.Timer(self.timeout, self._expire, args=(work,))
                 timer.daemon = True
                 work['timer'] = timer
                 timer.start()
-                self.pool.submit(self._run, key)
+                self.pool.submit(self._run, work)
             return self._view(job)
 
-    def _run(self, key):
+    def _run(self, work):
         with self.lock:
-            work = self.works[key]
             if work['status'] != 'queued':
                 return
             work['status'] = 'running'
@@ -93,9 +98,8 @@ class MediaJobs:
             with self.lock:
                 work['timer'].cancel()
 
-    def _expire(self, key):
+    def _expire(self, work):
         with self.lock:
-            work = self.works[key]
             if work['status'] in {'queued', 'running'}:
                 work['status'], work['reason'] = 'failed', 'timeout'
                 work['event'].set()
@@ -112,10 +116,10 @@ class MediaJobs:
             self.get(job_id, session_id)
             job = self.jobs[job_id]
             job['cancelled'] = 'user_cancelled'
+            work = job['work']
             # One client cannot cancel another session's binding to public local content.
-            if not any(other['key'] == job['key'] and not other['cancelled']
+            if not any(other['work'] is work and not other['cancelled']
                        for other in self.jobs.values()):
-                work = self.works[job['key']]
                 if work['status'] in {'queued', 'running'}:
                     work['event'].set()
                     work['timer'].cancel()
@@ -123,7 +127,7 @@ class MediaJobs:
             return self._view(job)
 
     def _view(self, job):
-        spec, work = job['spec'], self.works[job['key']]
+        spec, work = job['spec'], job['work']
         current = self.current.get(spec.session_id) == spec.token
         status = 'cancelled' if job['cancelled'] else work['status']
         applicable = current and status != 'cancelled'
