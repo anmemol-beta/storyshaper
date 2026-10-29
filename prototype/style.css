@@ -96,12 +96,22 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
 
 /* ---------- base: small phone, upright ---------- */
 .shell { flex: 1; width: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.demo-notice { flex-shrink: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 18px; padding: 9px 14px; margin-bottom: 8px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--bg-story); color: var(--text-subtle); font-size: .8rem; }
+.demo-notice a { display: inline-block; padding: 7px 12px; border-radius: var(--radius-action); background: var(--action-primary); color: var(--on-action-primary); font-weight: 700; text-decoration: none; }
 
 /* top bar */
 .bar { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
 .logo { font-family: var(--font-title); font-size: 1.3rem; letter-spacing: .01em; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .logo span { color: var(--accent-question); }
 .tools { display: flex; align-items: center; gap: 2px; }
+.language-switch { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border-soft); border-radius: var(--radius-action); }
+.language-switch button { min-height: 38px; padding: 0 9px; border: 0; border-radius: var(--radius-action); background: transparent; color: var(--text-subtle); font-size: .8rem; cursor: pointer; white-space: nowrap; }
+.language-switch button[aria-pressed="true"] { background: var(--action-primary); color: var(--on-action-primary); font-weight: 700; }
+.lab-link { text-decoration: none; font-size: .68rem; font-weight: 700; line-height: 1.2; text-align: center; }
+@media (max-width: 499px) {
+  .bar { flex-wrap: wrap; gap: 4px; }
+  .tools { margin-left: auto; }
+}
 .tool { width: 44px; height: 44px; border-radius: var(--radius-action); border: 1px solid transparent; background: transparent; display: grid; place-items: center; cursor: pointer; color: var(--text-subtle); transition: background-color .2s, color .2s; }
 .tool:hover, .tool[aria-expanded="true"] { background: var(--bg-story); border-color: var(--border-soft); color: var(--text-main); }
 .tool svg { width: 24px; height: 24px; }
@@ -285,6 +295,14 @@ button:focus-visible, input:focus-visible + span, input[type="range"]:focus-visi
 @media (orientation: landscape) and (max-height: 760px) and (max-width: 720px) {
   .logo { font-size: 0; gap: 0; }
   .logo span { font-size: 1.5rem; }
+}
+@media (orientation: landscape) and (max-height: 760px) and (max-width: 660px) {
+  .shell { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: 44px 44px minmax(0, 1fr); }
+  .logo { grid-area: 1 / 1; }
+  .tools { grid-area: 1 / 2 / 2 / -1; justify-self: end; }
+  .journey { grid-area: 2 / 1 / 3 / 3; }
+  .skip { grid-area: 2 / 3; }
+  .book { grid-area: 3 / 1 / 4 / -1; }
 }
 
 /* ---------- 4. folded-hinge hooks (Viewport Segments API; browsers without it skip these blocks) ----------

@@ -1,0 +1,202 @@
+{
+  "storyId": "three-little-pigs",
+  "language": "en",
+  "title": "The Three Little Pigs",
+  "lesson": "Think about materials, learn from what happens, and solve problems together.",
+  "fixedCharacters": [
+    "narrator",
+    "pig1",
+    "pig2",
+    "pig3",
+    "wolf"
+  ],
+  "fixedEvents": [
+    "first_house_cannot_shelter",
+    "second_house_cannot_shelter",
+    "third_house_stands",
+    "pigs_safe_together",
+    "wolf_leaves"
+  ],
+  "fixedEnding": "The three pigs are safe together in a strong house, and the wolf leaves unharmed.",
+  "houses": [
+    {
+      "id": "house1",
+      "pigId": "pig1",
+      "pigLabel": "The oldest pig",
+      "allowedMaterials": [
+        "paper",
+        "straw",
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "defaultChoices": [
+        "paper",
+        "straw",
+        "cookie"
+      ],
+      "intro": "The oldest pig is ready to build a little house in a sunny meadow.",
+      "question": "What material could the oldest pig use for a little house?"
+    },
+    {
+      "id": "house2",
+      "pigId": "pig2",
+      "pigLabel": "The middle pig",
+      "allowedMaterials": [
+        "paper",
+        "straw",
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "defaultChoices": [
+        "wood",
+        "cookie",
+        "icecream"
+      ],
+      "intro": "The brothers reach the middle pig's building place beside the forest.",
+      "question": "What material could the middle pig try for this house?"
+    },
+    {
+      "id": "house3",
+      "pigId": "pig3",
+      "pigLabel": "The youngest pig",
+      "allowedMaterials": [
+        "brick",
+        "stone"
+      ],
+      "defaultChoices": [
+        "brick",
+        "stone",
+        "brick_team"
+      ],
+      "intro": "The three pigs join the youngest pig and plan a strong house together.",
+      "question": "What strong material should the pigs use for their last house?"
+    }
+  ],
+  "materials": {
+    "paper": {
+      "label": "paper",
+      "aliases": [
+        "paper",
+        "papers",
+        "종이"
+      ],
+      "outcome": "blown_away",
+      "build": "The paper walls are light and carefully folded.",
+      "event": "The wolf blows, and the light paper walls blow away. The pigs step safely away.",
+      "predict": "The wolf is about to puff at the light paper house. What do you think will happen?",
+      "reflect": "The light paper walls blew away in the wind. What did we notice about those light walls?"
+    },
+    "straw": {
+      "label": "straw",
+      "aliases": [
+        "straw",
+        "hay",
+        "짚",
+        "지푸라기"
+      ],
+      "outcome": "blown_away",
+      "build": "The straw walls are light bundles tied together.",
+      "event": "The wolf blows, and the light straw walls blow away. The pigs step safely away.",
+      "predict": "The wolf is about to puff at the light straw house. What do you think will happen?",
+      "reflect": "The light straw walls blew away in the wind. What did we notice about those light walls?"
+    },
+    "wood": {
+      "label": "wood",
+      "aliases": [
+        "wood",
+        "wooden",
+        "log",
+        "logs",
+        "timber",
+        "나무",
+        "목재",
+        "통나무"
+      ],
+      "outcome": "collapsed",
+      "build": "The pig stacks wooden logs loosely, leaving the joints unfastened.",
+      "event": "The wolf's puff shakes the loosely stacked wood. The walls tumble down, and the pigs step safely away.",
+      "predict": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?",
+      "reflect": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?"
+    },
+    "cookie": {
+      "label": "cookie",
+      "aliases": [
+        "cookie",
+        "cookies",
+        "candy",
+        "candies",
+        "biscuit",
+        "biscuits",
+        "gingerbread",
+        "과자",
+        "쿠키",
+        "사탕",
+        "비스킷"
+      ],
+      "outcome": "eaten",
+      "build": "The pig makes cookie walls. The hungry wolf notices their sweet smell.",
+      "event": "The wolf nibbles the cookie walls until the house cannot shelter the pigs. The pigs walk safely to the next building place.",
+      "predict": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?",
+      "reflect": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?"
+    },
+    "icecream": {
+      "label": "ice cream",
+      "aliases": [
+        "ice cream",
+        "icecream",
+        "아이스크림"
+      ],
+      "outcome": "melted",
+      "build": "The pig shapes an ice cream house under the warm sun.",
+      "event": "The warm sun melts the ice cream walls into a puddle. The pigs stay safe and look for a stronger home.",
+      "predict": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?",
+      "reflect": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?"
+    },
+    "brick": {
+      "label": "brick",
+      "aliases": [
+        "brick",
+        "bricks",
+        "벽돌"
+      ],
+      "outcome": "stood",
+      "build": "The pigs carefully join heavy bricks with mortar and help one another.",
+      "event": "The wolf blows at the firmly joined brick house, but it stays standing. All three pigs are safe inside.",
+      "predict": "The brick walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the brick house?",
+      "reflect": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?"
+    },
+    "stone": {
+      "label": "stone",
+      "aliases": [
+        "stone",
+        "stones",
+        "rock",
+        "rocks",
+        "돌",
+        "돌멩이",
+        "바위"
+      ],
+      "outcome": "stood",
+      "build": "The pigs carefully join heavy stones with mortar and help one another.",
+      "event": "The wolf blows at the firmly joined stone house, but it stays standing. All three pigs are safe inside.",
+      "predict": "The stone walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the stone house?",
+      "reflect": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?"
+    }
+  },
+  "endingLines": [
+    {
+      "speakerId": "narrator",
+      "text": "The wolf sees that the strong house will stay standing and walks away unharmed."
+    },
+    {
+      "speakerId": "pig3",
+      "text": "We thought carefully, built together, and made a safe home for everyone!"
+    },
+    {
+      "speakerId": "narrator",
+      "text": "The three little pigs share their safe home. The End."
+    }
+  ]
+}

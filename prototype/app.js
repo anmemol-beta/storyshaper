@@ -5,17 +5,9 @@ const book = $("book"), art = $("art"), line = $("line"), mic = $("mic"), bubble
 
 // Story states (see the design doc, 6-2). `phase` drives everything the child sees; `state` below holds the story choices.
 // COVER -> READING -> ASKING -> LISTENING -> HEARD -> GENERATING -> UPDATED -> READING ... DONE; ERROR returns to LISTENING.
-const COPY = { // the short words the child sees; one place to edit or translate
-  READING: "Listening to the story",
-  ASKING: "What do you think?",
-  PICK: "Tap a picture",
-  LISTENING: "I'm listening…",
-  GENERATING: "Painting a new picture…",
-  UPDATED: "Look what happened!",
-  ERROR: "I didn't catch that. Say it again?",
-  CHOICES: "Let's pick a picture! Tap the one you like.",
-  DONE: "The End"
-};
+let language = stored("story-language") === "ko" ? "ko" : "en";
+const copy = () => BOOK_COPY[language];
+const storyData = () => storyForLanguage(language);
 const HOLD_MS = 600;       // pressing longer than this works like a walkie-talkie: letting go sends the answer
 const MIN_HEARD_MS = 500;  // a shorter "recording" counts as not heard
 const LISTEN_MAX_MS = 8000;
@@ -25,8 +17,8 @@ const PAINT_MS = 5000;     // stand-in for the 12-20 s redraw
 const BASE_ICON = ["🌱", "🏡", "🏡", "🏡", "🌟"];
 const MATERIAL_ICON = { paper: "📄", straw: "🌾", wood: "🪵", brick: "🧱" };
 
-let timers = [], readTimers = [], current = null, state = {}, phase = "COVER", skipReading = null, playing = null;
-let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0; // errors: missed tries on the current question
+let timers = [], readTimers = [], current = null, currentKey = null, state = {}, phase = "COVER", skipReading = null, playing = null;
+let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0, pendingAnswerKey = null; // errors: missed tries on the current question
 
 // One audio element for every clip. iOS Safari only lets an element play without a tap once it has played inside one,
 // so a fresh `new Audio()` per line would stay silent there after the first line.
@@ -45,7 +37,11 @@ function stopVoice() {
   try { speechSynthesis.cancel(); } catch (e) {}
   if (playing) { playing.onloadedmetadata = playing.onended = playing.onerror = null; playing.pause(); playing = null; }
 }
-function clearTimers() { timers.forEach(clearTimeout); readTimers.forEach(clearTimeout); timers = []; readTimers = []; stopVoice(); }
+function clearTimers() {
+  timers.forEach(clearTimeout); readTimers.forEach(clearTimeout); timers = []; readTimers = [];
+  clearTimeout(listenTimer); listenTimer = null; pressStarted = false; skipReading = null;
+  stopVoice();
+}
 function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
 function stored(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
 
@@ -57,16 +53,16 @@ Object.values(SCENES).forEach((s) => { const n = typeof s.img === "string" ? s.i
 function setPhase(p, text) {
   phase = p;
   book.dataset.state = p;
-  statusEl.textContent = text !== undefined ? text : (COPY[p] || "");
+  statusEl.textContent = text !== undefined ? text : (copy()[p] || "");
   mic.disabled = !(p === "LISTENING" || p === "ERROR" || (p === "ASKING" && current && current.ask));
-  mic.setAttribute("aria-label", p === "LISTENING" ? "Tap to finish" : "Tap to talk");
-  $("retry").textContent = p === "HEARD" ? "Say it again" : "Try again";
+  mic.setAttribute("aria-label", p === "LISTENING" ? copy().finish : copy().talk);
+  $("retry").textContent = p === "HEARD" ? copy().sayAgain : copy().retry;
   skipBtn.disabled = !(p === "READING" && skipReading);
   updateDemo();
 }
 
 function renderChapters(active) {
-  $("chapters").innerHTML = CHAPTERS.map((name, i) => {
+  $("chapters").innerHTML = storyData().chapters.map((name, i) => {
     const icon = (i >= 1 && i <= 3 && MATERIAL_ICON[state["h" + i]]) || BASE_ICON[i];
     return `<li class="${i < active ? "past" : i === active ? "on" : ""}"${i === active ? ' aria-current="step"' : ""}><span aria-hidden="true">${icon}</span><span class="sr">${name}</span></li>`;
   }).join("");
@@ -82,7 +78,7 @@ function applyTheme() {
   if (themePref === "system") root.removeAttribute("data-theme"); else root.dataset.theme = themePref;
   const dark = isDark();
   $("themeBtn").innerHTML = dark ? SUN : MOON;
-  $("themeBtn").setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  $("themeBtn").setAttribute("aria-label", dark ? copy().lightMode : copy().darkMode);
   document.querySelectorAll('input[name="theme"]').forEach((r) => (r.checked = r.value === themePref));
   document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue("--bg-app").trim();
 }
@@ -121,7 +117,14 @@ function updateDemo() { demo.hidden = !demoOn; }
 
 // Browser voice, only used for lines that have no pre-generated clip.
 function speak(text) {
-  try { const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 0.95 * rate(); speechSynthesis.speak(u); } catch (e) {}
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = language === "ko" ? "ko-KR" : "en-US";
+    const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(language));
+    if (voice) u.voice = voice;
+    u.rate = 0.95 * rate();
+    speechSynthesis.speak(u);
+  } catch (e) {}
 }
 
 // Light up words one by one, spread evenly over `ms`.
@@ -147,9 +150,10 @@ function readLines(lines, done) {
     const box = document.createElement("span");
     box.className = "words"; box.append(...spans);
     line.replaceChildren(box);
-    const lineDone = () => { spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450 / rate()); };
+    const lineDone = () => { if (!live()) return; spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450 / rate()); };
     const timed = () => { const ms = (words.length * 300) / rate(); highlight(spans, ms); laterRead(lineDone, ms + 200); };
-    const clip = $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
+    // The prepared parent-voice clips are English only. Korean uses Korean browser TTS.
+    const clip = language === "en" && $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
     if (!clip) {
       if ($("voice").checked) speak(text);
       return timed();
@@ -194,7 +198,7 @@ function setAnswers(list) {
   answers.replaceChildren();
   if (!list) {
     const none = document.createElement("span");
-    none.className = "none"; none.textContent = "Listening time. Nothing to answer yet.";
+    none.className = "none"; none.textContent = copy().noAnswers;
     answers.append(none);
     return;
   }
@@ -231,16 +235,19 @@ function showChoices() {
   bubble.hidden = true;
   showHints(cards, true);
   setAnswers(current.ask);
-  setPhase("ASKING", COPY.PICK);
+  setPhase("ASKING", copy().PICK);
   // The longer invitation is only read aloud, in the browser voice: it has no pre-generated parent-voice clip yet.
-  if ($("voice").checked) speak(`${COPY.CHOICES} ${cards.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")}`);
+  if ($("voice").checked) speak(`${copy().CHOICES} ${cards.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")}`);
   return true;
 }
 
-function go(key) {
+function go(key, showLastLine = false) {
   clearTimers(); settleImage();
-  current = SCENES[key];
-  errors = 0; // a new scene is a new question; retrying the same one never passes through here
+  pendingAnswerKey = null;
+  // Re-rendering the same question in another language keeps its failed tries and cards.
+  if (key !== currentKey) errors = 0;
+  currentKey = key;
+  current = storyData().scenes[key];
   bubble.hidden = true; hints.hidden = true; $("summary").hidden = true; againBtn.hidden = true; painting.hidden = true;
   mic.hidden = false;
   setAnswers(null);
@@ -249,6 +256,10 @@ function go(key) {
   if (current.build) return redraw();
   setPhase("READING");
   turnPage(val(current.img));
+  if (showLastLine) {
+    line.textContent = val(current.lines[current.lines.length - 1]);
+    return afterReading();
+  }
   readLines(current.lines, afterReading);
 }
 
@@ -257,18 +268,19 @@ function afterReading() {
     markQuestion();
     setPhase("ASKING");
     setAnswers(current.ask);
+    if (errors >= MAX_TRIES && showChoices()) return;
     if (current.hintsToo) showHints(current.hintsToo);
   } else if (current.hints) {
     markQuestion();
-    setPhase("ASKING", COPY.PICK);
+    setPhase("ASKING", copy().PICK);
     showHints(current.hints);
-    setAnswers(current.hints.map((h) => ({ say: h.label, go: h.go, tap: true, note: "Tap a picture" })));
+    setAnswers(current.hints.map((h) => ({ say: h.label, go: h.go, tap: true, note: copy().PICK })));
   } else if (current.then) {
     later(() => go(current.then), 500);
   } else if (current.end) {
-    const built = ["h1", "h2", "h3"].map((k) => LABEL[state[k]]).filter(Boolean);
+    const built = ["h1", "h2", "h3"].map((k) => storyData().labels[state[k]]).filter(Boolean);
     const title = document.createElement("strong"), list = document.createElement("span");
-    title.textContent = "Houses you built today"; list.textContent = built.join(" · ");
+    title.textContent = copy().built; list.textContent = built.join(" · ");
     $("summary").replaceChildren(title, list);
     $("summary").hidden = false;
     setPhase("DONE");
@@ -300,16 +312,18 @@ function fail() {
 }
 // Show what was heard and wait a moment, so a misheard answer can be taken back before it starts a redraw.
 function heard(a) {
+  pendingAnswerKey = a.go;
   hints.hidden = true;
   setAnswers(null);
   bubble.textContent = a.say; bubble.hidden = false;
-  setPhase("HEARD", `You said “${a.say}”`);
+  setPhase("HEARD", copy().heard(a.say));
   later(() => go(a.go), HEARD_MS);
 }
 // A demo answer button: act out a short listening moment first, then the same path as the mic.
 function answer(a) {
   if (!current || !current.ask || !(phase === "ASKING" || phase === "ERROR")) return;
   clearTimers(); settleImage();
+  pendingAnswerKey = a.go;
   hints.hidden = true;
   setAnswers(null);
   setPhase("LISTENING");
@@ -334,6 +348,7 @@ mic.onkeydown = (e) => {
 $("retry").onclick = () => {
   if (phase === "HEARD") { // "Say it again": the heard answer was wrong, so drop it before it is used
     clearTimers();
+    pendingAnswerKey = null;
     bubble.hidden = true;
     setAnswers(current.ask);
     fail();
@@ -379,8 +394,41 @@ $("restartYes").onclick = () => { showSettings(false); restart(); };
 againBtn.onclick = restart;
 skipBtn.onclick = () => skipReading && skipReading();
 
+function applyLanguage() {
+  root.lang = language;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = copy()[el.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-aria]").forEach((el) => { el.setAttribute("aria-label", copy()[el.dataset.i18nAria]); });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = copy()[el.dataset.i18nTitle]; });
+  document.querySelectorAll("[data-language]").forEach((el) => { el.setAttribute("aria-pressed", String(el.dataset.language === language)); });
+  applyTheme();
+}
+function setLanguage(next) {
+  if (!["en", "ko"].includes(next) || next === language) return;
+  const previousPhase = phase;
+  const acceptedTarget = pendingAnswerKey;
+  clearTimers(); settleImage();
+  language = next;
+  store("story-language", language);
+  applyLanguage();
+  if (acceptedTarget) {
+    // A demo answer or heard response already chose this transition. Preserve it even
+    // when switching cancels the short listening/acknowledgment animation.
+    go(acceptedTarget);
+  } else if (currentKey) {
+    // Stable questions and the ending switch immediately. An in-progress scene is read again
+    // in the new language; choices stay in the same language-neutral state object.
+    go(currentKey, ["ASKING", "ERROR", "DONE"].includes(previousPhase));
+    if (previousPhase === "ERROR") setPhase("ERROR");
+  } else {
+    renderChapters(0); setAnswers(null); setPhase("COVER", "");
+  }
+}
+document.querySelectorAll("[data-language]").forEach((button) => { button.onclick = () => setLanguage(button.dataset.language); });
+applyLanguage();
+
 // Wait for a first tap: browsers only allow sound after the user interacts with the page.
 renderChapters(0);
 setAnswers(null);
 setPhase("COVER", "");
 $("cover").onclick = () => { $("cover").hidden = true; restart(); };
+window.addEventListener("pagehide", clearTimers);
