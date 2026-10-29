@@ -13,12 +13,13 @@ const MIN_HEARD_MS = 500;  // a shorter "recording" counts as not heard
 const LISTEN_MAX_MS = 8000;
 const HEARD_MS = 2500;     // time to tap "Say it again" before a heard answer is used; tune with a real child
 const MAX_TRIES = 3;       // missed tries on one question before picture cards (development-roadmap.md, 4)
+const TTS_TIMEOUT_MS = 30000; // fall back if the browser never reports speech completion
 const PAINT_MS = 5000;     // stand-in for the 12-20 s redraw
 const BASE_ICON = ["🌱", "🏡", "🏡", "🏡", "🌟"];
 const MATERIAL_ICON = { paper: "📄", straw: "🌾", wood: "🪵", brick: "🧱" };
 
 let timers = [], readTimers = [], current = null, currentKey = null, state = {}, phase = "COVER", skipReading = null, playing = null;
-let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0, pendingAnswerKey = null; // errors: missed tries on the current question
+let listenStart = 0, listenTimer = null, pressStart = 0, pressStarted = false, errors = 0, pendingAnswerKey = null, pendingAnswerIndex = null; // errors: missed tries on the current question
 
 // One audio element for every clip. iOS Safari only lets an element play without a tap once it has played inside one,
 // so a fresh `new Audio()` per line would stay silent there after the first line.
@@ -116,15 +117,18 @@ $("demoToggle").onchange = () => { demoOn = $("demoToggle").checked; store("stor
 function updateDemo() { demo.hidden = !demoOn; }
 
 // Browser voice, only used for lines that have no pre-generated clip.
-function speak(text) {
+function speak(text, onEnd, onError) {
   try {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = language === "ko" ? "ko-KR" : "en-US";
     const voice = speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(language));
     if (voice) u.voice = voice;
     u.rate = 0.95 * rate();
+    if (onEnd) u.onend = onEnd;
+    if (onError) u.onerror = onError;
     speechSynthesis.speak(u);
-  } catch (e) {}
+    return u;
+  } catch (e) { return null; }
 }
 
 // Light up words one by one, spread evenly over `ms`.
@@ -155,8 +159,23 @@ function readLines(lines, done) {
     // The prepared parent-voice clips are English only. Korean uses Korean browser TTS.
     const clip = language === "en" && $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
     if (!clip) {
-      if ($("voice").checked) speak(text);
-      return timed();
+      if (!$("voice").checked) return timed();
+      let settled = false;
+      const completeSpeech = () => {
+        if (settled || !live()) return;
+        settled = true; clearTimeout(speechTimer); lineDone();
+      };
+      const speechFailed = () => {
+        if (settled || !live()) return;
+        settled = true; clearTimeout(speechTimer);
+        try { speechSynthesis.cancel(); } catch (e) {}
+        timed();
+      };
+      const speechTimer = setTimeout(speechFailed, TTS_TIMEOUT_MS);
+      readTimers.push(speechTimer);
+      if (!speak(text, completeSpeech, speechFailed)) speechFailed();
+      else if (!settled) highlight(spans, (words.length * 300) / rate());
+      return;
     }
     let fellBack = false;
     const fallBack = () => { if (fellBack || !live()) return; fellBack = true; playing = null; timed(); };
@@ -243,7 +262,7 @@ function showChoices() {
 
 function go(key, showLastLine = false) {
   clearTimers(); settleImage();
-  pendingAnswerKey = null;
+  pendingAnswerKey = null; pendingAnswerIndex = null;
   // Re-rendering the same question in another language keeps its failed tries and cards.
   if (key !== currentKey) errors = 0;
   currentKey = key;
@@ -312,7 +331,7 @@ function fail() {
 }
 // Show what was heard and wait a moment, so a misheard answer can be taken back before it starts a redraw.
 function heard(a) {
-  pendingAnswerKey = a.go;
+  pendingAnswerKey = a.go; pendingAnswerIndex = current.ask.indexOf(a);
   hints.hidden = true;
   setAnswers(null);
   bubble.textContent = a.say; bubble.hidden = false;
@@ -323,7 +342,7 @@ function heard(a) {
 function answer(a) {
   if (!current || !current.ask || !(phase === "ASKING" || phase === "ERROR")) return;
   clearTimers(); settleImage();
-  pendingAnswerKey = a.go;
+  pendingAnswerKey = a.go; pendingAnswerIndex = current.ask.indexOf(a);
   hints.hidden = true;
   setAnswers(null);
   setPhase("LISTENING");
@@ -348,7 +367,7 @@ mic.onkeydown = (e) => {
 $("retry").onclick = () => {
   if (phase === "HEARD") { // "Say it again": the heard answer was wrong, so drop it before it is used
     clearTimers();
-    pendingAnswerKey = null;
+    pendingAnswerKey = null; pendingAnswerIndex = null;
     bubble.hidden = true;
     setAnswers(current.ask);
     fail();
@@ -405,15 +424,18 @@ function applyLanguage() {
 function setLanguage(next) {
   if (!["en", "ko"].includes(next) || next === language) return;
   const previousPhase = phase;
-  const acceptedTarget = pendingAnswerKey;
+  const acceptedTarget = pendingAnswerKey, answerIndex = pendingAnswerIndex;
   clearTimers(); settleImage();
   language = next;
   store("story-language", language);
   applyLanguage();
   if (acceptedTarget) {
-    // A demo answer or heard response already chose this transition. Preserve it even
-    // when switching cancels the short listening/acknowledgment animation.
-    go(acceptedTarget);
+    // A heard/demo answer is still awaiting confirmation. Translate that same answer
+    // and give the child the full confirmation window again instead of committing it.
+    current = storyData().scenes[currentKey];
+    line.textContent = val(current.lines[current.lines.length - 1]);
+    markQuestion();
+    heard(current.ask[answerIndex]);
   } else if (currentKey) {
     // Stable questions and the ending switch immediately. An in-progress scene is read again
     // in the new language; choices stay in the same language-neutral state object.

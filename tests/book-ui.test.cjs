@@ -83,6 +83,7 @@ function harness(language = 'en') {
     addEventListener() {}
   };
   const listeners = new Map(), audioElements = [], plays = [], speech = [];
+  const speechSettings = {throwOnSpeak: false};
   class Audio {
     constructor() { this.duration = 7.1; this.pauses = 0; audioElements.push(this); }
     play() {
@@ -101,7 +102,10 @@ function harness(language = 'en') {
     matchMedia: () => ({matches: false, addEventListener() {}}),
     getComputedStyle: () => ({getPropertyValue: () => '#fff'}),
     SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } },
-    speechSynthesis: {speak: utterance => speech.push(utterance), cancel() {}, getVoices: () => []},
+    speechSynthesis: {speak: utterance => {
+      if (speechSettings.throwOnSpeak) throw new Error('Speech unavailable');
+      speech.push(utterance);
+    }, cancel() {}, getVoices: () => []},
     performance: {now: () => now},
     setTimeout, clearTimeout: id => timers.delete(id)
   });
@@ -110,7 +114,7 @@ function harness(language = 'en') {
   }
   const run = source => vm.runInContext(source, context);
   const snapshot = () => JSON.parse(run('JSON.stringify({currentKey, phase, errors, pendingAnswerKey, state, language})'));
-  return {element, run, snapshot, tick, audioElements, plays, speech, timers, listeners};
+  return {element, run, snapshot, tick, audioElements, plays, speech, speechSettings, timers, listeners};
 }
 
 for (const language of ['en', 'ko']) {
@@ -272,4 +276,162 @@ test('story text and answer labels render as text instead of HTML', () => {
   assert.match(h.element('line').textContent, /<img src=x/);
   assert.match(h.element('answers').textContent, /<b>Paper<\/b><script>x<\/script>/);
   assert.match(h.element('hints').textContent, /<img><i>Paper<\/i>/);
+});
+
+
+test('a language change reopens the translated heard answer for a full confirmation interval', () => {
+  const h = harness();
+  h.run("state.h1 = 'straw'; go('p2', true); fail(); heard(current.ask[0])");
+  h.tick(1000);
+  h.run("setLanguage('ko')");
+  assert.equal(h.snapshot().currentKey, 'p2');
+  assert.equal(h.snapshot().phase, 'HEARD');
+  assert.equal(h.snapshot().state.h1, 'straw');
+  assert.equal(h.snapshot().state.h2, undefined);
+  assert.equal(h.snapshot().errors, 1);
+  assert.match(h.element('bubble').textContent, /나무/);
+  h.tick(2499);
+  assert.equal(h.snapshot().currentKey, 'p2');
+  h.element('retry').onclick();
+  assert.equal(h.snapshot().pendingAnswerKey, null);
+  assert.equal(h.snapshot().errors, 2);
+  h.tick(3000);
+  assert.equal(h.snapshot().currentKey, 'p2', 'The original and restarted confirmation timers are cancelled');
+  assert.equal(h.snapshot().state.h2, undefined);
+});
+
+test('a translated heard answer commits only after its new full confirmation interval', () => {
+  const h = harness();
+  h.run("go('p1', true); heard(current.ask[1])");
+  h.tick(1000);
+  h.run("setLanguage('ko')");
+  h.tick(2499);
+  assert.equal(h.snapshot().currentKey, 'p1');
+  assert.match(h.element('bubble').textContent, /짚/);
+  h.tick(1);
+  assert.equal(h.snapshot().currentKey, 'b1straw');
+  assert.equal(h.snapshot().state.h1, 'straw');
+});
+
+test('switching language during a simulated demo answer also requires confirmation', () => {
+  const h = harness();
+  h.run("go('p1', true); answer(current.ask[1])");
+  h.tick(500);
+  assert.equal(h.snapshot().phase, 'LISTENING');
+  h.run("setLanguage('ko')");
+  assert.equal(h.snapshot().currentKey, 'p1');
+  assert.equal(h.snapshot().phase, 'HEARD');
+  assert.match(h.element('bubble').textContent, /짚/);
+  h.tick(2499);
+  assert.equal(h.snapshot().currentKey, 'p1');
+  h.tick(1);
+  assert.equal(h.snapshot().currentKey, 'b1straw');
+});
+
+test('Korean browser narration waits for real onend before starting the next line', () => {
+  const h = harness('ko');
+  h.run("go('intro')");
+  const first = h.speech[0];
+  assert.equal(typeof first.onend, 'function');
+  h.tick(10000);
+  assert.equal(h.speech.length, 1, 'A word-count estimate cannot finish a working browser voice');
+  assert.equal(h.snapshot().currentKey, 'intro');
+  first.onend();
+  h.tick(450 / 0.85);
+  assert.equal(h.speech.length, 2);
+  assert.equal(h.speech[1].lang, 'ko-KR');
+  assert.equal(h.plays.length, 0);
+});
+
+test('Korean redraw waits for real browser narration completion', () => {
+  const h = harness('ko');
+  h.run("go('b1paper')");
+  h.tick(15000);
+  assert.equal(h.snapshot().phase, 'GENERATING');
+  assert.equal(h.snapshot().currentKey, 'b1paper');
+  h.speech[0].onend();
+  h.tick(450 / 0.85);
+  assert.equal(h.snapshot().phase, 'UPDATED');
+  h.tick(1700);
+  assert.equal(h.snapshot().currentKey, 'd1');
+});
+
+test('browser narration errors fall back once and ignore a later onend', () => {
+  const h = harness('ko');
+  h.run("go('intro')");
+  const first = h.speech[0];
+  const lateEnd = first.onend;
+  first.onerror({error: 'synthesis-failed'});
+  h.tick(10000);
+  assert.equal(h.speech.length, 2, 'The failed line must progress using the estimated fallback');
+  const scheduled = h.timers.size;
+  lateEnd();
+  assert.equal(h.timers.size, scheduled, 'An onend after failure cannot finish the line twice');
+});
+
+for (const failure of ['unavailable', 'throw']) {
+  test(`browser narration ${failure} falls back to estimated reading without hanging`, () => {
+    const h = harness('ko');
+    if (failure === 'throw') h.speechSettings.throwOnSpeak = true;
+    else h.run('delete globalThis.speechSynthesis; delete globalThis.SpeechSynthesisUtterance');
+    h.run("go('intro')");
+    assert.equal(h.snapshot().phase, 'READING');
+    h.tick(20000);
+    assert.equal(h.snapshot().currentKey, 'p1');
+    assert.equal(h.snapshot().phase, 'ASKING');
+  });
+}
+
+test('browser narration without callbacks times out after 30 seconds and ignores late completion', () => {
+  const h = harness('ko');
+  h.run("go('intro')");
+  const first = h.speech[0];
+  const lateEnd = first.onend;
+  h.tick(29999);
+  assert.equal(h.speech.length, 1);
+  assert.equal(h.snapshot().currentKey, 'intro');
+  h.tick(10001);
+  assert.equal(h.speech.length, 2, 'The 30-second watchdog must recover from a missing callback');
+  const scheduled = h.timers.size;
+  lateEnd();
+  assert.equal(h.timers.size, scheduled);
+});
+
+test('stopping browser narration invalidates onend and onerror callbacks', () => {
+  const h = harness('ko');
+  h.run("go('intro')");
+  const utterance = h.speech[0];
+  const lateEnd = utterance.onend;
+  const lateError = utterance.onerror;
+  h.listeners.get('pagehide')();
+  lateEnd();
+  lateError({error: 'interrupted'});
+  h.tick(40000);
+  assert.equal(h.snapshot().currentKey, 'intro');
+  assert.equal(h.speech.length, 1);
+  assert.equal(h.timers.size, 0);
+});
+
+test('translated confirmation preserves the selected label when two answers share one target', () => {
+  const h = harness();
+  h.run("go('w3', true); heard(current.ask[1]); setLanguage('ko')");
+  assert.equal(h.snapshot().phase, 'HEARD');
+  assert.match(h.element('bubble').textContent, /튼튼/);
+  assert.doesNotMatch(h.element('bubble').textContent, /무거/);
+});
+
+test('changing language invalidates callbacks from the previous browser narration', () => {
+  const h = harness('ko');
+  h.run("go('intro')");
+  const previous = h.speech[0];
+  const lateEnd = previous.onend, lateError = previous.onerror;
+  h.run("setLanguage('en')");
+  assert.equal(h.plays.length, 1);
+  const scheduled = h.timers.size;
+  lateEnd();
+  lateError({error: 'interrupted'});
+  assert.equal(h.timers.size, scheduled);
+  h.tick(1000);
+  assert.equal(h.snapshot().language, 'en');
+  assert.equal(h.plays.length, 1);
 });
