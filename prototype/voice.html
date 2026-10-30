@@ -77,6 +77,13 @@
   .drop span { color: var(--subtle); font-size: .92rem; }
   .or { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--subtle); font-size: .9rem; }
   .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  /* While recording, only the stop button and the passage stay on screen. */
+  section.recording .drop, section.recording .or, section.recording .lead { display: none; }
+  .script { margin-top: 16px; padding: 18px 20px; border-radius: 20px; background: var(--page); border: 2px solid var(--honey); box-shadow: var(--shadow); }
+  .script .story { margin: 0; }
+  .cue { margin: 0 0 10px; font-weight: 700; color: var(--green); }
+  .cue.live::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #D9534F; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
   .ideas { margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; color: var(--subtle); font-size: .92rem; }
   .ideas li::before { content: "♪"; color: var(--green); margin-right: 8px; }
   .working { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 16px; background: var(--page); margin-top: 16px; }
@@ -193,6 +200,14 @@
       </label>
       <div class="or">or</div>
       <button class="btn" type="button" id="record">● Record 30 seconds now</button>
+      <div class="script" id="script" hidden>
+        <p class="cue" id="cue" role="status">Read this aloud, slowly, the way you would at bedtime.</p>
+        <p class="story">Once upon a time, in a cozy little house at the edge of the woods, there lived a sleepy bear named Bo.
+          Every night, Bo looked up at the moon and asked, “Are you awake too?”
+          The wind whispered through the tall pine trees, and the stars came out one by one.
+          “Goodnight, moon. Goodnight, stars,” said Bo with a great big yawn.
+          Then he curled up in his warm blanket and dreamed of honey, rivers, and wide blue skies.</p>
+      </div>
       <ul class="ideas">
         <li>A birthday message or a video call</li>
         <li>Them reading a book aloud</li>

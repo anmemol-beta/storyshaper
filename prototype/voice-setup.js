@@ -137,6 +137,19 @@
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
     catch { return showError("findError", "The microphone is blocked. Allow it in the browser, or choose a file instead."); }
+    // Show the bedtime passage first and count down, so the reader has a moment to look at it.
+    const cue = $("cue");
+    const section = document.querySelector('section[data-step="find"]');
+    section.classList.add("recording");
+    $("actions").hidden = true;            // no Back while the microphone is open
+    $("script").hidden = false;
+    window.scrollTo({top: 0});
+    document.querySelector(".ideas").hidden = true;
+    $("record").disabled = true;
+    for (const n of [3, 2, 1]) {
+      cue.textContent = `Get ready to read this aloud… ${n}`;
+      await new Promise(r => setTimeout(r, 1000));
+    }
     const recorder = new MediaRecorder(stream);
     const chunks = [];
     let left = RECORD_SECONDS;
@@ -144,13 +157,22 @@
     recorder.onstop = () => {
       clearInterval(tick);
       stream.getTracks().forEach(t => t.stop());
+      cue.classList.remove("live");
+      cue.textContent = "Read this aloud, slowly, the way you would at bedtime.";
+      $("script").hidden = true;
+      section.classList.remove("recording");
+      render();
+      document.querySelector(".ideas").hidden = false;
       $("record").textContent = `● Record ${RECORD_SECONDS} seconds now`;
       $("record").onclick = record;
       upload(new Blob(chunks, {type: recorder.mimeType || "audio/webm"}), "the recording");
     };
     recorder.start();
+    cue.classList.add("live");
+    cue.textContent = "Recording. Read slowly, the way you would at bedtime.";
+    $("record").disabled = false;
     $("record").onclick = () => recorder.state === "recording" && recorder.stop();
-    const label = () => { $("record").textContent = `■ Stop recording (${left})`; };
+    const label = () => { $("record").textContent = `■ I'm done (${left})`; };
     label();
     const tick = setInterval(() => { left -= 1; label(); if (left <= 0) recorder.stop(); }, 1000);
   }
