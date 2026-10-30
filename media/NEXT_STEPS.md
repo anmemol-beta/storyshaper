@@ -1,0 +1,71 @@
+# img2vid 다음 작업 — 수찬님
+
+작성: 2026-10-30 KST. 원격 fetch 후 확인한 기준은 `origin/main` **4eb7873**(PR #9 병합)이다. 이 브랜치는 해당 main으로 fast-forward했다. 아래는 코드·원격 작업을 비교한 실행 제안이며 완료 기록이 아니다.
+
+## 판단과 현재 상태
+
+### main 재점검 결과 (2026-10-30)
+
+재요청 후 `git fetch origin --prune`을 실행했으며 main은 이전과 같은 `4eb7873`이다. 원격 후속 브랜치의 변경이 main에 추가 병합된 상태는 아니다.
+
+| 계획 항목 | main 판정 | 코드 근거와 다음 행동 |
+| --- | --- | --- |
+| 미디어 입력·작업 관리 | 코드 반영 완료 | `contracts.py`, `jobs.py`, `server.py`에 검증·생성/조회/취소·구버전 차단이 구현됨. 기존 기반을 재사용 |
+| 동료 이미지 검토·활용 | 통합 대기 | main 레지스트리는 이미지 12개 매핑, revision 1이다. `feat/scene-pictures`의 추가 16장과 생성 스크립트는 main에 없음. 중복 생성보다 해당 변경 검토·통합 우선 |
+| 실제 이미지 편집 연결 | 미완료 | main 미디어 계층은 로컬 자산을 선택한다. 별도 브랜치의 사전 생성 스크립트도 아이 답에 대한 런타임 편집 연동 완료를 뜻하지 않음 |
+| 대표 영상 1개 | 미완료 | `scene_registry.json`의 clips가 비어 있고 `prepare.py`는 요청 준비 도구다. 검수된 재생 가능 영상·실제 생성 증거가 필요 |
+| 독서 화면 표시 | 미완료 | 미디어 API는 있지만 `prototype/agent.js`는 mediaPlan JSON만 표시한다. ui_mvp P0-2와 연결 필요 |
+
+**바로 다음 작업:** scene-pictures 변경을 검토·통합하고, ui_mvp가 현재 미디어 API의 정지 이미지 결과를 표시하도록 연결한다. 이후 실제 편집과 연속 장면 일관성을 검증하고 대표 영상을 진행한다. 이번 점검은 코드 대조이며 새 이미지 생성·유료 API 호출·회귀 테스트를 수행한 결과가 아니다.
+
+우선순위는 **승인된 답에 맞는 그림을 독서 화면에 연결 → 실제 이미지 편집과 연속 장면 검증 → 대표 영상 1개**다. 영상 키를 기다리며 이미지·UI 연결을 미룰 필요는 없다. 로드맵 단계 2·7 및 §12의 수찬님 담당 범위에 해당한다.
+
+- main 완료: MediaSpec 검증, 로컬 자산 선택, 작업 생성·조회·취소, 구버전 차단, 취소 후 새 요청 복구. `clips`는 비어 있고 실제 영상 생성은 미완료다.
+- main의 이미지는 12개 매핑만 있다. 허용 재료 전체가 지원되는 것은 아니다.
+- **중복 개발 주의:** `origin/feat/scene-pictures`에는 추가 이미지 16장, 전체 재료의 build/outcome 24개 매핑, `media/generate_scenes.py`가 있다. 작성자는 Muse Image 생성·검수를 기록했다. 이번 작업에서는 실제 이미지 품질이나 해당 브랜치 테스트를 재검증하지 않았다. main에 아직 포함되지 않았다.
+- `origin/docs/roadmap-to-deadline`의 §13은 이미지·음성·독서 화면 연결 우선과 영상 후순위를 제안한다. 팀 Meta 접근 복구 기록은 있으나 수찬님 계정의 키·크레딧은 별도 확인해야 한다.
+- `origin/feat/voice-input`은 MediaPlayground를 상속한 SpeechPlayground를 추가한다. 서버를 따로 재작성하지 말고 향후 공통 실행 진입점을 맞춘다.
+
+## 수찬님이 먼저 확인할 것
+
+- [ ] 팀에 scene-pictures 변경의 검토·main 통합 상태를 확인한다. 같은 장면 이미지의 재생성을 먼저 시작하지 않는다.
+- [ ] 본인 Meta 계정의 접근 가능 여부와 개발 서버 키 설정 담당을 확인한다. 키는 브라우저·문서·커밋에 넣지 않는다.
+- [ ] 시연할 재료 경로를 정한다. 제안: 첫 집 종이, 둘째 과자 또는 아이스크림, 마지막 벽돌. 현재 main에서 두 번째 집의 특수 재료 그림은 미지원이다.
+- [ ] 지호님과 scene/version/action 및 확정된 재료 유지 규약을, 현준님과 낭독 준비·실패 응답을 맞춘다.
+- [ ] 영상 제공사 계정·크레딧·실험 상한을 확인한다. 준비 전에는 로컬 이미지 흐름으로 진행한다.
+
+## 개발 순서와 완료 기준
+
+| 순서 | 작업 | 완료 기준 |
+| --- | --- | --- |
+| P0-1 | scene-pictures 변경을 검토하고 main 반영 후 동기화. 레지스트리·문서와 실제 파일 대조 | 허용 재료별 build/event가 정확한 배역·재료를 표시. build에서 미래의 붕괴·녹음 사건을 먼저 보여주지 않음 |
+| P0-2 | ui_mvp에서 사용할 서버 실행 방식과 미디어 API 연결 확정 | accepted snapshot의 sessionId/sceneId/version만 받아 작업 생성. queued/fallback/failed에서도 UI가 진행 가능 |
+| P0-3 | 승인된 재료의 실제 이미지 편집을 서버 작업으로 연결. 기존 생성 스크립트는 오프라인 자산 제작 도구로 구분 | 같은 집이 build→사건에 유지되고 결과 검수 후 노출. 실제 생성·사전 제작을 구분해 기록. 실패 시 검증 이미지로 진행 |
+| P1-1 | 기존 종이집 바람 요청으로 짧은 영상 1개 생성·검수 | 배역·집 정체성·사건 인과관계·안전 기준 통과한 MP4만 등록. 입력/프롬프트 해시, 모델, task ID, 실제 지연·비용 기록 |
+| P1-2 | ui_mvp 플레이어와 연결하여 끝까지 완주 | 준비 실패·재생 실패·건너뛰기에도 이미지와 이야기 유지. 녹음·페이지 이동 시 영상 중단 |
+| 이후 | 실시간 유료 영상 작업 자동화 | 제출 기록 영속화, 과금 중복 방지, 제출 여부 불명확 상태, 재시도·예산 한도를 먼저 구현 |
+
+`LocalProvider`는 로컬 검수 자산용이다. 여기에 유료 호출만 덧붙이지 않는다. 같은 취소 토큰은 취소 상태를 유지하므로 재개·재시도 UX는 UI와 서버의 새 요청 규약을 먼저 합의한다. `move_to_next_house`에서는 출발 houseId와 목적지 sceneId를 혼동하지 않는다.
+
+## 다음 PR 범위와 검증 계획
+
+다음 구현 PR은 `img2vid → main`: `media/`, 미디어 테스트, 검수 자산·근거와 실행 문서를 묶는다. `prototype/` 플레이어 제어는 ui_mvp에서 담당하고 이미지 파일은 겹치는 경로이므로 두 브랜치에서 동시에 재생성하지 않는다.
+
+- 실제 변경 후 `python -m unittest discover -s tests -v` 실행.
+- 종이/과자/아이스크림/벽돌의 선택·예상·사건·이동을 확인하고, 미지원 자산을 다른 재료로 치환하지 않는지 검증.
+- 취소 후 새 version, 늦은 콜백, 언어 변경, 서버 오류를 회귀 검증.
+- 영상은 실제 재생 가능한 파일로 검사한다. 기존 테스트의 MP4 fixture는 재생 증거가 아니다.
+
+이번 커밋은 계획 문서만 추가했다. 과거 PR #9의 Python 81개·Node 35개 통과 기록을 새 브랜치의 재실행 결과로 주장하지 않는다. 새 생성·API 호출·영상 평가도 수행하지 않았다.
+
+참고: [미디어 API](API.md), [구현 계획](integration-plan.md), [개발 로드맵](../docs/internal/development-roadmap.md), [이전 구현 보고서](../docs/reports/2026-10-29-media-ui-implementation.md). 원격 후속 문서·코드는 아직 main에 없는 제안/변경으로 구분했다.
+
+## 2026-10-30 POC update (ChatGPT)
+
+- Merged latest `main` at `8810e0f` into `img2vid` while retaining branch plan.
+- Added reproducible single-image → MP4 **camera-motion fallback** (`experiments/image_motion_poc.py`) and explicit generative image-to-video acceptance criteria (`media/IMG2VID_POC.md`).
+- The code produces H.264 video from a still using FFmpeg zoompan; **this is not an AI model output**. A synthetic test of the specified FFmpeg processing path produced a 1280×720, 2 s H.264 MP4, but was not run against a real repo illustration in this environment.
+- Actual generative image-to-video POC **not yet demonstrated**: requires a verified provider, model credentials/credit, review of generated action/character consistency and a real downloaded video.
+- Existing media API already supports playing vetted local MP4 entries; do not mark `reviewed:true` without human visual inspection or commit demo fixture files as if they were generation results.
+- All voice-module and agent-logic internals remain untouched.
+
