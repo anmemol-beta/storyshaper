@@ -7,6 +7,7 @@
   <title>Story agent lab · StoryShaper</title>
   <link rel="stylesheet" href="agent.css">
   <script src="agent-i18n.js" defer></script>
+  <script src="voice-input.js" defer></script>
   <script src="agent.js" defer></script>
 </head>
 <body>
@@ -80,8 +81,11 @@
             <label class="input-label" for="answer" data-copy>Your test answer</label>
             <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
             <div class="answer-footer">
-              <p class="field-hint" id="answerHint" data-copy>Text input is for testing the story agent. Voice and media generation are separate integrations.</p>
-              <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
+              <p class="field-hint" id="answerHint" data-copy>Type an answer, or speak it when the microphone is available. Media generation is a separate integration.</p>
+              <div class="answer-actions">
+                <button class="button" id="micButton" type="button" hidden disabled>Speak an answer</button>
+                <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
+              </div>
             </div>
           </form>
 

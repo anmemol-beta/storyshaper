@@ -33,7 +33,17 @@ const AgentLanguage = (() => {
     "The story is ready when you are.": "준비가 되면 동화를 시작해 주세요.",
     "Your test answer": "시험할 답변",
     "Type your answer to the current question…": "현재 질문에 대한 답을 입력해 주세요…",
-    "Text input is for testing the story agent. Voice and media generation are separate integrations.": "글 입력은 동화 에이전트를 시험하기 위한 기능입니다. 음성·이미지·영상 생성은 별도로 연결합니다.",
+    "Type an answer, or speak it when the microphone is available. Media generation is a separate integration.": "답을 입력하거나, 마이크를 쓸 수 있으면 말로 답하세요. 이미지·영상 생성은 별도로 연결합니다.",
+    "Speak an answer": "말로 답하기",
+    "Stop and transcribe": "멈추고 글로 바꾸기",
+    "Listening… press the button again when you are done (8 seconds at most).": "듣고 있어요… 다 말했으면 버튼을 다시 누르세요 (최대 8초).",
+    "Turning your voice into text…": "말을 글로 바꾸는 중…",
+    "Heard: “{text}”. Continue the story, or speak again.": "들은 말: “{text}”. 이야기를 이어가거나 다시 말해 보세요.",
+    "Nothing was heard. That counts as one try.": "아무 말도 들리지 않았어요. 한 번 시도한 것으로 셉니다.",
+    "(nothing heard)": "(들린 말 없음)",
+    "Microphone permission was refused. Type the answer or choose an option instead.": "마이크 권한이 거부되었습니다. 답을 입력하거나 보기를 골라 주세요.",
+    "The microphone could not start. Type the answer instead.": "마이크를 시작하지 못했습니다. 답을 입력해 주세요.",
+    "{message} Your retry count is unchanged.": "{message} 시도 횟수는 그대로입니다.",
     "Continue story →": "이야기 이어가기 →",
     "Choose a story-safe option": "동화에 맞는 보기에서 골라 주세요",
     "Tap an option, or try another answer above.": "보기를 누르거나 위에 다른 답을 입력해 주세요.",
@@ -116,7 +126,15 @@ const AgentLanguage = (() => {
     "stale_question": "이야기 상태가 바뀌었습니다. 현재 질문을 확인해 주세요.",
     "invalid_choice": "현재 질문에 표시된 보기 중에서 골라 주세요.",
     "turn_limit": "이번 시험의 요청 한도에 도달했습니다. 새 시험을 시작해 주세요.",
-    "server_error": "서버가 요청을 처리하지 못했습니다. 다시 시도하거나 새 시험을 시작해 주세요."
+    "server_error": "서버가 요청을 처리하지 못했습니다. 다시 시도하거나 새 시험을 시작해 주세요.",
+    "audio_unreadable": "녹음을 읽지 못했습니다. 다시 녹음해 주세요.",
+    "content_type": "지원하지 않는 녹음 형식입니다.",
+    "body_size": "녹음이 너무 깁니다. 짧게 다시 말해 주세요.",
+    "speech_unavailable": "음성 인식을 지금 사용할 수 없습니다. 다시 시도하거나 글로 답해 주세요.",
+    "speech_http_error": "음성 인식을 지금 사용할 수 없습니다. 다시 시도하거나 글로 답해 주세요.",
+    "speech_invalid_response": "음성 인식 결과를 읽지 못했습니다. 다시 시도해 주세요.",
+    "speech_response_too_large": "음성 인식 결과를 읽지 못했습니다. 다시 시도해 주세요.",
+    "speech_rate_limited": "음성 인식 요청이 많습니다. 잠시 후 다시 시도해 주세요."
   };
   function text(source, values = {}) {
     const result = language === "ko" ? (korean[source] || source) : source;
