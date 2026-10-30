@@ -15,6 +15,8 @@ POST   /api/voices/<id>/train/<n>  one read-aloud training sentence (audio body)
 POST   /api/voices/<id>/finetune   {"enabled": true|false}: read this voice's English lines with its fine-tuned T3
 GET    /api/voices/<id>/train      training sentences recorded so far
 POST   /api/voices/<id>/train      a home video or voice message -> clips cut at pauses, transcribed as their text
+POST   /api/voices/<id>/train/<n>  JSON {"text"?, "excluded"?}: correct a clip's words or leave it out
+GET    /api/voices/<id>/train/<n>.wav  a training clip, to listen while checking it
 POST   /api/voices/<id>/clip       {"start", "end"} -> quality and Muse Voice Transcribe transcript
 POST   /api/voices/<id>/preview    a sample story line in the chosen clip's voice
 POST   /api/voices/<id>/save       {"name", "relation", "attested": true}
@@ -62,7 +64,7 @@ MAX_TEXT = 500
 LANGUAGES = ("en", "ko")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
-VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune)(?:/(\d{1,3}))?)?$")
+VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune)(?:/(\d{1,4})(\.wav)?)?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text())}
 
@@ -289,6 +291,8 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/voices":
             return self.reply(200, {"voices": self.server.library.saved()})
         route = VOICE_ROUTE.match(url.path)
+        if route and route.group(2) == "train" and route.group(4):
+            return self.reply(200, self.server.library.training_audio(route.group(1), int(route.group(3))), "audio/wav")
         if route and route.group(2) == "train" and not route.group(3):
             return self.reply(200, {**self.server.library.training_status(route.group(1)), "total": len(TRAINING)})
         if route and route.group(2) == "full.wav":
@@ -338,12 +342,15 @@ class Handler(BaseHTTPRequestHandler):
         route = VOICE_ROUTE.match(path)
         if not route or not route.group(2):
             raise VoiceError(404, "not_found", "Not found.")
-        voice_id, action, number = route.groups()
+        voice_id, action, number, _ = route.groups()
         if action == "train" and not number:
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
                 raise VoiceError(415, "unsupported_type", "Upload a recording or a video file.")
             return self.reply(200, library.add_training_media(voice_id, self.body(MAX_UPLOAD)))
+        if action == "train" and self.headers.get("Content-Type", "").startswith("application/json"):
+            body = self.json_body()                 # {"text"?, "excluded"?}: correct or drop a clip
+            return self.reply(200, library.update_training_clip(voice_id, int(number), body.get("text"), body.get("excluded")))
         if action == "train":
             n = int(number or 0)
             if n not in TRAINING:
@@ -371,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _delete(self):
         route = VOICE_ROUTE.match(urlsplit(self.path).path)
-        if not route or route.group(2) or route.group(3):
+        if not route or route.group(2) or route.group(3) or route.group(4):
             raise VoiceError(404, "not_found", "Not found.")
         self.server.library.delete(route.group(1))
         self.server.narrator.forget(route.group(1))

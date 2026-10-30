@@ -168,6 +168,29 @@ class FillerListTest(unittest.TestCase):
             self.assertEqual(re.findall(r'"([^"]+)"', block), expected)
 
 
+class FinetuneDatasetTest(unittest.TestCase):
+    def test_dataset_uses_corrected_text_and_skips_excluded_and_misread_clips(self):
+        import narration.finetune as ft
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            train = root / "profiles" / "abcdef123456" / "train"
+            train.mkdir(parents=True)
+            clips = {
+                "1": {"n": 1, "file": "001.wav", "text": "Read well.", "seconds": 2.0, "match": 0.95},
+                "2": {"n": 2, "file": "002.wav", "text": "Misread.", "seconds": 2.0, "match": 0.4},
+                "1001": {"n": 1001, "file": "m1001.wav", "text": "Fixed words.", "seconds": 3.0, "match": None, "edited": True},
+                "1002": {"n": 1002, "file": "m1002.wav", "text": "Left out.", "seconds": 3.0, "match": None, "excluded": True},
+            }
+            for c in clips.values():
+                (train / c["file"]).write_bytes(b"RIFF")
+            (train / "clips.json").write_text(json.dumps(clips))
+            ft.PROFILES, ft.DATA = root / "profiles", root / "data"
+            out = ft.dataset_from_voice("abcdef123456")
+            self.assertEqual((out / "metadata.csv").read_text().splitlines(),
+                             ["s0001|Read well.|Read well.", "s1001|Fixed words.|Fixed words."])
+            self.assertEqual(sorted(p.name for p in (out / "wavs").iterdir()), ["s0001.wav", "s1001.wav"])
+
+
 class ClipAnalysisTest(unittest.TestCase):
     def test_suggests_the_part_with_the_most_talking(self):
         audio = speech_like([(0, 4), (1, 1), (0, 6), (1, 12), (0, 4)])
@@ -362,6 +385,14 @@ class HttpTest(unittest.TestCase):
         self.assertEqual([c["text"] for c in result["clips"]], ["hello", "hello"])   # the transcript is the text
         progress = json.loads(self.request("GET", f"/api/voices/{vid}/train")[2])
         self.assertEqual([c["n"] for c in progress["clips"]], [1001, 1002])
+        # The parent listens, corrects a mistranscribed clip and leaves another one out.
+        status, headers, audio = self.request("GET", f"/api/voices/{vid}/train/1001.wav")
+        self.assertEqual((status, headers["Content-Type"], audio[:4]), (200, "audio/wav", b"RIFF"))
+        fixed = json.loads(self.request("POST", f"/api/voices/{vid}/train/1001", {"text": "Once upon a time."})[2])
+        self.assertEqual((fixed["text"], fixed["edited"]), ("Once upon a time.", True))
+        self.assertTrue(json.loads(self.request("POST", f"/api/voices/{vid}/train/1002", {"excluded": True})[2])["excluded"])
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1003", {"excluded": True})[0], 404)
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1001", {"text": ""})[0], 400)
 
     def test_preflight_allows_local_origin_only(self):
         status, headers, _ = self.request("OPTIONS", "/api/voice/lines", headers={"Origin": "http://localhost:5173"})
