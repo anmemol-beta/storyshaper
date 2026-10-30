@@ -106,6 +106,15 @@ const Narration = (() => {
     } catch { return null; }
   }
 
+  // Ask the server to voice lines later, in a way that survives leaving the page (navigator.sendBeacon):
+  // the parent often taps "Start a story" right after saving. Plain-text body, so no CORS preflight.
+  function voiceAhead(lines, {language = "en", voice = null} = {}) {
+    const id = voice || voiceId();
+    const body = JSON.stringify({lines: asLines(lines), language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})});
+    try { return navigator.sendBeacon(`${server}/api/voice/lines`, new Blob([body], {type: "text/plain"})); }
+    catch { return false; }
+  }
+
   // How many of these lines are already voiced (null if the server is unavailable). Queues nothing.
   async function readyCount(lines, {voice = null, language = "en"} = {}) {
     try { return (await queue(asLines(lines), {voice, peek: true, language})).filter(c => c.ready).length; }
@@ -158,6 +167,6 @@ const Narration = (() => {
     if (my === token) onLine(-1);
   }
 
-  return {speak, stop, prepare, readyCount, interject, warm,
+  return {speak, stop, prepare, voiceAhead, readyCount, interject, warm, fillers,
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
 })();

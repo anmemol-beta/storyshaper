@@ -172,7 +172,7 @@
     stopChoiceSpeech();
     // The cards are already enabled. Reading the invitation never gates a tap.
     const invitation = t("Let's pick a picture! Tap the one you like.");
-    const options = snapshot.question.choices.map((choice, index) => `${index + 1}. ${choice.label}.`).join(" ");
+    const options = snapshot.question.choices.map((choice, index) => `${index + 1}. ${String(choice.label).replace(/[.!?]+$/, "")}.`).join(" ");
     if (typeof Narration !== "undefined") {
       Narration.stop();
       choiceSpeech = "narration";
