@@ -59,15 +59,25 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  function playClip(url) {
+  // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
+  function playClip(url, beforePlay = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
       audio = clip;
       finish = resolve;
       clip.onended = () => resolve(true);
       clip.onerror = () => resolve(false);
-      clip.play().catch(() => resolve(false));
+      const go = () => { if (audio === clip) clip.play().catch(() => resolve(false)); };
+      if (!beforePlay) return go();
+      clip.addEventListener("canplay", async () => { await beforePlay(); go(); }, {once: true});
+      clip.load();
     });
+  }
+
+  // Fillers continue until the first story line is actually ready; then let the one talking finish.
+  async function firstLineReady() {
+    stopWaiting();
+    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
   }
 
   function browserSay(text, language) {
@@ -175,11 +185,13 @@ const Narration = (() => {
     if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
     for (let i = 0; i < usable.length; i += 1) {
       if (my !== token) return;
-      if (i === 0) stopWaiting();               // the story is talking again: no more fillers
       onLine(i);
-      const played = urls ? await playClip(urls[i]) : false;
+      const played = urls ? await playClip(urls[i], i === 0 ? firstLineReady : null) : false;
       if (my !== token) return;
-      if (!played) await browserSay(usable[i].text, language);
+      if (!played) {
+        if (i === 0) await firstLineReady();
+        await browserSay(usable[i].text, language);
+      }
     }
     if (my === token) onLine(-1);
   }
