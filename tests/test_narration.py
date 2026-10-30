@@ -7,10 +7,12 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 
-from narration.server import Narrator, Server, lazy_synthesizer
+from narration.server import CASTING, Narrator, Server, chatterbox_synthesizer, lazy_synthesizer
 from narration.voices import SR, VoiceError, VoiceLibrary, clip_quality, consent_heard, suggest_clips, write_wav
 
 
@@ -56,6 +58,47 @@ class FakeVoice:
             raise RuntimeError("model error")
         self.order.append(text)
         return b"ID3" + f"{voice['ref']}|{text}".encode()
+
+
+class SynthesizerLoadingTest(unittest.TestCase):
+    def test_korean_preview_does_not_load_english_weights(self):
+        loaded, saved_rates = [], []
+
+        class Engine:
+            def __init__(self, language, sr):
+                self.language, self.sr, self.conds = language, sr, None
+
+            def prepare_conditionals(self, path, exaggeration):
+                self.conds = path
+
+            def generate(self, text, **settings):
+                return b"wav"
+
+        def load(language, sr):
+            loaded.append(language)
+            return Engine(language, sr)
+
+        fake_torch = SimpleNamespace(backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+                                     cuda=SimpleNamespace(is_available=lambda: False))
+        modules = {
+            "torch": fake_torch,
+            "torchaudio": SimpleNamespace(save=lambda path, wav, sr: saved_rates.append(sr)),
+            "chatterbox.tts": SimpleNamespace(ChatterboxTTS=SimpleNamespace(from_pretrained=lambda device: load("en", 24000))),
+            "chatterbox.mtl_tts": SimpleNamespace(ChatterboxMultilingualTTS=SimpleNamespace(from_pretrained=lambda device: load("ko", 22050))),
+        }
+        with patch.dict('sys.modules', modules), patch('narration.server.subprocess.run',
+                side_effect=lambda arguments, **kwargs: Path(arguments[-1]).write_bytes(b"mp3")):
+            synthesize = chatterbox_synthesizer()
+            self.assertEqual(loaded, [], "Constructing the synthesizer must not preload English")
+            settings = {**CASTING["narrator"], "language": "ko"}
+            self.assertEqual(synthesize("한국어 문장", settings), b"mp3")
+            self.assertEqual(loaded, ["ko"])
+            self.assertEqual(saved_rates, [22050])
+            self.assertEqual(synthesize("Another Korean line", settings), b"mp3")
+            self.assertEqual(loaded, ["ko"])
+            self.assertEqual(synthesize("English line", CASTING["narrator"]), b"mp3")
+            self.assertEqual(loaded, ["ko", "en"])
+            self.assertEqual(saved_rates, [22050, 22050, 24000])
 
 
 def speech_like(seconds_on_off, sr=SR, noise=0.002, seed=0):
@@ -156,6 +199,96 @@ class NarratorTest(unittest.TestCase):
         self.assertLess(order.index("new 1"), order.index("new 2"))
         self.assertLess(order.index("new 2"), order.index("old 2"))
 
+    def test_warmup_requested_after_a_passage_does_not_delay_its_lines(self):
+        entered, release = threading.Event(), threading.Event()
+        order = []
+
+        def synthesize(text, settings):
+            if text == "already running":
+                entered.set()
+                release.wait(2)
+            order.append(text)
+            return b"ID3" + text.encode()
+
+        n = Narrator(synthesize, self.tmp.name)
+        n.submit([{"text": "already running"}])
+        self.assertTrue(entered.wait(1))
+        passage = n.submit([{"text": "read now 1"}, {"text": "read now 2"}])
+        warmup = n.submit([{"text": "prepare later 1"}, {"text": "prepare later 2"}], priority="background")
+        release.set()
+        for clip in passage + warmup:
+            self.assertEqual(n.wait("default", clip["key"], 2), "ready")
+        self.assertLess(order.index("read now 2"), order.index("prepare later 1"), order)
+
+    def test_repeated_requests_reuse_the_in_flight_clip(self):
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+
+        def synthesize(text, settings):
+            entered.set()
+            release.wait(2)
+            calls.append(text)
+            return b"ID3" + text.encode()
+
+        n = Narrator(synthesize, self.tmp.name)
+        [clip] = n.submit([{"text": "same line"}])
+        self.assertTrue(entered.wait(1))
+        for _ in range(20):
+            n.submit([{"text": "same line"}])
+            n.submit([{"text": "same line"}], priority="background")
+        with n.cond:
+            self.assertEqual(len(n.queue), 0, 'An in-flight clip must not gain queued duplicates')
+        release.set()
+        self.assertEqual(n.wait("default", clip["key"], 2), "ready")
+        self.assertEqual(calls, ["same line"])
+
+    def test_passage_promotes_pending_warmup_and_repeated_warmup_cannot_demote_it(self):
+        entered, release = threading.Event(), threading.Event()
+        order = []
+
+        def synthesize(text, settings):
+            if text == "already running":
+                entered.set()
+                release.wait(2)
+            order.append(text)
+            return b"ID3" + text.encode()
+
+        n = Narrator(synthesize, self.tmp.name)
+        n.submit([{"text": "already running"}])
+        self.assertTrue(entered.wait(1))
+        [target] = n.submit([{"text": "next passage"}], priority="background")
+        [other] = n.submit([{"text": "another warmup"}], priority="background")
+        n.submit([{"text": "next passage"}])
+        for _ in range(20):
+            n.submit([{"text": "next passage"}], priority="background")
+        with n.cond:
+            self.assertEqual(len(n.queue), 2)
+        release.set()
+        for clip in (target, other):
+            self.assertEqual(n.wait("default", clip["key"], 2), "ready")
+        self.assertEqual(order, ["already running", "next passage", "another warmup"])
+
+    def test_deleted_in_flight_job_cannot_replace_a_new_request_for_the_same_voice(self):
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+
+        def synthesize(text, settings):
+            calls.append(text)
+            if len(calls) == 1:
+                entered.set()
+                release.wait(2)
+                return b"old audio"
+            return b"replacement audio"
+
+        n = Narrator(synthesize, self.tmp.name)
+        [clip] = n.submit([{"text": "same line"}], "aaaaaaaaaaaa", "/ref.wav")
+        self.assertTrue(entered.wait(1))
+        n.forget("aaaaaaaaaaaa")
+        n.submit([{"text": "same line"}], "aaaaaaaaaaaa", "/ref.wav")
+        release.set()
+        self.assertEqual(n.wait("aaaaaaaaaaaa", clip["key"], 2), "ready")
+        self.assertEqual(n.path("aaaaaaaaaaaa", clip["key"]).read_bytes(), b"replacement audio")
+
     def test_failure_is_reported_and_queue_continues(self):
         n = Narrator(FakeVoice(), self.tmp.name)
         bad, good = n.submit([{"text": "boom"}, {"text": "fine"}])
@@ -186,6 +319,12 @@ class NarratorTest(unittest.TestCase):
 
 
 class FillerListTest(unittest.TestCase):
+    def test_warm_script_marks_generation_as_background(self):
+        from narration.warm import lines_for
+        with patch('narration.warm.call', return_value={"clips": []}) as call:
+            lines_for("default", ["warm this line"])
+        self.assertEqual(call.call_args.args[1]["priority"], "background")
+
     def test_warm_script_uses_the_same_fillers_as_the_page(self):
         import re
         from narration.warm import FILLERS
@@ -380,6 +519,37 @@ class HttpTest(unittest.TestCase):
         status, headers, audio = self.request("GET", clip["url"] + "?wait=5", headers=origin)
         self.assertEqual((status, headers["Content-Type"]), (200, "audio/mpeg"))
         self.assertTrue(audio.startswith(b"ID3"))
+
+    def test_http_background_warmup_cannot_overtake_an_interactive_passage(self):
+        entered, release = threading.Event(), threading.Event()
+        order = []
+
+        def synthesize(text, settings):
+            if text == "occupied":
+                entered.set()
+                release.wait(2)
+            order.append(text)
+            return b"ID3" + text.encode()
+
+        self.server.narrator = Narrator(synthesize, self.server.narrator.cache)
+        self.request("POST", "/api/voice/lines", {"lines": [{"text": "occupied"}]})
+        self.assertTrue(entered.wait(1))
+        try:
+            status, _, body = self.request("POST", "/api/voice/lines", {"lines": [{"text": "read now"}]})
+            self.assertEqual(status, 200)
+            now = json.loads(body)["clips"][0]
+            status, _, body = self.request("POST", "/api/voice/lines",
+                {"lines": [{"text": "warm later"}], "priority": "background"})
+            self.assertEqual(status, 200)
+            later = json.loads(body)["clips"][0]
+        finally:
+            release.set()
+        for clip in (now, later):
+            self.assertEqual(self.request("GET", clip["url"] + "?wait=2")[0], 200)
+        self.assertEqual(order, ["occupied", "read now", "warm later"])
+        status, _, body = self.request("POST", "/api/voice/lines",
+            {"lines": [{"text": "wrong priority"}], "priority": "unknown"})
+        self.assertEqual((status, json.loads(body)["error"]["code"]), (400, "invalid_priority"))
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
     def test_register_preview_save_read_and_delete_a_voice(self):

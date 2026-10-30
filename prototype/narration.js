@@ -11,6 +11,7 @@ const Narration = (() => {
   const params = new URLSearchParams(location.search);
   const server = params.get("voiceServer") || "http://127.0.0.1:8100";
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
+  const REQUEST_MS = 600, CLIP_LOAD_MS = 800;
   // Said the moment a child answers, while the next page is being written and drawn. Generated ahead (warm()).
   const FILLERS = [
     "Ooh, what a good idea! Let's see what happens…",
@@ -34,6 +35,35 @@ const Narration = (() => {
   let lastKey = null;
   let finish = null;        // resolves the clip that is playing, so stop() can end it early
   let speechFinish = null;  // resolves browser speech immediately when a scene is cancelled
+  let speechPause = null, speechResume = null, readingController = null;
+  let playback = "idle", source = null, paused = false;
+  const listeners = new Set(), resumeWaiters = new Set();
+  function setPlayback(state, nextSource = source) {
+    playback = state;
+    source = nextSource;
+    for (const listener of listeners) listener(state);
+  }
+  function releasePause() { for (const resolve of resumeWaiters) resolve(); resumeWaiters.clear(); }
+  function untilResumed() { return paused ? new Promise(resolve => resumeWaiters.add(resolve)) : Promise.resolve(); }
+  function pause() {
+    if (playback === "idle" || paused) return;
+    paused = true;
+    audio?.pause();
+    speechPause?.();
+    if (source === "browser" && "speechSynthesis" in window) speechSynthesis.pause();
+    setPlayback("paused");
+  }
+  function resume() {
+    if (!paused) return;
+    paused = false;
+    if (source === "browser" && "speechSynthesis" in window) { speechSynthesis.resume(); speechResume?.(); }
+    if (audio && source === "parent") {
+      const clip = audio, complete = finish;
+      clip.play().catch(() => { if (audio === clip) complete?.(false); });
+    }
+    setPlayback(source ? "playing" : "loading");
+    releasePause();
+  }
   let filler = null;        // {audio, done, end} while an interjection plays
   let lastFiller = -1;
   // After an answer the next passage takes ~10 s to write and a few more to voice. Until its first line
@@ -49,37 +79,62 @@ const Narration = (() => {
 
   function stopReading() {
     token += 1;
+    readingController?.abort();
+    readingController = null;
     if (audio) { audio.pause(); audio = null; }
     if (finish) finish(true);
     if (speechFinish) speechFinish();
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    if ("speechSynthesis" in window) {
+      speechSynthesis.cancel();
+      if (speechSynthesis.paused) speechSynthesis.resume();
+    }
+    paused = false;
+    releasePause();
+    setPlayback("idle", null);
   }
 
   function stop() {
+    lastKey = null;
     stopWaiting();
     stopReading();
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
   // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
-  function playClip(url, beforePlay = null) {
+  function playClip(url, my) {
     return new Promise(resolve => {
       const clip = new Audio(url);
+      let settled = false, started = false;
+      const done = ok => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clip.pause();
+        if (audio === clip) audio = null;
+        if (finish === done) finish = null;
+        resolve(ok);
+      };
+      const timer = setTimeout(() => { if (!started) done(false); }, CLIP_LOAD_MS);
       audio = clip;
-      finish = resolve;
-      clip.onended = () => resolve(true);
-      clip.onerror = () => resolve(false);
-      const go = () => { if (audio === clip) clip.play().catch(() => resolve(false)); };
-      if (!beforePlay) return go();
-      clip.addEventListener("canplay", async () => { await beforePlay(); go(); }, {once: true});
+      finish = done;
+      clip.onended = () => done(true);
+      clip.onerror = () => done(false);
+      clip.addEventListener("canplay", async () => {
+        clearTimeout(timer);
+        await untilResumed();
+        if (settled || my !== token) return done(false);
+        started = true;
+        setPlayback("playing", "parent");
+        clip.play().catch(() => done(false));
+      }, {once: true});
       clip.load();
     });
   }
 
   // Fillers continue until the first story line is actually ready; then let the one talking finish.
-  async function firstLineReady() {
+  function firstLineReady() {
     stopWaiting();
-    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
+    if (filler) { filler.audio.pause(); filler.end(); }
   }
 
   function browserSay(text, language) {
@@ -88,9 +143,19 @@ const Narration = (() => {
       const say = new SpeechSynthesisUtterance(text);
       say.lang = language === "ko" ? "ko-KR" : "en-US";
       let settled = false;
-      const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (speechFinish === done) speechFinish = null; resolve(); };
-      const guard = setTimeout(() => { speechSynthesis.cancel(); done(); }, 30000);
+      let guard;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(guard);
+        if (speechFinish === done) { speechFinish = speechPause = speechResume = null; }
+        resolve();
+      };
+      const arm = () => { guard = setTimeout(() => { speechSynthesis.cancel(); done(); }, 30000); };
+      arm();
       speechFinish = done;
+      speechPause = () => clearTimeout(guard);
+      speechResume = arm;
       say.onend = done;
       say.onerror = done;
       speechSynthesis.speak(say);
@@ -98,21 +163,38 @@ const Narration = (() => {
   }
 
   // voice: a voice id other than the saved one (a draft on voice.html). peek: only ask which lines are ready.
-  async function queue(lines, {voice = null, peek = false, language = "en"} = {}) {
+  async function request(path, options = {}, {signal, timeout = REQUEST_MS} = {}) {
+    const controller = new AbortController();
+    let timer;
+    const cancel = () => controller.abort();
+    if (signal?.aborted) throw new Error("narration_cancelled");
+    signal?.addEventListener("abort", cancel, {once: true});
+    try {
+      return await Promise.race([
+        fetch(server + path, {...options, signal: controller.signal}).then(async response => ({response, body: await response.json()})),
+        new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error("narration_timeout")); }, timeout); })
+      ]);
+    } finally { clearTimeout(timer); signal?.removeEventListener("abort", cancel); }
+  }
+
+  async function queue(lines, {voice = null, peek = false, language = "en", background = false, signal} = {}) {
     const id = voice || voiceId();
-    const response = await fetch(`${server}/api/voice/lines`, {
+    const {response, body} = await request("/api/voice/lines", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({lines, language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {})})
-    });
+      body: JSON.stringify({lines, language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {}),
+        ...(background ? {priority: "background"} : {})})
+    }, {signal});
     if (!response.ok) {
       // The saved voice was deleted on the server: forget it and read with the sample voice.
       if (!voice && id && (response.status === 404 || response.status === 409)) {
-        try { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); } catch {}
-        return queue(lines, {peek, language});
+        if (id === voiceId()) {
+          try { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); } catch {}
+        }
+        return queue(lines, {peek, language, background, signal});
       }
       throw new Error(`narration ${response.status}`);
     }
-    return (await response.json()).clips;
+    return body.clips;
   }
 
   const asLines = lines => lines.map(line => typeof line === "string" ? {speakerId: "narrator", text: line}
@@ -131,7 +213,7 @@ const Narration = (() => {
   // the parent often taps "Start a story" right after saving. Plain-text body, so no CORS preflight.
   function voiceAhead(lines, {language = "en", voice = null} = {}) {
     const id = voice || voiceId();
-    const body = JSON.stringify({lines: asLines(lines), language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})});
+    const body = JSON.stringify({lines: asLines(lines), language, priority: "background", ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})});
     try { return navigator.sendBeacon(`${server}/api/voice/lines`, new Blob([body], {type: "text/plain"})); }
     catch { return false; }
   }
@@ -158,7 +240,7 @@ const Narration = (() => {
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
     let clip;
-    try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language}); } catch { return; }
+    try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language, background: true}); } catch { return; }
     if (!clip.ready || !waiting) return;
     if (filler) filler.end();
     const sound = new Audio(`${server}${clip.url}`);
@@ -173,7 +255,7 @@ const Narration = (() => {
   // Every language unless one is given.
   function warm(language = null) {
     for (const lang of language ? [language] : LANGUAGES) {
-      queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang}).catch(() => {});
+      queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang, background: true}).catch(() => {});
     }
   }
 
@@ -197,24 +279,54 @@ const Narration = (() => {
     lastKey = key;
     stopReading();
     const my = token;
+    readingController = new AbortController();
+    setPlayback("loading", null);
     const usable = lines.filter(line => String(line.text || "").trim());
     const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({speakerId: line.speakerId, text, line: i})));
-    const urls = await prepare(parts, {language});
-    // Let an interjection finish its sentence before the story goes on.
-    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
+    let clips = null;
+    if (LANGUAGES.includes(language)) {
+      try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}
+    }
+    if (my !== token) return;
+    firstLineReady();
     for (let k = 0; k < parts.length; k += 1) {
+      await untilResumed();
       if (my !== token) return;
       if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
-      const played = urls ? await playClip(urls[k], k === 0 ? firstLineReady : null) : false;
+      const played = clips?.[k]?.ready ? await playClip(`${server}${clips[k].url}?wait=0`, my) : false;
       if (my !== token) return;
       if (!played) {
-        if (k === 0) await firstLineReady();
+        await untilResumed();
+        if (my !== token) return;
+        setPlayback("playing", "browser");
         await browserSay(parts[k].text, language);
       }
     }
-    if (my === token) onLine(-1);
+    if (my === token) { onLine(-1); setPlayback("idle", null); }
   }
 
-  return {speak, stop, prepare, voiceAhead, readyCount, interject, warm, fillers, sentences,
+  async function prefetch(lines, {language = "en"} = {}) {
+    if (!LANGUAGES.includes(language)) return;
+    const parts = asLines(lines).flatMap(line => sentences(line.text).map(text => ({...line, text})));
+    try { await queue(parts, {language}); } catch {}
+  }
+
+  async function listVoices() {
+    const {response, body} = await request("/api/voices", {}, {timeout: 2500});
+    if (!response.ok || !Array.isArray(body.voices)) throw new Error("voices_unavailable");
+    return body.voices;
+  }
+
+  function selectVoice(id, name = "") {
+    stop();
+    try {
+      if (id) { localStorage.setItem("story-voice", id); localStorage.setItem("story-voice-name", name); }
+      else { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); }
+    } catch {}
+  }
+
+  return {speak, stop, pause, resume, prepare, prefetch, voiceAhead, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+    playbackState: () => playback, voiceSource: () => source,
+    subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
 })();

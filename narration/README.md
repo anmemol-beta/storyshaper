@@ -52,7 +52,7 @@ If the narration server is not running, the page uses the browser voice. The app
 | `404 not_found` | Line was never queued | Queue it first |
 
 Clips are cached in `voice/cache/` (git-ignored) by role settings and text, so a line is generated once; the second reading is instant.
-Only English is voiced; for Korean the page uses the browser voice.
+English and Korean can both use the parent's voice. The reader checks readiness: prepared clips play immediately; unready clips use the browser voice without waiting for generation. The status beside the image identifies browser narration. The metadata request is limited to 600 ms and a ready clip's initial load to 800 ms. These are fallback limits, not synthesis speed guarantees.
 Requests are accepted only on `127.0.0.1`/`localhost`, and only from local pages (CORS).
 
 ## Registering a parent's voice
@@ -107,6 +107,8 @@ First results (현준's 48 sentences, 4.2 min): held-out speaker similarity and 
 
 ## Page module
 
+The reader prefetches approved lines while their picture loads and starts playback only after display. Interactive narration takes priority over background book/filler generation. Repeated pending or in-flight requests reuse the same job. Only the requested language's model loads. Play/Pause beside the illustration preserves the playback position; selecting a saved voice directly in reader settings applies it to the current passage. Cancelling a paused browser utterance also clears its native pause state.
+
 `prototype/narration.js` defines `Narration`:
 
 - `speak(lines, {key, language, onLine})`: queues the lines and plays them in order. `onLine(i)` is called as line `i` starts and with `-1` at the end. Calling `speak` with the same `key` again does nothing, so a re-render does not repeat the passage.
@@ -114,6 +116,10 @@ First results (현준's 48 sentences, 4.2 min): held-out speaker similarity and 
 - `interject()`: says one of five short lines ("Hmm, let me think about that…") right away, and another every 8 s (at most three) until the next passage's first line is ready to play; skipped if not generated yet. `warm()` generates them ahead. The story never talks over a filler.
 - `usesParentVoice()`: a voice is registered on this device.
 - `stop()`: cuts the reading at once. Call it when the child starts talking (so the mic does not hear the narration), and on page changes or restart.
+- `pause()` / `resume()`: pause or continue the current clip/utterance, including while its metadata loads.
+- `playbackState()` / `subscribe(listener)`: observe idle, loading, playing or paused; `voiceSource()` identifies parent or browser narration.
+- `listVoices()` / `selectVoice(id, name)`: choose a saved voice without visiting the registration page.
+- `prefetch(lines, {language})`: prepare the approved next passage without playing it.
 
 ## Checked on 2026-10-30 (Mac, MPS)
 
