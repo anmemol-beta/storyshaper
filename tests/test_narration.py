@@ -127,6 +127,13 @@ class NarratorTest(unittest.TestCase):
         self.assertEqual([n.role(s) for s in ["narrator", "pig1", "pig3", "wolf", "mother", None]],
                          ["narrator", "pig", "pig", "wolf", "narrator", "narrator"])
 
+    def test_korean_keeps_its_own_settings(self):
+        n = Narrator(FakeVoice(), self.tmp.name)
+        english, korean = n.settings("narrator"), n.settings("narrator", language="ko")
+        self.assertEqual((english["exaggeration"], english["cfg_weight"], english["tempo"]), (0.7, 0.3, 0.84))
+        self.assertEqual((korean["exaggeration"], korean["cfg_weight"], korean["tempo"]), (0.5, 0.5, 1.0))
+        self.assertNotIn("ko", english)
+
     def test_clip_is_generated_once_and_cached(self):
         voice = FakeVoice()
         n = Narrator(voice, self.tmp.name)

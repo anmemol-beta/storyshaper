@@ -91,10 +91,11 @@ class Narrator:
             return "pig"
         return speaker_id if speaker_id in self.casting else "narrator"
 
-    def settings(self, role, parent_ref=None, all_roles=False):
+    def settings(self, role, parent_ref=None, all_roles=False, language="en"):
         """A role's voice settings. Parent roles (every role with all_roles) use the parent's clip,
-        keeping the role's own expression and tempo."""
-        settings = dict(self.casting[role])
+        keeping the role's own expression and tempo. A language entry in the casting overrides the English ones."""
+        settings = {k: v for k, v in self.casting[role].items() if k not in LANGUAGES}
+        settings.update(self.casting[role].get(language, {}))
         if role in PARENT_ROLES or all_roles:
             settings["ref"] = str(parent_ref) if parent_ref is not None else self.casting["narrator"]["ref"]
         return settings
@@ -121,7 +122,7 @@ class Narrator:
             self.dropped.discard(voice)
             for line in lines:
                 text, role = line["text"].strip(), self.role(line.get("speakerId"))
-                settings = self.settings(role, parent_ref, all_roles)
+                settings = self.settings(role, parent_ref, all_roles, language)
                 if language != "en":            # English keys stay as before, so existing clips remain valid
                     settings["language"] = language
                 elif t3 and settings["ref"] != self.casting[role]["ref"]:    # the parent's voice, not a stock one

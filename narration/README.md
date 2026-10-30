@@ -4,11 +4,11 @@ Story lines are read in each character's voice with Chatterbox:
 
 | `speakerId` | Voice | Settings |
 |---|---|---|
-| `narrator` (and any unknown id) | Parent (`voice/ref_clip.wav`) | exaggeration 0.5, 0.7 on lines with "!" |
-| `pig1`, `pig2`, `pig3` | Parent, acted (one voice for all three pigs) | exaggeration 0.8, cfg_weight 0.4, 1.1× tempo |
+| `narrator` (and any unknown id) | Parent (`voice/ref_clip.wav`) | exaggeration 0.7, cfg_weight 0.3, 0.84× tempo |
+| `pig1`, `pig2`, `pig3` | Parent, acted (one voice for all three pigs) | exaggeration 0.8, cfg_weight 0.3, 0.92× tempo |
 | `wolf` | LibriTTS-R speaker 1188 (`voice/characters/`, CC BY 4.0) | exaggeration 0.7 |
 
-The casting comes from a listening test of four options (roadmap §5, `voice/characters.html`). Settings live in `casting.json`.
+The casting comes from a listening test of four options (roadmap §5, `voice/characters.html`). Settings live in `casting.json`. English narrator and pig settings were changed on 10/31 to match the parent's real reading (slower, livelier; voice worklog §9, §16); a `"ko"` entry keeps the Korean settings chosen by ear on 10/30.
 
 ## Run
 
