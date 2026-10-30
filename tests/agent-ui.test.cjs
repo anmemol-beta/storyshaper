@@ -10,6 +10,7 @@ class Element {
     this.value = ''; this.textContent = ''; this.hidden = false; this.disabled = false;
   }
   setAttribute(name, value) { this[name] = value; }
+  removeAttribute(name) { delete this[name]; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
   fire(name) { return this.listeners[name]?.({preventDefault() {}}); }
   querySelector() { return this.option ||= new Element(); }
@@ -24,7 +25,7 @@ function snapshot(mode, id) {
     lines:[{speakerId:'narrator', text:'The story begins.'}], decision:'ready', reason:'story_started',
     attempts:0, choiceMode:false, storyState:{language:'en'}, mediaPlan:null, diagnostics:{}, providerMode:mode};
 }
-async function harness(initialAvailable = true) {
+async function harness(initialAvailable = true, globals = {}) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, new Element());
@@ -32,15 +33,15 @@ async function harness(initialAvailable = true) {
   };
   element('mode').value = 'mock';
   const calls = [];
-  const settings = {available:initialAvailable, answerResult:null, languageResult:null};
+  const settings = {available:initialAvailable, answerResult:null, languageResult:null, vision:Boolean(globals.CameraInput)};
   const languageButtons = ['en', 'ko'].map(value => { const button = new Element(); button.dataset.language = value; return button; });
   const document = {documentElement:{}, getElementById:element, querySelectorAll:selector => selector === '[data-language]' ? languageButtons : [], createElement:() => new Element()};
   const context = vm.createContext({document, localStorage:{getItem() {return null;}, setItem() {}},
-    AbortController, crypto:require('node:crypto'), setTimeout:() => 1, clearTimeout() {},
+    AbortController, crypto:require('node:crypto'), setTimeout:() => 1, clearTimeout() {}, ...globals,
     fetch:async (url, options={}) => {
       const body = options.body ? JSON.parse(options.body) : null;
       calls.push({url, body});
-      const data = url === '/api/config' ? {liveAvailable:settings.available, model:'test-model'}
+      const data = url === '/api/config' ? {liveAvailable:settings.available, model:'test-model', visionAvailable:settings.vision}
         : url === '/api/answer' && settings.answerResult ? settings.answerResult
         : url === '/api/language' && settings.languageResult ? settings.languageResult
         : snapshot(body.mode, `session-${calls.length}`);
@@ -125,4 +126,52 @@ test('unsupported material explanation uses readable words in English', async ()
   assert.match(element('attemptNote').textContent, /safe story branch for that material is not available/);
   assert.doesNotMatch(element('attemptNote').textContent, /unsupported_material/);
   assert.equal(element('mediaNotice').hidden, true);
+});
+
+function fakeCamera(name) {
+  const camera = {opened:0, named:[], supported:() => true,
+    async open() { camera.opened += 1; return {async snap() { return 'frame'; }, close() {}}; },
+    async name(blob, language) { camera.named.push([blob, language]); return name; }};
+  return camera;
+}
+const blobUrls = {createObjectURL:() => 'blob:frame', revokeObjectURL() {}};
+
+test('a camera answer fills the answer box and waits for Continue', async () => {
+  const camera = fakeCamera('a cookie');
+  const {element, calls} = await harness(true, {CameraInput:camera, URL:blobUrls});
+  await element('startButton').fire('click');
+  assert.equal(element('cameraButton').hidden, false);
+  await element('cameraButton').fire('click');
+  assert.equal(element('cameraPanel').hidden, false);
+  assert.equal(element('micButton').disabled, true);
+  await element('snapButton').fire('click');
+  assert.deepEqual(camera.named, [['frame', 'en']]);
+  assert.equal(element('answer').value, 'a cookie');
+  assert.match(element('requestStatus').textContent, /The camera saw: “a cookie”/);
+  assert.equal(calls.filter(call => call.url === '/api/answer').length, 0);
+  await element('answerForm').fire('submit');
+  await new Promise(setImmediate);
+  assert.equal(calls.filter(call => call.url === '/api/answer').at(-1).body.answer, 'a cookie');
+  assert.equal(element('cameraPanel').hidden, true);
+});
+
+test('a frame with nothing clear is not sent and not counted as a try', async () => {
+  const camera = fakeCamera('');
+  const {element, calls} = await harness(true, {CameraInput:camera, URL:blobUrls});
+  await element('startButton').fire('click');
+  await element('cameraButton').fire('click');
+  await element('snapButton').fire('click');
+  assert.equal(element('answer').value, '');
+  assert.match(element('requestStatus').textContent, /not counted as a try/);
+  assert.equal(calls.filter(call => call.url === '/api/answer').length, 0);
+  assert.equal(element('snapButton').textContent, 'Show something else');
+});
+
+test('the camera button hides once the server reports no camera', async () => {
+  const {element, settings} = await harness(true, {CameraInput:fakeCamera('a cookie'), URL:blobUrls});
+  await element('startButton').fire('click');
+  assert.equal(element('cameraButton').hidden, false);
+  settings.vision = false;
+  await element('refreshConfig').fire('click');
+  assert.equal(element('cameraButton').hidden, true);
 });

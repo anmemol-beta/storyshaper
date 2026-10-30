@@ -35,7 +35,7 @@ const AgentLanguage = (() => {
     "The story is ready when you are.": "준비가 되면 동화를 시작해 주세요.",
     "Your test answer": "시험할 답변",
     "Type your answer to the current question…": "현재 질문에 대한 답을 입력해 주세요…",
-    "Type an answer, or speak it when the microphone is available. Media generation is a separate integration.": "답을 입력하거나, 마이크를 쓸 수 있으면 말로 답하세요. 이미지·영상 생성은 별도로 연결합니다.",
+    "Type an answer, or speak it or show it to the camera when those are available. Media generation is a separate integration.": "답을 입력하거나, 쓸 수 있으면 말로 답하거나 카메라에 보여 주세요. 이미지·영상 생성은 별도로 연결합니다.",
     "Speak an answer": "말로 답하기",
     "Start the story →": "동화 시작하기 →",
     "Choose the mode above first. The first question and the answer box appear here.": "먼저 위에서 실행 방식을 고르세요. 첫 질문과 답 입력칸이 여기에 나타납니다.",
@@ -58,6 +58,19 @@ const AgentLanguage = (() => {
     "Microphone permission was refused. Type the answer or choose an option instead.": "마이크 권한이 거부되었습니다. 답을 입력하거나 보기를 골라 주세요.",
     "The microphone could not start. Type the answer instead.": "마이크를 시작하지 못했습니다. 답을 입력해 주세요.",
     "{message} Your retry count is unchanged.": "{message} 시도 횟수는 그대로입니다.",
+    "Show it to the camera": "카메라에 보여 주기",
+    "Camera preview": "카메라 미리보기",
+    "The picture sent to the story": "동화에 보낸 사진",
+    "Take the picture": "사진 찍기",
+    "Show something else": "다른 것 보여 주기",
+    "Close the camera": "카메라 닫기",
+    "Opening the camera…": "카메라를 여는 중…",
+    "Hold it up to the camera, then take the picture.": "카메라에 들어 보인 다음 사진을 찍으세요.",
+    "Looking at the picture…": "사진을 보는 중…",
+    "The camera saw: “{text}”. Continue the story, or show something else.": "카메라가 본 것: “{text}”. 이야기를 이어가거나 다른 것을 보여 주세요.",
+    "The camera could not see one thing clearly. Hold it closer and show it again. This is not counted as a try.": "한 가지 물건이 또렷하게 보이지 않았어요. 더 가까이 들고 다시 보여 주세요. 시도 횟수에는 넣지 않습니다.",
+    "Camera permission was refused. Type or speak the answer instead.": "카메라 권한이 거부되었습니다. 답을 입력하거나 말로 해 주세요.",
+    "The camera could not start. Type or speak the answer instead.": "카메라를 시작하지 못했습니다. 답을 입력하거나 말로 해 주세요.",
     "Continue story →": "이야기 이어가기 →",
     "Choose a story-safe option": "동화에 맞는 보기에서 골라 주세요",
     "Tap an option, or try another answer above.": "보기를 누르거나 위에 다른 답을 입력해 주세요.",
@@ -149,7 +162,12 @@ const AgentLanguage = (() => {
     "speech_http_error": "음성 인식을 지금 사용할 수 없습니다. 다시 시도하거나 글로 답해 주세요.",
     "speech_invalid_response": "음성 인식 결과를 읽지 못했습니다. 다시 시도해 주세요.",
     "speech_response_too_large": "음성 인식 결과를 읽지 못했습니다. 다시 시도해 주세요.",
-    "speech_rate_limited": "음성 인식 요청이 많습니다. 잠시 후 다시 시도해 주세요."
+    "speech_rate_limited": "음성 인식 요청이 많습니다. 잠시 후 다시 시도해 주세요.",
+    "vision_unavailable": "카메라 답을 지금 사용할 수 없습니다. 다시 시도하거나 다른 방법으로 답해 주세요.",
+    "vision_http_error": "카메라 답을 지금 사용할 수 없습니다. 다시 시도하거나 다른 방법으로 답해 주세요.",
+    "vision_invalid_response": "사진을 읽지 못했습니다. 다시 찍어 주세요.",
+    "vision_response_too_large": "사진을 읽지 못했습니다. 다시 찍어 주세요.",
+    "vision_rate_limited": "카메라 요청이 많습니다. 잠시 후 다시 시도해 주세요."
   };
   function text(source, values = {}) {
     const result = language === "ko" ? (korean[source] || source) : source;

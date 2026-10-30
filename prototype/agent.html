@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="agent.css">
   <script src="agent-i18n.js" defer></script>
   <script src="voice-input.js" defer></script>
+  <script src="camera-input.js" defer></script>
   <script src="narration.js" defer></script>
   <script src="agent.js" defer></script>
 </head>
@@ -88,13 +89,22 @@
             <label class="input-label" for="answer" data-copy>Your test answer</label>
             <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
             <div class="answer-footer">
-              <p class="field-hint" id="answerHint" data-copy>Type an answer, or speak it when the microphone is available. Media generation is a separate integration.</p>
+              <p class="field-hint" id="answerHint" data-copy>Type an answer, or speak it or show it to the camera when those are available. Media generation is a separate integration.</p>
               <div class="answer-actions">
+                <button class="button" id="cameraButton" type="button" hidden disabled>Show it to the camera</button>
                 <button class="button" id="micButton" type="button" hidden disabled>Speak an answer</button>
                 <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
               </div>
             </div>
             <p class="attempt-note" id="attemptNote" role="status" hidden></p>
+            <div class="camera-panel" id="cameraPanel" hidden>
+              <video id="cameraVideo" playsinline muted aria-label="Camera preview" data-copy-aria-label></video>
+              <img id="cameraShot" alt="The picture sent to the story" data-copy-alt hidden>
+              <div class="camera-actions">
+                <button class="button primary" id="snapButton" type="button" data-copy>Take the picture</button>
+                <button class="button" id="cameraCancel" type="button" data-copy>Close the camera</button>
+              </div>
+            </div>
           </form>
 
           <fieldset class="choice-panel" id="choicePanel" hidden>
