@@ -118,7 +118,8 @@ class StoryMediaPlayer {
       this.onState({state: 'failed'});
       return;
     }
-    const generated = result.generated === true && result.source === 'muse_image' && result.image.reviewed === true;
+    const generated = result.status === 'ready' && result.generated === true
+      && result.source === 'muse_image' && result.image.reviewed === true;
     // Never present a malformed "generated" record as a newly generated picture.
     if (result.generated === true && !generated) { this.onState({state: 'failed'}); return; }
     this.picture.show(url, {
@@ -126,7 +127,8 @@ class StoryMediaPlayer {
         if (this.active === active) {
           this.describePicture();
           this.onState({state: generated ? 'generated' :
-            result.generationRequested || active.live ? 'fallback' : 'prepared', image: result.image});
+            result.generationRequested || active.live ? 'fallback' : 'prepared', image: result.image,
+            video: result.video});
         }
       },
       onError: () => { if (this.active === active) this.onState({state: 'failed'}); }

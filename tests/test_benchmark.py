@@ -17,20 +17,28 @@ class MeasuredMock(MockProvider):
 
 
 class BenchmarkTests(unittest.TestCase):
-    def test_three_real_engine_turns_have_six_measured_calls(self):
+    def test_adaptive_turns_review_new_material_but_skip_two_known_material_reviews(self):
         report = run_benchmark(MeasuredMock())
-        self.assertEqual(report["modelCalls"], 6)
+        self.assertEqual(report["modelCalls"], 4)
+        self.assertEqual(report["pipeline"], "adaptive")
         self.assertTrue(report["allAccepted"])
         self.assertTrue(report["automatedChecksPassed"])
         self.assertFalse(report["liveLatencyEvidence"])
         self.assertTrue(report["manualQualityReviewRequired"])
-        for scenario in report["scenarios"]:
+        for scenario, phases in zip(report["scenarios"], (
+                ["interpret_compose", "review"], ["interpret_compose"], ["interpret_compose"])):
             self.assertEqual([call["phase"] for call in scenario["calls"]],
-                             ["interpret_compose", "review"])
+                             phases)
             self.assertEqual(scenario["calls"][0]["cachedInputTokens"], 0)
         encoded = json.dumps(report, ensure_ascii=False)
         for private in ("secret-answer", "더 커질 거 같아!", '"lines"', '"storyState"'):
             self.assertNotIn(private, encoded)
+
+    def test_reviewed_baseline_retains_six_calls_and_reports_review_policy(self):
+        report = run_benchmark(MeasuredMock(), pipeline="two_call")
+        self.assertEqual(report["modelCalls"], 6)
+        self.assertTrue(report["automatedChecksPassed"])
+        self.assertTrue(all(row["independentReview"] for row in report["scenarios"]))
 
     def test_failed_choice_skips_prediction_and_captures_failure_metrics(self):
         class Broken(MeasuredMock):
@@ -62,7 +70,7 @@ class BenchmarkTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 run_benchmark(MockProvider(), repeats=repeat)
         report = run_benchmark(MockProvider(), repeats=2)
-        self.assertEqual(report["modelCalls"], 12)
+        self.assertEqual(report["modelCalls"], 8)
         with patch("story_agent.benchmark.MetaProvider") as live, patch("sys.stdout", new=io.StringIO()) as output:
             self.assertEqual(main([]), 0)
         live.assert_not_called()

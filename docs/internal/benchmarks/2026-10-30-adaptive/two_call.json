@@ -1,0 +1,140 @@
+{
+  "label": "2026-10-30-two_call",
+  "mode": "mock",
+  "pipeline": "two_call",
+  "composeEffort": "low",
+  "reviewEffort": "low",
+  "repeats": 1,
+  "modelCalls": 6,
+  "callLimit": 6,
+  "allAccepted": true,
+  "automatedChecksPassed": true,
+  "manualQualityReviewRequired": true,
+  "liveLatencyEvidence": false,
+  "scenarios": [
+    {
+      "scenario": "vinyl_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 0.667,
+      "calls": [
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "interpret_compose",
+          "ok": true,
+          "durationMs": 0.023
+        },
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 0.001
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      },
+      "reviewReason": "always",
+      "independentReview": true
+    },
+    {
+      "scenario": "icecream_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 0.823,
+      "calls": [
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "interpret_compose",
+          "ok": true,
+          "durationMs": 0.06
+        },
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 0.001
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      },
+      "reviewReason": "always",
+      "independentReview": true
+    },
+    {
+      "scenario": "icecream_predict",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 0.393,
+      "calls": [
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "interpret_compose",
+          "ok": true,
+          "durationMs": 0.008
+        },
+        {
+          "requestBytes": null,
+          "instructionChars": null,
+          "inputChars": null,
+          "reasoningEffort": null,
+          "inputTokens": null,
+          "outputTokens": null,
+          "reasoningTokens": null,
+          "cachedInputTokens": null,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 0.001
+        }
+      ],
+      "checks": {
+        "processBeforeResultHint": true,
+        "noExtraTurn": true
+      },
+      "reviewReason": "always",
+      "independentReview": true
+    }
+  ]
+}

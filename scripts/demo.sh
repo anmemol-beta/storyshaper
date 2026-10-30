@@ -9,7 +9,7 @@ mkdir -p "$LOGS"
 
 voice/.venv-chatterbox/bin/python -m narration.server > "$LOGS/narration.log" 2>&1 &
 NARRATION=$!
-python3 -m speech.server > "$LOGS/story.log" 2>&1 &
+python3 -m src.server > "$LOGS/story.log" 2>&1 &
 STORY=$!
 trap 'kill $NARRATION $STORY 2>/dev/null; echo; echo "Stopped."' EXIT INT TERM
 
@@ -27,8 +27,7 @@ cat <<MSG
 
 Ready.
   Add a parent's voice   http://127.0.0.1:8000/prototype/voice.html
-  Picture book           http://127.0.0.1:8000/prototype/index.html
-  Live story agent       http://127.0.0.1:8000/prototype/agent.html
+  StoryShaper            http://127.0.0.1:8000/
 Press Ctrl-C to stop.
 MSG
 wait

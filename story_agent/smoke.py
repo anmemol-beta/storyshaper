@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .engine import MockProvider, StoryEngine
 from .provider import MetaProvider, load_env
+from .server import runtime_options
 
 
 def main():
@@ -22,14 +23,16 @@ def main():
     if not args.mock and not key:
         print(json.dumps({'ok': False, 'code': 'missing_api_key'}))
         return 2
+    options = runtime_options()
+    pipeline = options.pop('pipeline')
     provider = MockProvider() if args.mock else MetaProvider(
-        key, os.environ.get('STORY_AGENT_MODEL', 'muse-spark-1.3'))
-    engine = StoryEngine(provider, args.language)
+        key, os.environ.get('STORY_AGENT_MODEL', 'muse-spark-1.3'), **options)
+    engine = StoryEngine(provider, args.language, pipeline=pipeline)
     initial = engine.start('local-smoke-test')
     answer = '과자로 집을 만들래요' if args.language == 'ko' else 'Build with cookies'
     result = engine.answer(initial, answer)
     verified = (result['decision'] == 'accept'
-                and result['diagnostics'].get('phase') == 'review'
+                and result['diagnostics'].get('validated') is True
                 and result['diagnostics'].get('authoredFallback') is False)
     print(json.dumps({
         'ok': verified, 'mode': result['providerMode'],

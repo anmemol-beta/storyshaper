@@ -75,6 +75,7 @@ class ImageProviderTests(unittest.TestCase):
         self.assertTrue(edit_request.full_url.endswith('/images/edits'))
         self.assertEqual((body['model'], body['n'], body['response_format']), ('muse-image-1.0', 1, 'b64_json'))
         self.assertEqual(body['output_format'], 'jpeg')
+        self.assertEqual(body['reasoning_strength'], 'low')
         self.assertEqual(body['images'][0]['image_url'], 'data:image/jpeg;base64,' + base64.b64encode(JPEG).decode())
         self.assertTrue(all(value is False for value in body['tool_enablement'].values()))
         self.assertIn('paper', body['prompt'])
@@ -86,6 +87,17 @@ class ImageProviderTests(unittest.TestCase):
         self.assertIs(check['store'], False)
         self.assertEqual(check['reasoning'], {'effort': 'low'})
         self.assertEqual(check['input'][0]['content'][1]['type'], 'input_image')
+
+    def test_image_refinement_can_be_restored_without_disabling_independent_review(self):
+        responses = [io.BytesIO(json.dumps(reply).encode()) for reply in (self.edit, review())]
+        with patch('urllib.request.urlopen', side_effect=responses) as send, \
+                patch('media.image_provider.checked_jpeg', return_value=JPEG):
+            MuseImageProvider('fixture-secret', reasoning_strength='high').generate(
+                self.spec, self.build['mediaPlan'], [JPEG], threading.Event())
+        self.assertEqual(json.loads(send.call_args_list[0].args[0].data)['reasoning_strength'], 'high')
+        self.assertEqual(send.call_count, 2)
+        with self.assertRaises(ValueError):
+            MuseImageProvider('fixture-secret', reasoning_strength='minimal')
 
     def test_failed_or_uncertain_independent_review_never_publishes(self):
         for verdict in (review(safe=False), review(materialMatches=False), review(castMatches=False),

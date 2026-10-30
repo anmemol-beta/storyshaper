@@ -14,12 +14,29 @@ import time
 from urllib.parse import unquote, urlsplit
 import uuid
 
-from .engine import MockProvider, StoryEngine, SUPPORTED_LANGUAGES
-from .provider import MetaProvider, load_env
+from .engine import MockProvider, StoryEngine, SUPPORTED_LANGUAGES, PIPELINES
+from .provider import EFFORTS, MetaProvider, load_env
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY = 8192
 SESSION_TTL = 7200
+
+
+def runtime_options():
+    """Shared settings for text, speech, and camera servers; no credentials returned."""
+    def effort(name):
+        value = os.environ.get(name, "low")
+        return None if value == "default" else value
+
+    structured = os.environ.get("STORY_AGENT_STRUCTURED_OUTPUT", "1")
+    if structured not in {"0", "1"}:
+        raise ValueError("STORY_AGENT_STRUCTURED_OUTPUT must be 0 or 1")
+    return {
+        "pipeline": os.environ.get("STORY_AGENT_PIPELINE", "adaptive"),
+        "compose_reasoning_effort": effort("STORY_AGENT_COMPOSE_EFFORT"),
+        "review_reasoning_effort": effort("STORY_AGENT_REVIEW_EFFORT"),
+        "structured_output": structured == "1",
+    }
 
 
 class APIError(Exception):
@@ -38,15 +55,27 @@ class Session:
 
 
 class Playground:
-    def __init__(self, api_key="", model="muse-spark-1.3", provider_factory=None):
+    def __init__(self, api_key="", model="muse-spark-1.3", provider_factory=None, *,
+                 pipeline="adaptive", compose_reasoning_effort="low", review_reasoning_effort="low",
+                 structured_output=True):
+        if pipeline not in PIPELINES:
+            raise ValueError("unsupported story pipeline")
+        if compose_reasoning_effort not in EFFORTS or review_reasoning_effort not in EFFORTS:
+            raise ValueError("unsupported reasoning effort")
         self.api_key, self.model = api_key, model
         self.provider_factory = provider_factory
+        self.pipeline = pipeline
+        self.compose_reasoning_effort = compose_reasoning_effort
+        self.review_reasoning_effort = review_reasoning_effort
+        self.structured_output = structured_output
         self.sessions = {}
         self.lock = threading.Lock()
 
     def config(self):
         return {"liveAvailable": bool(self.api_key), "model": self.model,
-                "supportedLanguages": list(SUPPORTED_LANGUAGES)}
+                "supportedLanguages": list(SUPPORTED_LANGUAGES), "storyPipeline": self.pipeline,
+                "composeReasoningEffort": self.compose_reasoning_effort or "default",
+                "reviewReasoningEffort": self.review_reasoning_effort or "default"}
 
     def create(self, mode, language="en"):
         if mode not in ("mock", "live"):
@@ -55,8 +84,11 @@ class Playground:
         if mode == "live" and not self.api_key:
             raise APIError(503, "missing_api_key", "Set MODEL_API_KEY on the server, then restart it.")
         provider = (self.provider_factory(mode) if self.provider_factory else
-                    MetaProvider(self.api_key, self.model) if mode == "live" else MockProvider())
-        engine = StoryEngine(provider, language)
+                    MetaProvider(self.api_key, self.model,
+                                 compose_reasoning_effort=self.compose_reasoning_effort,
+                                 review_reasoning_effort=self.review_reasoning_effort,
+                                 structured_output=self.structured_output) if mode == "live" else MockProvider())
+        engine = StoryEngine(provider, language, pipeline=self.pipeline)
         session_id = str(uuid.uuid4())
         snapshot = engine.start(session_id)
         with self.lock:
@@ -138,6 +170,9 @@ class Playground:
             # a current, server-owned choice; no extra failure request is needed.
             if choice is not None and choice not in {item["id"] for item in question["choices"]}:
                 raise APIError(400, "invalid_choice", "Use a choice from the current question.")
+            if current.get("choiceMode") and choice is None:
+                raise APIError(400, "choice_required", "Choose one of the three options for this question.",
+                               deepcopy(current))
             if session.turns >= 60:
                 raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")
             session.turns += 1
@@ -194,8 +229,14 @@ class Handler(BaseHTTPRequestHandler):
             path = unquote(urlsplit(self.path).path)
             if path == "/api/config":
                 return self.reply(200, self.server.playground.config())
-            if path == "/":
-                path = "/prototype/agent.html"
+            if path in {"/", "/index.html", "/prototype/"}:
+                query = urlsplit(self.path).query
+                self.send_response(302)
+                self.send_header("Location", "/prototype/index.html" + ("?" + query if query else ""))
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
             # Only serve the prototype. Never expose .env, voice recordings or Git files.
             target = (ROOT / path.lstrip("/")).resolve()
             static_root = (ROOT / "prototype").resolve()
@@ -253,9 +294,10 @@ def main():
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     load_env(ROOT / ".env")
-    app = Playground(os.environ.get("MODEL_API_KEY", ""), os.environ.get("STORY_AGENT_MODEL", "muse-spark-1.3"))
+    app = Playground(os.environ.get("MODEL_API_KEY", ""), os.environ.get("STORY_AGENT_MODEL", "muse-spark-1.3"),
+                     **runtime_options())
     with Server(("127.0.0.1", args.port), app) as server:
-        print(f"Story agent playground: http://127.0.0.1:{server.server_port}/prototype/agent.html", flush=True)
+        print(f"StoryShaper: http://127.0.0.1:{server.server_port}/", flush=True)
         print("Live Muse Spark: " + ("configured" if app.api_key else "not configured; use offline mock mode"), flush=True)
         try:
             server.serve_forever()

@@ -133,7 +133,7 @@ test('offline illustrations are labelled prepared and rejected answers do not ge
 
 test('mismatched bindings, external URLs and unreviewed generated pixels are never displayed', async () => {
   const state = snapshot();
-  for (const changes of [{version:99}, {apply:false}, {sessionId:'other'},
+  for (const changes of [{version:99}, {apply:false}, {sessionId:'other'}, {status:'failed'},
     {image:{url:'https://external.example/image.jpg', reviewed:true}},
     {image:{url:'/api/media/images/image', reviewed:false}}]) {
     const {player, calls, states, shows} = setup();

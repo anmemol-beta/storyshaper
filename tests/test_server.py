@@ -1,9 +1,11 @@
 from copy import deepcopy
 import http.client
+from html.parser import HTMLParser
 import json
 import threading
 import unittest
 from unittest.mock import patch
+from urllib.parse import urljoin
 
 from story_agent.server import APIError, Playground, Server
 
@@ -72,6 +74,24 @@ class SessionTests(unittest.TestCase):
                                               'version': result['version'], 'language': 'ko'})
         self.assertEqual(localized['mediaPlan']['selection'], result['selection'])
         self.assertEqual(localized['mediaPlan']['material'], choice['id'])
+
+    def test_choice_mode_rejects_free_answers_without_counting_or_calling_a_model(self):
+        failure_request = turn_body(self.start, '')
+        failed = self.app.answer(failure_request)
+        session = self.app.sessions[failed['sessionId']]
+        with patch.object(session.engine, 'answer', side_effect=AssertionError('engine called')):
+            for answer in ('paper', '', '벽돌로 지을래요'):
+                with self.subTest(answer=answer), self.assertRaises(APIError) as caught:
+                    self.app.answer(turn_body(failed, answer, 'blocked'))
+                self.assertEqual(caught.exception.code, 'choice_required')
+                self.assertEqual(caught.exception.snapshot, failed)
+            self.assertEqual(self.app.answer(failure_request), failed)
+        self.assertEqual(session.snapshot, failed)
+        self.assertEqual(session.turns, 1)
+        choice = failed['question']['choices'][0]
+        accepted = self.app.answer(dict(turn_body(failed, request='chosen'), choiceId=choice['id']))
+        self.assertFalse(accepted['choiceMode'])
+        self.assertEqual(session.turns, 2)
 
     def test_first_failure_then_touch_is_idempotent_and_rejects_old_or_invented_choices(self):
         failure_request = turn_body(self.start, '')
@@ -242,10 +262,65 @@ class HTTPTests(unittest.TestCase):
         status, raw = self.request('GET', '/api/config')
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(raw), {"liveAvailable": False, "model": "muse-spark-1.3",
-                                          "supportedLanguages": ['en', 'ko']})
+                                          "supportedLanguages": ['en', 'ko'],
+                                          "storyPipeline": "adaptive", "composeReasoningEffort": "low",
+                                          "reviewReasoningEffort": "low"})
         status, raw = self.request('POST', '/api/sessions', '{"mode":"live"}')
         self.assertEqual(status, 503)
         self.assertEqual(json.loads(raw)['error']['code'], 'missing_api_key')
+
+    def test_home_opens_integrated_page_with_loadable_assets_and_parent_settings(self):
+        conn = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=5)
+        conn.request('GET', '/?voiceServer=http://127.0.0.1:8100')
+        response = conn.getresponse()
+        self.assertEqual(response.status, 302)
+        location = response.getheader('Location')
+        response.read()
+        conn.close()
+        self.assertEqual(location, '/prototype/index.html?voiceServer=http://127.0.0.1:8100')
+        status, raw = self.request('GET', location)
+        self.assertEqual(status, 200)
+        html = raw.decode()
+        for element in ('mic', 'cameraButton', 'imgCur', 'choices', 'freeInput', 'retryMedia'):
+            self.assertIn(f'id="{element}"', html)
+        self.assertIn('href="voice.html"', html)
+        self.assertNotIn('agent.html', html)
+        self.assertIn('오프라인 버전', html)
+        self.assertIn('AI 버전', html)
+        self.assertNotIn('diagnosticsJson', html)
+
+        class Assets(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.urls = []
+
+            def handle_starttag(self, tag, attributes):
+                attributes = dict(attributes)
+                if tag == 'script' and 'src' in attributes:
+                    self.urls.append(attributes['src'])
+                if tag == 'link' and attributes.get('rel') == 'stylesheet':
+                    self.urls.append(attributes['href'])
+
+        assets = Assets()
+        assets.feed(html)
+        self.assertIn('camera-input.js', assets.urls)
+        self.assertIn('narration.js', assets.urls)
+        self.assertIn('story-media.js', assets.urls)
+        self.assertIn('live-book.js', assets.urls)
+        self.assertNotIn('agent.js', assets.urls)
+        for asset in assets.urls:
+            with self.subTest(asset=asset):
+                status, _ = self.request('GET', urljoin(location, asset))
+                self.assertEqual(status, 200)
+
+    def test_developer_page_is_preserved_but_unlinked_from_reader(self):
+        status, raw = self.request('GET', '/prototype/agent.html')
+        self.assertEqual(status, 200)
+        self.assertIn('diagnosticsJson', raw.decode())
+        for path in ('/prototype/index.html', '/prototype/live.html', '/prototype/voice.html'):
+            status, raw = self.request('GET', path)
+            self.assertEqual(status, 200)
+            self.assertNotIn('agent.html', raw.decode())
 
     def test_private_paths_and_traversal_are_not_served(self):
         for path in ('/.env', '/voice/compare.html', '/prototype/../.git/config',

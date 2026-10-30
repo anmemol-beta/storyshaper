@@ -13,10 +13,10 @@ The camera never answers on its own. The name passes the same input checks, inte
 Needs what `speech.server` needs (Python 3.10+, `ffmpeg`, `MODEL_API_KEY` in `.env`).
 
 ```bash
-python3 -m vision.server            # story agent + media + speech + camera on http://127.0.0.1:8000
+python3 -m src.server            # story agent + media + speech + camera on http://127.0.0.1:8000
 ```
 
-Open `http://127.0.0.1:8000/prototype/agent.html`. **Show it to the camera** appears when the server reports `visionAvailable`. Press it, hold the thing up, press **Take the picture**. The photo stays on screen while the story thinks and closes once the story answers.
+Open `http://127.0.0.1:8000/`. **Show it to the camera** appears when the server reports `visionAvailable`. Press it, hold the thing up, press **Take the picture**. The photo stays on screen while the story thinks and closes once the story answers.
 
 This server also enables the microphone and live Muse Image generation in this lab. Each accepted new answer generates a picture and runs an independent image review. The previous picture stays visible during generation; captions distinguish generated, prepared and failed results. Mock mode uses prepared illustrations. Image delays do not block the next answer or the first-failure touch choices. See [the media API](../media/API.md).
 

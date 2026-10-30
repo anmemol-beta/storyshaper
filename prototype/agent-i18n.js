@@ -6,6 +6,9 @@ const AgentLanguage = (() => {
     "a safe story branch for that material is not available yet": "이 재료로 안전하게 이어갈 이야기는 아직 준비되지 않았어요",
     "A picture for this material is not available yet. Keep reading with the reference picture.": "이 재료의 그림은 아직 준비되지 않았어요. 참고 그림과 함께 이야기를 계속 읽을 수 있어요",
     "Story agent lab · StoryShaper": "동화 에이전트 시험 · StoryShaper",
+    "StoryShaper · Interactive storybook": "StoryShaper · 함께 만드는 동화",
+    "Interactive storybook": "함께 만드는 동화",
+    "Reader settings ↗": "목소리 설정 ↗",
     "Skip to the current question": "현재 질문으로 이동",
     "Display language": "화면 언어",
     "Back to picture book ↗": "그림책으로 돌아가기 ↗",
@@ -194,7 +197,7 @@ const AgentLanguage = (() => {
   }
   function apply() {
     document.documentElement.lang = language;
-    document.title = text("Story agent lab · StoryShaper");
+    document.title = text("StoryShaper · Interactive storybook");
     document.querySelectorAll("[data-copy]").forEach(element => {
       if (!element.dataset.sourceText) element.dataset.sourceText = element.textContent.trim();
       element.textContent = text(element.dataset.sourceText);
