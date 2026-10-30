@@ -52,6 +52,9 @@ MAX_BODY = 16384
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_LINES = 20
 MAX_TEXT = 500
+# English uses Chatterbox; other languages use Chatterbox Multilingual with the same reference clips.
+# Korean was chosen by ear on 10/30 (voice/korean.html): the parent's English clip, cfg_weight 0.5.
+LANGUAGES = ("en", "ko")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
 VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save))?$")
@@ -90,7 +93,7 @@ class Narrator:
     def path(self, voice, key):
         return self.cache / voice / f"{key}.mp3"
 
-    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True):
+    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en"):
         """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
@@ -102,6 +105,8 @@ class Narrator:
             for line in lines:
                 text, role = line["text"].strip(), self.role(line.get("speakerId"))
                 settings = self.settings(role, parent_ref, all_roles)
+                if language != "en":            # English keys stay as before, so existing clips remain valid
+                    settings["language"] = language
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
                 if not ready and enqueue:
@@ -260,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self):
         url = urlsplit(self.path)
         if url.path == "/api/voice/config":
-            return self.reply(200, {"roles": sorted(self.server.narrator.casting), "languages": ["en"]})
+            return self.reply(200, {"roles": sorted(self.server.narrator.casting), "languages": list(LANGUAGES)})
         if url.path == "/api/voices":
             return self.reply(200, {"voices": self.server.library.saved()})
         route = VOICE_ROUTE.match(url.path)
@@ -295,9 +300,12 @@ class Handler(BaseHTTPRequestHandler):
                                and 0 < len(l["text"].strip()) <= MAX_TEXT for l in lines)):
                 raise VoiceError(400, "invalid_lines",
                                  f"Send 1-{MAX_LINES} lines, each with text up to {MAX_TEXT} characters.")
+            language = body.get("language", "en")
+            if language not in LANGUAGES:
+                raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
             voice, ref = self.parent_ref(body.get("voiceId"))
             return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
-                                                             enqueue=body.get("peek") is not True)})
+                                                             enqueue=body.get("peek") is not True, language=language)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -378,10 +386,21 @@ def chatterbox_synthesizer():
     device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
     model = ChatterboxTTS.from_pretrained(device=device)
 
+    multilingual = None
+
     def synthesize(text, voice):
+        nonlocal multilingual
         exaggeration = voice["exclaim_exaggeration"] if "!" in text else voice["exaggeration"]
         ref = ROOT / voice["ref"].split("#", 1)[0]       # casting refs are repo-relative, profile refs absolute
-        wav = model.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+        language = voice.get("language", "en")
+        if language == "en":
+            wav = model.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+        else:
+            if multilingual is None:                     # loaded on the first non-English line
+                from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+                multilingual = ChatterboxMultilingualTTS.from_pretrained(device=device)   # a string, see mtl_tts
+            wav = multilingual.generate(text, language_id=language, audio_prompt_path=str(ref),
+                                        exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
         with tempfile.TemporaryDirectory() as tmp:
             src, out = Path(tmp) / "line.wav", Path(tmp) / "line.mp3"
             ta.save(str(src), wav, model.sr)

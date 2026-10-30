@@ -442,12 +442,12 @@
   async function prepareBook() {
     if (typeof Narration === "undefined") return;
     try {
-      const lines = await bookLines();
-      // The server voices the newest request first, so send the last pages first, then the opening,
-      // and the short "let's see…" lines last so they are ready first.
-      const chunks = [];
-      for (let i = 0; i < lines.length; i += 20) chunks.push(lines.slice(i, i + 20));
-      for (const chunk of chunks.reverse()) await Narration.prepare(chunk);
+      // The same voice reads the Korean book too. The server voices the newest request first, so send
+      // Korean first, then the English book from its last page to its opening, and the short fillers last.
+      const korean = (await (await fetch("audio/lines.ko.json")).json()).map(l => l.text);
+      const chunks = lines => { const out = []; for (let i = 0; i < lines.length; i += 20) out.push(lines.slice(i, i + 20)); return out.reverse(); };
+      for (const chunk of chunks(korean)) await Narration.prepare(chunk, {language: "ko"});
+      for (const chunk of chunks(await bookLines())) await Narration.prepare(chunk);
     } catch {}
     Narration.warm();
   }

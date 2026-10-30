@@ -190,10 +190,14 @@ function readLines(lines, done) {
     audio.defaultPlaybackRate = audio.playbackRate = rate(); // loading a new src resets playbackRate to the default
     audio.play().catch(fallBack);
   };
-  // Ask for the registered voice's clips for the whole passage at once (narration.js); the server makes them in order.
+  // Ask the narration server for the whole passage at once (narration.js); it makes the clips in order.
+  // English uses it for a registered voice (otherwise the prepared clips); Korean always does, falling back
+  // to the device voice when the server is not running.
   let serverUrls = null;
-  if (language === "en" && $("voice").checked && typeof Narration !== "undefined" && Narration.usesParentVoice()) {
-    Narration.prepare(queue).then((urls) => { serverUrls = urls; if (live()) readOne(0); });
+  const useServer = $("voice").checked && typeof Narration !== "undefined"
+    && (language === "ko" || (language === "en" && Narration.usesParentVoice()));
+  if (useServer) {
+    Narration.prepare(queue, {language}).then((urls) => { serverUrls = urls; if (live()) readOne(0); });
   } else readOne(0);
 }
 
@@ -247,9 +251,9 @@ function showHints(list, numbered) {
 
 // The picture-card invitation in the parent's voice from the narration server, or the browser voice without it.
 function readChoices(text) {
-  if (language !== "en" || typeof Narration === "undefined") return speak(text);
+  if (typeof Narration === "undefined") return speak(text);
   const gen = ++readGen;
-  Narration.prepare([text]).then((urls) => {
+  Narration.prepare([text], {language}).then((urls) => {
     if (gen !== readGen) return;
     if (!urls) return speak(text);
     const audio = (playing = voiceEl);
@@ -439,10 +443,9 @@ function applyLanguage() {
   showReader();
 }
 
-// Whose voice reads the book: the parent registered on voice.html, or the storybook voice.
-// Registered voices are English only, so Korean always shows the device voice.
+// Whose voice reads the book: the parent registered on voice.html, or the storybook voice (both languages).
 function showReader() {
-  const name = language === "en" && typeof Narration !== "undefined" ? Narration.voiceName() : null;
+  const name = typeof Narration !== "undefined" ? Narration.voiceName() : null;
   $("readerName").textContent = name || copy().storybookVoice;
   $("readBy").hidden = !name;
   $("readBy").textContent = name ? copy().readBy(name) : "";

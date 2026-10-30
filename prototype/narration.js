@@ -19,6 +19,16 @@ const Narration = (() => {
     "I wonder what will happen next…",
     "Ready? Here we go…",
   ];
+  const FILLERS_KO = [
+    "우와, 좋은 생각이다! 어떻게 되는지 볼까?",
+    "음, 어떻게 될까?",
+    "다음 장을 넘겨서 알아보자!",
+    "다음엔 무슨 일이 일어날까?",
+    "준비됐니? 자, 간다!",
+  ];
+  const fillers = language => (language === "ko" ? FILLERS_KO : FILLERS);
+  // Languages the server reads in the parent's voice (English: Chatterbox; Korean: Chatterbox Multilingual).
+  const LANGUAGES = ["en", "ko"];
   let token = 0;
   let audio = null;
   let lastKey = null;
@@ -67,17 +77,17 @@ const Narration = (() => {
   }
 
   // voice: a voice id other than the saved one (a draft on voice.html). peek: only ask which lines are ready.
-  async function queue(lines, {voice = null, peek = false} = {}) {
+  async function queue(lines, {voice = null, peek = false, language = "en"} = {}) {
     const id = voice || voiceId();
     const response = await fetch(`${server}/api/voice/lines`, {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({lines, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {})})
+      body: JSON.stringify({lines, language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {})})
     });
     if (!response.ok) {
       // The saved voice was deleted on the server: forget it and read with the sample voice.
       if (!voice && id && (response.status === 404 || response.status === 409)) {
         try { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); } catch {}
-        return queue(lines, {peek});
+        return queue(lines, {peek, language});
       }
       throw new Error(`narration ${response.status}`);
     }
@@ -89,26 +99,27 @@ const Narration = (() => {
 
   // Clip URLs for these lines, in order (null if the server is unavailable or the language has no cloned voice).
   async function prepare(lines, {language = "en", voice = null} = {}) {
-    if (language !== "en") return null;
+    if (!LANGUAGES.includes(language)) return null;
     try {
-      const clips = await queue(asLines(lines), {voice});
+      const clips = await queue(asLines(lines), {voice, language});
       return clips.map(c => `${server}${c.url}?wait=${WAIT}`);
     } catch { return null; }
   }
 
   // How many of these lines are already voiced (null if the server is unavailable). Queues nothing.
-  async function readyCount(lines, {voice = null} = {}) {
-    try { return (await queue(asLines(lines), {voice, peek: true})).filter(c => c.ready).length; }
+  async function readyCount(lines, {voice = null, language = "en"} = {}) {
+    try { return (await queue(asLines(lines), {voice, peek: true, language})).filter(c => c.ready).length; }
     catch { return null; }
   }
 
   // A short line in the parent's voice, said at once. Skipped if it is not generated yet: a robot voice
   // saying "let me think" would be worse than a moment of quiet.
   async function interject(language = "en") {
-    if (language !== "en") return;
-    lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (FILLERS.length - 1))) % FILLERS.length;
+    if (!LANGUAGES.includes(language)) return;
+    const list = fillers(language);
+    lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
     let clip;
-    try { [clip] = await queue([{speakerId: "narrator", text: FILLERS[lastFiller]}]); } catch { return; }
+    try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language}); } catch { return; }
     if (!clip.ready) return;
     if (filler) filler.end();
     const sound = new Audio(`${server}${clip.url}`);
@@ -120,8 +131,11 @@ const Narration = (() => {
   }
 
   // Generate the fillers now, so interject() can play them instantly later.
-  function warm() {
-    queue(FILLERS.map(text => ({speakerId: "narrator", text}))).catch(() => {});
+  // Every language unless one is given.
+  function warm(language = null) {
+    for (const lang of language ? [language] : LANGUAGES) {
+      queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang}).catch(() => {});
+    }
   }
 
   // key: skip re-reading the same passage (e.g. a re-render after an error). Only English has cloned voices.
