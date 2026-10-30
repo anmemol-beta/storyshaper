@@ -51,6 +51,13 @@
   .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 2px solid var(--green); background: transparent; color: var(--green); font-weight: 700; cursor: pointer; text-decoration: none; display: inline-grid; place-items: center; }
   .btn.main { background: var(--green); color: var(--on-green); }
   .btn:disabled { opacity: .4; cursor: default; }
+  .card.media { justify-items: stretch; text-align: left; }
+  .clips { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .clips li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+  .clips li.off textarea { opacity: .45; text-decoration: line-through; }
+  .clips textarea { font: inherit; font-size: .92rem; line-height: 1.4; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); min-width: 0; resize: vertical; }
+  .clips button { border: 0; background: var(--peach); color: var(--ink); border-radius: 50%; width: 34px; height: 34px; cursor: pointer; }
+  .clips label { font-size: .8rem; color: var(--subtle); white-space: nowrap; }
   .tips { margin: 0; padding-left: 1.2em; color: var(--subtle); font-size: .9rem; }
   .error { margin: 0; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--warn) 12%, var(--page)); color: var(--warn); }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
@@ -84,6 +91,8 @@
     <p class="num" data-t>Can't read these sentences? Add videos or voice messages of them instead.</p>
     <label class="btn"><span data-t>Add videos or voice messages</span><input type="file" id="media" accept="audio/*,video/*" multiple hidden></label>
     <p class="hint" id="mediaStatus" role="status"></p>
+    <p class="num" id="mediaHelp" hidden data-t>Listen to each part and fix any words we heard wrong. Wrong words teach the voice wrong sounds.</p>
+    <ol class="clips" id="mediaClips"></ol>
   </section>
   <ul class="tips">
     <li data-t>A quiet room, the phone about a hand's width from your mouth.</li>

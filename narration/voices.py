@@ -302,6 +302,27 @@ class VoiceLibrary:
         return {"added": len(added), "skipped": skipped, "seconds": round(sum(c["seconds"] for c in added), 1),
                 "clips": added}
 
+    def update_training_clip(self, voice_id, n, text=None, excluded=None):
+        """Correct a clip's text (a mistranscribed home-video clip) or leave it out of training."""
+        clips = self._training_clips(voice_id)
+        clip = clips.get(str(n))
+        if not clip:
+            raise VoiceError(404, "not_found", "No training clip with this number.")
+        if text is not None:
+            if not isinstance(text, str) or not 0 < len(text.strip()) <= 300:
+                raise VoiceError(400, "invalid_text", "Give the clip's words, up to 300 characters.")
+            clip["text"], clip["edited"] = text.strip(), True
+        if excluded is not None:
+            clip["excluded"] = bool(excluded)
+        (self.folder(voice_id) / "train" / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1))
+        return clip
+
+    def training_audio(self, voice_id, n):
+        clip = self._training_clips(voice_id).get(str(n))
+        if not clip:
+            raise VoiceError(404, "not_found", "No training clip with this number.")
+        return (self.folder(voice_id) / "train" / clip.get("file", f"{n:03d}.wav")).read_bytes()
+
     def _training_clips(self, voice_id):
         path = self.folder(voice_id) / "train" / "clips.json"
         return json.loads(path.read_text()) if path.exists() else {}

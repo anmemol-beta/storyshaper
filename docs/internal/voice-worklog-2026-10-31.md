@@ -41,4 +41,5 @@
 ## 5. 실제 영상으로 학습 데이터 만들기 확인
 
 - `voice-train.html`에서 실제 영상(`dad_video.mp4`, 27초)을 올려 구간 8개(23.2초)가 받아쓴 문장과 함께 저장됨. 문제: 받아쓰기 오류가 그대로 학습 문장이 된다("whisper the youngest peak", "verbal, something something"). 아래 개선 과제.
+- **해결:** 연습 페이지에 영상 구간 목록을 추가. 구간마다 ▶ 듣기, 두 줄 문장 칸(고치면 저장), "쓰지 않기". 학습 데이터는 고친 문장을 쓰고 뺀 구간은 넣지 않는다(`POST /api/voices/<id>/train/<n>` JSON, `GET …/train/<n>.wav`). 실제 영상으로 "youngest peak"→"pig" 수정, 구간 제외, 녹음 시간 갱신까지 확인. 테스트 2개 추가.
 

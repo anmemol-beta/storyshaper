@@ -37,7 +37,7 @@ def dataset_from_voice(voice_id: str) -> Path:
     """LJSpeech folder (wavs/ + metadata.csv) from the sentences recorded on voice-train.html."""
     folder = PROFILES / voice_id / "train"
     clips = json.loads((folder / "clips.json").read_text())
-    usable = [c for c in clips.values() if c.get("match") is None or c["match"] >= MIN_MATCH]
+    usable = [c for c in clips.values() if not c.get("excluded") and (c.get("match") is None or c["match"] >= MIN_MATCH)]
     out = DATA / voice_id
     shutil.rmtree(out, ignore_errors=True)
     (out / "wavs").mkdir(parents=True)
