@@ -334,6 +334,11 @@ class FillerListTest(unittest.TestCase):
             block = re.search(rf"const {name} = \[(.*?)\];", page, re.S).group(1)
             self.assertEqual(re.findall(r'"([^"]+)"', block), expected)
 
+    def test_warm_script_voices_the_choice_prompt_the_live_page_reads(self):
+        from narration.warm import CHOICE_PROMPT
+        page = (Path(__file__).resolve().parent.parent / "prototype" / "live-book.js").read_text(encoding="utf-8")
+        self.assertIn(f't("{CHOICE_PROMPT["en"]}", "{CHOICE_PROMPT["ko"]}")', page)
+
 
 class FinetuneDatasetTest(unittest.TestCase):
     def test_dataset_uses_corrected_text_and_skips_excluded_and_misread_clips(self):
