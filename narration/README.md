@@ -40,6 +40,29 @@ Clips are cached in `voice/cache/` (git-ignored) by role settings and text, so a
 Only English is voiced; for Korean the page uses the browser voice.
 Requests are accepted only on `127.0.0.1`/`localhost`, and only from local pages (CORS).
 
+## Registering a parent's voice
+
+`prototype/voice.html` (open it from the agent server: `http://127.0.0.1:8000/prototype/voice.html`) walks a parent through:
+
+1. **Whose voice is this?** My own voice, a family member who agreed (e.g. a parent away for work or service), or a family member who has passed away. A name and a rights checkbox are required; public figures and people who have not agreed are excluded.
+2. **Add a recording or a video.** Any file `ffmpeg` can read, or a 30-second recording in the browser. Only the sound track of the first 10 minutes is used.
+3. **Choose a clear 10-second part.** The server suggests up to three parts with the most talking and checks length, share of speech, background noise and distortion. The clip is transcribed with **Muse Voice Transcribe** so the parent can see what was said.
+4. **Hear a story line** in that voice.
+5. **Save.** The full recording is deleted; only the clip (`ref.wav`) and `meta.json` with the consent statement are kept in `voice/profiles/<id>/` (git-ignored). The page stores the chosen voice in `localStorage["story-voice"]`, and `narration.js` sends it as `voiceId`.
+
+**Delete voice** removes the clip and every story line read with it (`voice/cache/<id>/`).
+A registered voice replaces the parent roles (narrator and pigs); the wolf keeps its stock voice.
+
+| Route | Body | Result |
+|---|---|---|
+| `POST /api/voices` | the file itself, `Content-Type: audio/*` or `video/*` (max 100 MB) | `201` draft `{id, sourceSeconds, suggestions: [{start, end, speech}]}` |
+| `GET /api/voices/<id>/full.wav` | | the draft's audio, to listen to the parts |
+| `POST /api/voices/<id>/clip` | `{start, end}` | `{quality: {duration, speech, snrDb, ok, problems}, transcript}` |
+| `POST /api/voices/<id>/preview` | `{}` | a clip like `/api/voice/lines` returns |
+| `POST /api/voices/<id>/save` | `{name, relation: "me" \| "family_consented" \| "family_late", attested: true}` | saved meta |
+| `GET /api/voices` | | `{voices: [{id, name, source, savedAt, consent}]}` |
+| `DELETE /api/voices/<id>` | | `{deleted: id}` |
+
 ## Page module
 
 `prototype/narration.js` defines `Narration`:
@@ -53,4 +76,6 @@ Requests are accepted only on `127.0.0.1`/`localhost`, and only from local pages
 - Headless Chrome on `agent.html` with both servers: mock mode and live Muse Spark each read the opening and one turn (6–7 lines) with the cloned voice, no fallback to the browser voice.
   A new line took 3–6 s to generate; cached lines played immediately.
 - Direct API: `wolf`, `pig1`, `pig3` lines were voiced by their roles in 3–4 s each.
+- Voice registration in headless Chrome: an MP4 with the parent's 27 s recording → 2 suggested parts (71% and 63% talking) → clip checked and transcribed in 3.8 s → preview line in 13.6 s → saved (only `ref.wav` and `meta.json` left) → the agent page read the story in that voice → **Delete voice** removed the profile and its cached lines.
+- One Muse Voice Transcribe call hung past 30 s; a retry right after took 3 s. The server now gives up after 20 s and retries once; without a transcript the voice still works.
 - Not checked: Safari/iPad autoplay (Chrome allowed playback after the first tap), a full story with wolf lines in the agent flow, a cloud GPU.

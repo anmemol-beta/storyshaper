@@ -44,11 +44,25 @@ const Narration = (() => {
     });
   }
 
+  // The parent voice chosen on voice.html; without one the server uses its sample voice.
+  function savedVoice() {
+    try { return localStorage.getItem("story-voice"); } catch { return null; }
+  }
+
   async function queue(lines) {
+    const voiceId = savedVoice();
     const response = await fetch(`${server}/api/voice/lines`, {
-      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({lines})
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(voiceId ? {lines, voiceId} : {lines})
     });
-    if (!response.ok) throw new Error(`narration ${response.status}`);
+    if (!response.ok) {
+      // The saved voice was deleted on the server: forget it and read with the sample voice.
+      if (voiceId && (response.status === 404 || response.status === 409)) {
+        try { localStorage.removeItem("story-voice"); } catch {}
+        return queue(lines);
+      }
+      throw new Error(`narration ${response.status}`);
+    }
     return (await response.json()).clips;
   }
 

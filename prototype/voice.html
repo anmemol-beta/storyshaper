@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parent Voice · StoryShaper</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #FFF9EF; --card: #FFFCF6; --ink: #3A342F; --muted: #75685B; --action: #377D67; --on-action: #fff;
+    --soft: #E9D8C5; --ok: #2F6F4F; --warn: #8A5A1C; --warn-bg: #FFF1DB; --ok-bg: #EAF3EC;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; --bg: #202833; --card: #28323F; --ink: #F3EADF; --muted: #B9AE9F; --action: #7CC4A6;
+      --on-action: #14201A; --soft: #3B4757; --ok: #8FD3B0; --warn: #F2C27B; --warn-bg: #3A3022; --ok-bg: #21372D; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "Pretendard", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; display: grid; gap: 16px; }
+  h1 { margin: 0; font-size: 1.6rem; }
+  h2 { margin: 0 0 4px; font-size: 1.1rem; }
+  p { margin: 0; }
+  .muted { color: var(--muted); font-size: .92rem; }
+  .card { background: var(--card); border: 1px solid var(--soft); border-radius: 20px; padding: 18px; display: grid; gap: 12px; }
+  .card[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  .step { color: var(--action); font-weight: 700; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; }
+  label.option { display: flex; gap: 10px; align-items: flex-start; }
+  input[type="text"], input[type="number"] { font: inherit; padding: 8px 10px; border: 1px solid var(--soft); border-radius: 10px; background: var(--bg); color: var(--ink); }
+  input[type="number"] { width: 6.5em; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--action); background: transparent; color: var(--action); cursor: pointer; }
+  button.primary { background: var(--action); color: var(--on-action); }
+  button:disabled { opacity: .45; cursor: default; }
+  .clip { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--soft); border-radius: 14px; }
+  .clip.chosen { border-color: var(--action); box-shadow: inset 0 0 0 1px var(--action); }
+  .note { padding: 10px 12px; border-radius: 12px; font-size: .92rem; }
+  .note.ok { background: var(--ok-bg); color: var(--ok); }
+  .note.warn { background: var(--warn-bg); color: var(--warn); }
+  .voice { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .status { min-height: 1.5em; color: var(--muted); font-size: .92rem; }
+  a { color: var(--action); }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>A parent's voice for story time</h1>
+    <p class="muted">Add a short recording or a video of a parent. StoryShaper keeps only a 10-second clip and reads every story in that voice, even when they can't be there.</p>
+  </div>
+
+  <section class="card" id="consentCard">
+    <span class="step">Step 1 · Whose voice is this?</span>
+    <label class="option"><input type="radio" name="relation" value="me"> <span>My own voice</span></label>
+    <label class="option"><input type="radio" name="relation" value="family_consented"> <span>A family member who agreed to this (for example, a parent who is away for work or service)</span></label>
+    <label class="option"><input type="radio" name="relation" value="family_late"> <span>A family member who has passed away, and I am their close family</span></label>
+    <div class="row"><label for="name">Name the voice</label><input type="text" id="name" maxlength="40" placeholder="Dad"></div>
+    <label class="option"><input type="checkbox" id="attest"> <span>I have the right to use this voice for my family's stories. I will not use the voice of a public figure or anyone who has not agreed.</span></label>
+    <p class="muted">The voice is used only inside StoryShaper, never exported, and every clip carries an inaudible watermark. You can delete it at any time.</p>
+  </section>
+
+  <section class="card" id="uploadCard" aria-disabled="true">
+    <span class="step">Step 2 · Add a recording or a video</span>
+    <p class="muted">Any video or voice message works. One person talking calmly, with little background noise, gives the best result.</p>
+    <div class="row">
+      <input type="file" id="file" accept="audio/*,video/*">
+      <button type="button" id="record">● Record 30 seconds</button>
+    </div>
+    <p class="status" id="uploadStatus" role="status"></p>
+  </section>
+
+  <section class="card" id="clipCard" aria-disabled="true">
+    <span class="step">Step 3 · Choose a clear 10-second part</span>
+    <div id="clips"></div>
+    <details>
+      <summary>Choose the part yourself</summary>
+      <div class="row" style="margin-top:10px">
+        <label>From <input type="number" id="start" min="0" step="0.1"> s</label>
+        <label>to <input type="number" id="end" min="0" step="0.1"> s</label>
+        <button type="button" id="playManual">▶ Listen</button>
+        <button type="button" id="useManual">Use this part</button>
+      </div>
+    </details>
+    <div id="clipResult"></div>
+  </section>
+
+  <section class="card" id="previewCard" aria-disabled="true">
+    <span class="step">Step 4 · Hear a story line</span>
+    <div class="row"><button type="button" id="preview">▶ "Once upon a time…"</button><span class="status" id="previewStatus" role="status"></span></div>
+  </section>
+
+  <section class="card" id="saveCard" aria-disabled="true">
+    <span class="step">Step 5 · Save</span>
+    <div class="row"><button type="button" class="primary" id="save">Save and read stories in this voice</button><span class="status" id="saveStatus" role="status"></span></div>
+  </section>
+
+  <section class="card">
+    <h2>Voices for story time</h2>
+    <div id="voices"></div>
+    <p class="muted">Deleting a voice removes its clip and every story line read with it. <a href="agent.html">Open the story ↗</a></p>
+  </section>
+</main>
+<script src="voice-setup.js"></script>
+</body>
+</html>
