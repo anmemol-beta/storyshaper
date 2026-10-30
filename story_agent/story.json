@@ -86,7 +86,11 @@
       "build": "The paper walls are light and carefully folded.",
       "event": "The wolf blows, and the light paper walls blow away. The pigs step safely away.",
       "predict": "The wolf is about to puff at the light paper house. What do you think will happen?",
-      "reflect": "The light paper walls blew away in the wind. What did we notice about those light walls?"
+      "reflect": "The light paper walls blew away in the wind. What did we notice about those light walls?",
+      "process": [
+        "The wolf puffed, and the paper walls fluttered back and forth.",
+        "Their loosely joined edges came free."
+      ]
     },
     "straw": {
       "label": "straw",
@@ -100,7 +104,11 @@
       "build": "The straw walls are light bundles tied together.",
       "event": "The wolf blows, and the light straw walls blow away. The pigs step safely away.",
       "predict": "The wolf is about to puff at the light straw house. What do you think will happen?",
-      "reflect": "The light straw walls blew away in the wind. What did we notice about those light walls?"
+      "reflect": "The light straw walls blew away in the wind. What did we notice about those light walls?",
+      "process": [
+        "The wolf puffed, and the straw walls shook.",
+        "Loose bits of straw started to come apart."
+      ]
     },
     "wood": {
       "label": "wood",
@@ -110,15 +118,24 @@
         "log",
         "logs",
         "timber",
+        "stick",
+        "sticks",
+        "twig",
+        "twigs",
         "나무",
         "목재",
-        "통나무"
+        "통나무",
+        "나뭇가지"
       ],
       "outcome": "collapsed",
       "build": "The pig stacks wooden logs loosely, leaving the joints unfastened.",
       "event": "The wolf's puff shakes the loosely stacked wood. The walls tumble down, and the pigs step safely away.",
       "predict": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?",
-      "reflect": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?"
+      "reflect": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?",
+      "process": [
+        "The wolf puffed, and the loosely stacked wood wobbled.",
+        "The logs slipped apart because they were not fastened together."
+      ]
     },
     "cookie": {
       "label": "cookie",
@@ -139,7 +156,11 @@
       "build": "The pig makes cookie walls. The hungry wolf notices their sweet smell.",
       "event": "The wolf nibbles the cookie walls until the house cannot shelter the pigs. The pigs walk safely to the next building place.",
       "predict": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?",
-      "reflect": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?"
+      "reflect": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?",
+      "process": [
+        "The hungry wolf sniffed the cookie walls.",
+        "He took little nibbles, leaving bigger and bigger gaps."
+      ]
     },
     "icecream": {
       "label": "ice cream",
@@ -152,7 +173,11 @@
       "build": "The pig shapes an ice cream house under the warm sun.",
       "event": "The warm sun melts the ice cream walls into a puddle. The pigs stay safe and look for a stronger home.",
       "predict": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?",
-      "reflect": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?"
+      "reflect": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?",
+      "process": [
+        "In the warm sunshine, drops dripped down the ice cream walls.",
+        "The walls grew thinner and softer."
+      ]
     },
     "brick": {
       "label": "brick",
@@ -165,7 +190,11 @@
       "build": "The pigs carefully join heavy bricks with mortar and help one another.",
       "event": "The wolf blows at the firmly joined brick house, but it stays standing. All three pigs are safe inside.",
       "predict": "The brick walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the brick house?",
-      "reflect": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?"
+      "reflect": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?",
+      "process": [
+        "The wolf puffed hard at the brick walls.",
+        "The firmly joined bricks held one another in place."
+      ]
     },
     "stone": {
       "label": "stone",
@@ -182,7 +211,11 @@
       "build": "The pigs carefully join heavy stones with mortar and help one another.",
       "event": "The wolf blows at the firmly joined stone house, but it stays standing. All three pigs are safe inside.",
       "predict": "The stone walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the stone house?",
-      "reflect": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?"
+      "reflect": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?",
+      "process": [
+        "The wolf puffed hard at the stone walls.",
+        "The firmly joined stones held one another in place."
+      ]
     }
   },
   "endingLines": [

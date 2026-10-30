@@ -7,6 +7,8 @@
   <title>Story agent lab · StoryShaper</title>
   <link rel="stylesheet" href="agent.css">
   <script src="agent-i18n.js" defer></script>
+  <script src="voice-input.js" defer></script>
+  <script src="narration.js" defer></script>
   <script src="agent.js" defer></script>
 </head>
 <body>
@@ -65,24 +67,34 @@
             <img src="img/intro.jpg" alt="Reference illustration of the three little pigs in a sunny woodland." data-copy-alt>
             <figcaption data-copy>Original reference illustration · not generated for this answer</figcaption>
           </figure>
+          <p class="field-hint" id="mediaNotice" role="status" hidden></p>
 
           <div class="narrative" id="narrative" aria-label="Current story passage" data-copy-aria-label>
             <p class="empty-note" data-copy>Start a session to choose a material, explore what happens, and help the pigs find a safe home.</p>
           </div>
 
-          <section class="question-panel" aria-labelledby="questionTitle">
+          <div class="start-panel" id="startPanel">
+            <button class="button primary start-story" id="startStoryButton" type="button" disabled data-copy>Start the story →</button>
+            <p class="field-hint" data-copy>Choose the mode above first. The first question and the answer box appear here.</p>
+          </div>
+
+          <section class="question-panel" id="questionPanel" aria-labelledby="questionTitle" hidden>
             <p class="eyebrow" id="questionLabel">Current question</p>
             <h3 id="questionTitle" tabindex="-1">The story is ready when you are.</h3>
             <p class="question-intent" id="questionIntent" hidden></p>
           </section>
 
-          <form id="answerForm">
+          <form id="answerForm" hidden>
             <label class="input-label" for="answer" data-copy>Your test answer</label>
             <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
             <div class="answer-footer">
-              <p class="field-hint" id="answerHint" data-copy>Text input is for testing the story agent. Voice and media generation are separate integrations.</p>
-              <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
+              <p class="field-hint" id="answerHint" data-copy>Type an answer, or speak it when the microphone is available. Media generation is a separate integration.</p>
+              <div class="answer-actions">
+                <button class="button" id="micButton" type="button" hidden disabled>Speak an answer</button>
+                <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
+              </div>
             </div>
+            <p class="attempt-note" id="attemptNote" role="status" hidden></p>
           </form>
 
           <fieldset class="choice-panel" id="choicePanel" hidden>

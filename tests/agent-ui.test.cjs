@@ -32,22 +32,24 @@ async function harness(initialAvailable = true) {
   };
   element('mode').value = 'mock';
   const calls = [];
-  const settings = {available:initialAvailable};
-  const language = {language:'en', set(value) {this.language = value;},
-    text(source, values={}) {return source.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? `{${key}}`);}};
-  const document = {getElementById:element, querySelectorAll:() => [], createElement:() => new Element()};
-  const context = vm.createContext({document, AgentLanguage:language,
+  const settings = {available:initialAvailable, answerResult:null, languageResult:null};
+  const languageButtons = ['en', 'ko'].map(value => { const button = new Element(); button.dataset.language = value; return button; });
+  const document = {documentElement:{}, getElementById:element, querySelectorAll:selector => selector === '[data-language]' ? languageButtons : [], createElement:() => new Element()};
+  const context = vm.createContext({document, localStorage:{getItem() {return null;}, setItem() {}},
     AbortController, crypto:require('node:crypto'), setTimeout:() => 1, clearTimeout() {},
     fetch:async (url, options={}) => {
       const body = options.body ? JSON.parse(options.body) : null;
       calls.push({url, body});
       const data = url === '/api/config' ? {liveAvailable:settings.available, model:'test-model'}
+        : url === '/api/answer' && settings.answerResult ? settings.answerResult
+        : url === '/api/language' && settings.languageResult ? settings.languageResult
         : snapshot(body.mode, `session-${calls.length}`);
       return {ok:true, json:async () => data};
     }});
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../prototype/agent-i18n.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../prototype/agent.js'), 'utf8'), context);
   await new Promise(setImmediate);
-  return {element, calls, settings};
+  return {element, calls, settings, languageButtons};
 }
 
 test('changing from an active mock session to live starts a real live session', async () => {
@@ -88,4 +90,39 @@ test('connection refresh does not disguise an active mock session as live', asyn
   await element('refreshConfig').fire('click');
   assert.equal(element('mode').value, 'mock');
   assert.match(element('modeBadge').textContent, /no model call/);
+});
+
+
+test('custom material image notice preserves story input, translates, and clears on restart', async () => {
+  const {element, settings, languageButtons} = await harness();
+  await element('startButton').fire('click');
+  const result = snapshot('mock', 'custom-session');
+  Object.assign(result, {version:1, sceneId:'house1_predict', decision:'accept', reason:'answer_accepted',
+    storyState:{language:'en', houseIndex:1, stage:'predict', houses:[{houseId:'house1', material:'custom'}]}});
+  settings.answerResult = result;
+  element('answer').value = 'vinyl';
+  await element('answerForm').fire('submit');
+  await new Promise(setImmediate);
+  assert.equal(element('mediaNotice').hidden, false);
+  assert.match(element('mediaNotice').textContent, /picture for this material is not available/);
+  assert.equal(element('answer').disabled, false, 'Missing artwork must not stop the next story answer');
+  settings.languageResult = {...result, language:'ko', storyState:{...result.storyState, language:'ko'}};
+  await languageButtons[1].fire('click');
+  assert.equal(element('mediaNotice').hidden, false);
+  assert.match(element('mediaNotice').textContent, /이 재료의 그림은 아직 준비되지 않았어요/);
+  await element('startButton').fire('click');
+  assert.equal(element('mediaNotice').hidden, true);
+  assert.equal(element('mediaNotice').textContent, '');
+});
+
+test('unsupported material explanation uses readable words in English', async () => {
+  const {element, settings} = await harness();
+  await element('startButton').fire('click');
+  settings.answerResult = {...snapshot('mock', 'session'), decision:'clarify', reason:'unsupported_material', attempts:1};
+  element('answer').value = 'cloud';
+  await element('answerForm').fire('submit');
+  await new Promise(setImmediate);
+  assert.match(element('attemptNote').textContent, /safe story branch for that material is not available/);
+  assert.doesNotMatch(element('attemptNote').textContent, /unsupported_material/);
+  assert.equal(element('mediaNotice').hidden, true);
 });

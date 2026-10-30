@@ -15,7 +15,7 @@ from media.assets import AssetRegistry, LocalProvider, ROOT
 from media.contracts import InvalidPlan, normalize
 from media.jobs import JobError, MediaJobs
 from media.server import APIError, MediaPlayground, MediaServer
-from story_agent.engine import MockProvider, StoryEngine
+from story_agent.engine import STORY, MockProvider, StoryEngine
 
 
 def snapshots(material='paper', session='session'):
@@ -51,12 +51,29 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(registry.image(spec)['url'], '/prototype/img/pig2_empty.jpg')
 
     def test_no_false_image_for_unsupported_material_or_pig(self):
-        registry = AssetRegistry()
-        for material, action in [('cookie', 'eaten'), ('icecream', 'melted'), ('wood', 'collapsed')]:
+        pairs = [('cookie', 'eaten'), ('icecream', 'melted'), ('wood', 'collapsed')]
+        data = json.loads((ROOT / 'media/scene_registry.json').read_text(encoding='utf-8'))
+        for material, action in pairs:
+            # Without its own picture a material gets none, never another material's page.
+            del data['images'][f'house1/{material}/build'], data['images'][f'house1/{material}/{action}']
+        registry = AssetRegistry(data)
+        for material, action in pairs:
             _, _, build, event, _ = snapshots(material)
             self.assertEqual(normalize(event).action, action)
             self.assertIsNone(registry.image(normalize(build)))
             self.assertIsNone(registry.image(normalize(event)))
+
+    def test_every_allowed_material_has_its_own_build_and_outcome_picture(self):
+        registry = AssetRegistry()
+        for index, house in enumerate(STORY['houses'], 1):
+            for material in house['allowedMaterials']:
+                for action in ('build', STORY['materials'][material]['outcome']):
+                    key = f'house{index}/{material}/{action}'
+                    with self.subTest(key=key):
+                        entry = registry.data['images'][key]
+                        self.assertIsNotNone(registry._asset(entry, 'image'))
+                        if entry['file'].startswith('scenes/'):
+                            self.assertEqual(entry['file'], f'scenes/house{index}_{material}_{action}.jpg')
 
     def test_all_authored_material_combinations_and_ending_normalize(self):
         for first, second, last in product(['paper', 'straw', 'wood', 'cookie', 'icecream'],
@@ -159,6 +176,7 @@ class JobTests(unittest.TestCase):
         self.assertIsNone(result['video'])
         self.assertFalse(result['generated'])
         cookie = snapshots('cookie', session='other')[3]
+        del self.registry.data['images']['house1/cookie/eaten']  # a scene whose picture is missing
         result = wait_job(manager, manager.request(cookie))
         self.assertTrue(result['fallback']['keepCurrentImage'])
         self.assertEqual(result['reason'], 'scene_asset_unavailable')
@@ -383,6 +401,28 @@ class APITests(unittest.TestCase):
 
     def binding(self):
         return {key: self.state[key] for key in ('sessionId', 'sceneId', 'version')}
+
+    def test_custom_material_job_uses_server_identity_and_keeps_story_progressing(self):
+        start = self.app.create('mock', 'ko')
+        state = self.app.answer({'sessionId': start['sessionId'], 'version': 0,
+            'questionId': start['question']['id'], 'requestId': 'custom-answer', 'answer': '비닐'})
+        self.assertEqual(state['decision'], 'accept')
+        binding = {key: state[key] for key in ('sessionId', 'sceneId', 'version')}
+        status, job = self.http('POST', '/api/media/jobs', binding)
+        self.assertEqual(status, 200)
+        result = wait_job(self.app.media, job)
+        self.assertEqual(result['reason'], 'scene_asset_unavailable')
+        self.assertEqual(result['spec']['material'], 'custom')
+        self.assertEqual(result['spec']['material_id'], state['mediaPlan']['materialId'])
+        self.assertIsNone(result['image'])
+        self.assertTrue(result['fallback']['keepCurrentImage'])
+        status, _ = self.http('POST', '/api/media/jobs', binding | {'materialSpec': {'source': 'paper'}})
+        self.assertEqual(status, 400)
+        continued = self.app.answer({'sessionId': state['sessionId'], 'version': state['version'],
+            'questionId': state['question']['id'], 'requestId': 'custom-predict', 'answer': '바람에 날아갈 것 같아요'})
+        self.assertEqual(continued['decision'], 'accept')
+        self.assertEqual(continued['sceneId'], 'house1_reflect')
+        self.assertEqual(continued['version'], 2)
 
     def test_http_request_poll_cancel_and_untrusted_plan_rejection(self):
         status, first = self.http('POST', '/api/media/jobs', self.binding())
