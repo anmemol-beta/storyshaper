@@ -106,6 +106,8 @@ Lines are generated as the story needs them, newest first, and cached, so a line
 
 The picture book then shows "Read by Dad" on its cover and reads in that voice; the reader can be changed in Settings.
 
+With `voice/.venv-chatterbox` installed, `python3 -m src.server` starts the voice service automatically. The registration API is ready before voice models load. If a recording upload fails, keep the setup page open and use **Try this recording again** to resend the same recording. See the [voice setup instructions](narration/README.md) for the one-time environment setup.
+
 ```bash
 scripts/demo.sh          # both servers, and every saved voice reads the whole book ahead (needs Chatterbox and ffmpeg)
 scripts/demo.sh --wait   # the same, but wait until every line is voiced before recording a demo

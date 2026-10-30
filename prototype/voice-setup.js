@@ -21,8 +21,11 @@
     "Find {possessive} voice": "{name} 목소리 찾기",
     "Add a video or a voice message. We only use the sound, and we keep just ten seconds of it.": "영상이나 음성 메시지를 올려 주세요. 소리만 쓰고, 그중 10초만 남겨요.",
     "Choose a video or recording": "영상이나 녹음 파일 고르기", "or drop it here": "또는 여기로 끌어다 놓기", "or": "또는",
-    "Read it in English. One recording is enough: the same voice also reads the Korean stories.":
-      "영어로 읽어 주세요. 한 번만 녹음하면 같은 목소리로 한국어 동화도 읽어요.",
+    "Read the passage in English. One recording lets the same voice read stories in English and Korean.":
+      "한국어로 대본을 읽어 주세요. 한 번 녹음한 목소리로 한국어와 영어 동화를 모두 읽을 수 있어요.",
+    "Once upon a time, in a cozy little house at the edge of the woods, there lived a sleepy bear named Bo. Every night, Bo looked up at the moon and asked, “Are you awake too?” The wind whispered through the tall pine trees, and the stars came out one by one. “Goodnight, moon. Goodnight, stars,” said Bo with a great big yawn. Then he curled up in his warm blanket and dreamed of honey, rivers, and wide blue skies.":
+      "옛날 옛적, 숲 가장자리의 아늑한 작은 집에 잠꾸러기 곰 보가 살았어요. 보는 밤마다 달을 올려다보며 물었어요. “너도 아직 깨어 있니?” 키 큰 소나무 사이로 바람이 속삭이고, 별들이 하나둘 모습을 드러냈어요. “잘 자, 달님. 잘 자, 별님.” 보는 입을 크게 벌려 하품하며 말했어요. 그러고는 따뜻한 담요 속에 웅크려 누워 달콤한 꿀과 강물, 드넓고 푸른 하늘을 꿈꾸었답니다.",
+    "I'm happy for my voice to read stories to my child.": "제 목소리로 아이에게 동화를 읽어 주는 것에 동의합니다.",
     "A birthday message or a video call": "생일 축하 메시지나 영상통화", "Them reading a book aloud": "책을 소리 내어 읽는 모습",
     "Calm talking, one person, a quiet room": "조용한 곳에서 한 사람이 차분히 말하는 소리",
     "Pick the clearest ten seconds": "가장 깨끗한 10초 고르기",
@@ -36,6 +39,9 @@
     "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
     "Trained voice (beta)": "학습한 목소리 사용 (베타)",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
+    "Try this recording again": "이 녹음으로 다시 시도하기",
+    "The voice helper took too long. Your recording is still here. Try again.": "목소리 처리가 오래 걸려요. 녹음은 보관 중이니 다시 시도해 주세요.",
+    "The recording could not be loaded. Try this recording again.": "녹음을 불러오지 못했어요. 이 녹음으로 다시 시도해 주세요.",
     "Something went wrong ({status}). Try again.": "문제가 생겼어요 ({status}). 다시 해 주세요.",
     "Listening to {label}…": "{label}을(를) 듣고 있어요…", "the recording": "녹음",
     "Finding the clearest parts…": "가장 깨끗한 구간을 찾고 있어요…",
@@ -91,6 +97,10 @@
   const state = { step: "who", draft: null, peaks: null, duration: 0, clip: null, checked: null, previewed: false };
   let player = null;
   let raf = 0;
+  let pendingUpload = null;
+  let uploading = false;
+  let openingMic = false;
+  let recordingActive = false;
 
   const store = {
     get() { try { return localStorage.getItem("story-voice"); } catch { return null; } },
@@ -105,11 +115,19 @@
 
   async function api(path, options = {}) {
     let response;
-    try { response = await fetch(server + path, options); }
-    catch { throw new Error(tr("The voice helper on this computer isn't running. Start it, then try again.")); }
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error?.message || tr("Something went wrong ({status}). Try again.", {status: response.status}));
-    return body;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.method === "POST" ? 90000 : 10000);
+    try {
+      try { response = await fetch(server + path, {...options, signal: controller.signal}); }
+      catch {
+        throw new Error(tr(controller.signal.aborted
+          ? "The voice helper took too long. Your recording is still here. Try again."
+          : "The voice helper on this computer isn't running. Start it, then try again."));
+      }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error?.message || tr("Something went wrong ({status}). Try again.", {status: response.status}));
+      return body;
+    } finally { clearTimeout(timer); }
   }
   const post = body => ({method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
 
@@ -124,7 +142,7 @@
   function canContinue() {
     switch (state.step) {
       case "who": return Boolean(document.querySelector("input[name=relation]:checked") && $("attest").checked && $("name").value.trim());
-      case "find": return Boolean(state.draft);
+      case "find": return Boolean(state.draft && state.peaks && state.clip);
       case "pick": return Boolean(state.checked);
       case "listen": return state.previewed;
       default: return false;
@@ -139,10 +157,15 @@
       li.toggleAttribute("aria-current", i === index);
     });
     $("pages").hidden = state.step === "done";
-    $("actions").hidden = state.step === "done";
+    $("actions").hidden = state.step === "done" || recordingActive;
     $("back").style.visibility = index === 0 ? "hidden" : "visible";
     $("next").textContent = state.step === "listen" ? tr("Save {possessive} voice", names()) : tr("Continue");
-    $("next").disabled = !canContinue();
+    $("next").disabled = uploading || !canContinue();
+    $("record").disabled = uploading || openingMic;
+    $("file").disabled = uploading || openingMic || recordingActive;
+    $("back").disabled = uploading || openingMic || recordingActive;
+    $("retryUpload").hidden = !pendingUpload || uploading || openingMic || recordingActive;
+    document.querySelectorAll("[data-lang]").forEach(button => { button.disabled = uploading || openingMic || recordingActive; });
     // Choosing a file moves on by itself, so an empty "find" step shows no Continue button.
     $("next").style.visibility = state.step === "find" && !state.draft ? "hidden" : "visible";
     $("voicesBox").hidden = !(state.step === "who" || state.step === "done") || $("voicesBox").dataset.empty === "1";
@@ -174,31 +197,47 @@
 
   // recorded: the bedtime passage was read here, so the server also listens for the permission sentence.
   async function upload(blob, label, recorded = false) {
+    if (uploading || openingMic || recordingActive) return;
+    pendingUpload = {blob, label, recorded};
+    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
+    return retryUpload();
+  }
+
+  async function retryUpload() {
+    if (!pendingUpload || uploading || openingMic || recordingActive) return;
+    uploading = true;
+    const {blob, label, recorded} = pendingUpload;
     showError("findError", "");
     $("working").hidden = false;
     $("workingText").textContent = tr("Listening to {label}…", {label});
-    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
     render();
     try {
-      state.draft = await api(`/api/voices${recorded ? "?recorded=1" : ""}`, {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
+      if (!state.draft) state.draft = await api(`/api/voices${recorded ? "?recorded=1" : ""}`, {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
       $("workingText").textContent = tr("Finding the clearest parts…");
       await loadPeaks();
       const best = [...state.draft.suggestions].sort((a, b) => b.speech - a.speech)[0];
       state.clip = best ? {start: best.start, end: best.end} : {start: 0, end: Math.min(10, state.duration)};
       go("pick");
       check();
+      pendingUpload = null;
     } catch (error) {
       showError("findError", error.message);
     } finally {
+      uploading = false;
       $("working").hidden = true;
+      render();
     }
   }
+  $("retryUpload").onclick = retryUpload;
 
   async function loadPeaks() {
-    const data = await (await fetch(`${server}/api/voices/${state.draft.id}/full.wav`)).arrayBuffer();
+    const response = await fetch(`${server}/api/voices/${state.draft.id}/full.wav`, {signal: AbortSignal.timeout(15000)});
+    if (!response.ok) throw new Error(tr("The recording could not be loaded. Try this recording again."));
+    const data = await response.arrayBuffer();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const audio = await ctx.decodeAudioData(data);
-    ctx.close();
+    let audio;
+    try { audio = await ctx.decodeAudioData(data); }
+    finally { ctx.close(); }
     const samples = audio.getChannelData(0);
     const count = 160;
     const size = Math.floor(samples.length / count);
@@ -220,12 +259,25 @@
   $("file").addEventListener("change", () => { const f = $("file").files[0]; if (f) upload(f, f.name); $("file").value = ""; });
 
   async function record() {
+    if (uploading || openingMic || recordingActive) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       return showError("findError", tr("This browser can't record. Choose a video or recording instead."));
     }
     let stream;
+    openingMic = true;
+    showError("findError", "");
+    render();
+    try { await api("/api/voices"); }
+    catch (error) { openingMic = false; render(); return showError("findError", error.message); }
     try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
-    catch { return showError("findError", tr("The microphone is blocked. Allow it in the browser, or choose a file instead.")); }
+    catch {
+      openingMic = false;
+      render();
+      return showError("findError", tr("The microphone is blocked. Allow it in the browser, or choose a file instead."));
+    }
+    openingMic = false;
+    recordingActive = true;
+    render();
     // Show the bedtime passage first and count down, so the reader has a moment to look at it.
     const cue = $("cue");
     const section = document.querySelector('section[data-step="find"]');
@@ -244,6 +296,7 @@
     let left = RECORD_SECONDS;
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = () => {
+      recordingActive = false;
       clearInterval(tick);
       stream.getTracks().forEach(t => t.stop());
       cue.classList.remove("live");

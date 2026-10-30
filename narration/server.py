@@ -2,7 +2,8 @@
 
 Reading
 POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?, "allRoles"?, "peek"?}  queue lines,
-                                   newest first ("peek": only report which are ready)
+                                   interactive newest first ("priority":"background" for warmup;
+                                   "peek": only report which are ready)
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
 GET    /api/voice/config           roles and languages
 
@@ -79,6 +80,7 @@ class Narrator:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.cond = threading.Condition()
         self.queue, self.queued, self.failed, self.dropped = [], {}, set(), set()
+        self.pending, self.active = {}, {}
         self.batch = itertools.count()
         self.seq = itertools.count()
         threading.Thread(target=self._work, daemon=True).start()
@@ -104,13 +106,16 @@ class Narrator:
     def path(self, voice, key):
         return self.cache / voice / f"{key}.mp3"
 
-    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None):
-        """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
+    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None,
+               priority="interactive"):
+        """Queue interactive passages before warmup, newest request first within each priority.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
         enqueue=False only reports which lines are ready (for progress). t3: a fine-tuned T3 file for the
-        parent roles in English (narration/finetune_merge.py); it is part of the cache key."""
+        parent roles in English (narration/finetune_merge.py); it is part of the cache key.
+        Repeated warmup shares the pending or active job instead of changing its position."""
         batch = -next(self.batch)
+        rank = 1 if priority == "background" else 0
         clips = []
         with self.cond:
             self.dropped.discard(voice)
@@ -123,10 +128,22 @@ class Narrator:
                     settings["t3"] = t3
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
-                if not ready and enqueue:
-                    self.failed.discard((voice, key))
-                    heapq.heappush(self.queue, (batch, next(self.seq), voice, key, settings, text))
-                    self.queued[(voice, key)] = batch
+                job_key = (voice, key)
+                if not ready and enqueue and self.queued.get(job_key) != self.active.get(job_key, -1):
+                    previous = self.pending.get(job_key)
+                    # Warmup never demotes a passage or moves repeated warmup ahead. A passage can
+                    # promote an existing warmup job; an in-flight job is always reused.
+                    promote = previous and (rank < previous[0] or rank == previous[0] == 0 and batch < previous[1])
+                    if previous is None or promote:
+                        if previous is not None:
+                            self.queue.remove(previous)
+                            heapq.heapify(self.queue)
+                        ticket = next(self.seq)
+                        job = (rank, batch, ticket, voice, key, settings, text)
+                        self.failed.discard(job_key)
+                        heapq.heappush(self.queue, job)
+                        self.pending[job_key] = job
+                        self.queued[job_key] = ticket
                 clips.append({"speakerId": line.get("speakerId", "narrator"), "role": role, "text": text,
                               "key": key, "url": f"/audio/{voice}/{key}.mp3", "ready": ready})
             self.cond.notify_all()
@@ -152,9 +169,10 @@ class Narrator:
         """Drop a voice's queued lines and delete every clip already read with it."""
         with self.cond:
             self.dropped.add(voice)
-            self.queue = [item for item in self.queue if item[2] != voice]
+            self.queue = [item for item in self.queue if item[3] != voice]
             heapq.heapify(self.queue)
             self.queued = {k: v for k, v in self.queued.items() if k[0] != voice}
+            self.pending = {k: v for k, v in self.pending.items() if k[0] != voice}
             shutil.rmtree(self.cache / voice, ignore_errors=True)
             self.cond.notify_all()
 
@@ -163,14 +181,20 @@ class Narrator:
             with self.cond:
                 while not self.queue:
                     self.cond.wait()
-                batch, _, voice, key, settings, text = heapq.heappop(self.queue)
-                # A line can sit in the queue twice (asked for again later); skip stale or finished copies.
-                if self.queued.get((voice, key)) != batch or self.path(voice, key).exists():
+                _, _, ticket, voice, key, settings, text = heapq.heappop(self.queue)
+                job_key = (voice, key)
+                self.pending.pop(job_key, None)
+                if self.queued.get(job_key) != ticket:
                     continue
+                if self.path(voice, key).exists():
+                    self.queued.pop(job_key)
+                    self.cond.notify_all()
+                    continue
+                self.active[job_key] = ticket
             try:
                 audio = self.synthesize(text, settings)
                 with self.cond:
-                    if voice not in self.dropped:      # the voice may have been deleted while this line was read
+                    if voice not in self.dropped and self.queued.get(job_key) == ticket:
                         self.path(voice, key).parent.mkdir(parents=True, exist_ok=True)
                         tmp = self.path(voice, key).with_suffix(".part")
                         tmp.write_bytes(audio)
@@ -178,9 +202,13 @@ class Narrator:
             except Exception as exc:  # one bad line must not stop the queue
                 print(f"failed {voice}/{key}: {exc}", flush=True)
                 with self.cond:
-                    self.failed.add((voice, key))
+                    if self.queued.get(job_key) == ticket:
+                        self.failed.add(job_key)
             with self.cond:
-                self.queued.pop((voice, key), None)
+                if self.active.get(job_key) == ticket:
+                    self.active.pop(job_key)
+                if self.queued.get(job_key) == ticket:
+                    self.queued.pop(job_key)
                 self.cond.notify_all()
 
 
@@ -331,10 +359,13 @@ class Handler(BaseHTTPRequestHandler):
             language = body.get("language", "en")
             if language not in LANGUAGES:
                 raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
+            priority = body.get("priority", "interactive")
+            if priority not in ("interactive", "background"):
+                raise VoiceError(400, "invalid_priority", "Priority must be interactive or background.")
             voice, ref = self.parent_ref(body.get("voiceId"))
             return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
                                                              enqueue=body.get("peek") is not True, language=language,
-                                                             t3=self.finetuned(body.get("voiceId")))})
+                                                             t3=self.finetuned(body.get("voiceId")), priority=priority)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -433,14 +464,13 @@ def load_api_key():
 
 
 def chatterbox_synthesizer():
-    """Load Chatterbox once and return synthesize(text, settings) -> mp3 bytes."""
+    """Load only the requested language's engine, once, and return its MP3 bytes."""
     import torch
     import torchaudio as ta
     from chatterbox.tts import ChatterboxTTS
 
     device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
-    model = ChatterboxTTS.from_pretrained(device=device)
-
+    model = None
     multilingual = None
     tuned = {}                                      # fine-tuned T3 file -> engine sharing S3Gen, VE and tokenizer
 
@@ -471,26 +501,42 @@ def chatterbox_synthesizer():
         return engine.generate(text, exaggeration=exaggeration, cfg_weight=cfg_weight, **kw)
 
     def synthesize(text, voice):
-        nonlocal multilingual
+        nonlocal model, multilingual
         exaggeration = voice["exclaim_exaggeration"] if "!" in text else voice["exaggeration"]
         # casting refs are repo-relative, profile refs absolute (ROOT / absolute = absolute)
         language = voice.get("language", "en")
         if language == "en":
+            if model is None:
+                model = ChatterboxTTS.from_pretrained(device=device)
             engine = tuned_model(voice["t3"].split("#", 1)[0]) if voice.get("t3") else model
             wav = generate(engine, text, voice["ref"], exaggeration, voice["cfg_weight"])
         else:
             if multilingual is None:                     # loaded on the first non-English line
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
                 multilingual = ChatterboxMultilingualTTS.from_pretrained(device=device)   # a string, see mtl_tts
-            wav = generate(multilingual, text, voice["ref"], exaggeration, voice["cfg_weight"], language_id=language)
+            engine = multilingual
+            wav = generate(engine, text, voice["ref"], exaggeration, voice["cfg_weight"], language_id=language)
         with tempfile.TemporaryDirectory() as tmp:
             src, out = Path(tmp) / "line.wav", Path(tmp) / "line.mp3"
-            ta.save(str(src), wav, model.sr)
+            ta.save(str(src), wav, engine.sr)
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(src), "-filter:a", f"atempo={voice['tempo']}",
                             "-ac", "1", "-b:a", "64k", str(out)], check=True)
             return out.read_bytes()
 
     return synthesize
+
+
+def lazy_synthesizer(factory=chatterbox_synthesizer):
+    """Accept registrations immediately; the narration worker loads models on first use."""
+    synthesize = None
+
+    def generate(text, settings):
+        nonlocal synthesize
+        if synthesize is None:
+            synthesize = factory()
+        return synthesize(text, settings)
+
+    return generate
 
 
 def main():
@@ -500,8 +546,9 @@ def main():
     api_key = load_api_key()
     print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
           flush=True)
-    print("Loading Chatterbox…", flush=True)
-    narrator = Narrator(chatterbox_synthesizer())
+    os.environ.setdefault("HF_HOME", str(ROOT / "voice" / ".models"))
+    print("Voice models load on the first preview; voice registration is ready immediately.", flush=True)
+    narrator = Narrator(lazy_synthesizer())
     library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
     with Server(("127.0.0.1", args.port), narrator, library) as server:
         print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)

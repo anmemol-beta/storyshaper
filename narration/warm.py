@@ -41,7 +41,8 @@ def lines_for(voice, texts, peek=False, language="en"):
     """Queue (or with peek, only check) texts for a voice; returns the clips."""
     clips = []
     for i in range(0, len(texts), 20):
-        body = {"lines": [{"speakerId": "narrator", "text": t} for t in texts[i:i + 20]], "peek": peek, "language": language}
+        body = {"lines": [{"speakerId": "narrator", "text": t} for t in texts[i:i + 20]], "peek": peek,
+                "language": language, "priority": "background"}
         if voice != "default":
             body["voiceId"] = voice
         clips += call("/api/voice/lines", body)["clips"]

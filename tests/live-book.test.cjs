@@ -55,9 +55,14 @@ async function harness(request = null) {
   const elements = new Map(), calls = [], shows = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
+  element('readerSettings').hidden = true;
   const voiceSetupCalls = [];
   const settings = {answer:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
-    transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper'};
+    transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper', voiceId:null,
+    voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null};
+  const playbackCalls = [], prefetched = [];
+  let playbackListener = () => {};
+  const playback = state => { settings.playback = state; playbackListener(state); };
   let timerId = 0;
   const document = {documentElement:{}, hidden:false, getElementById:element, createElement:() => new Element(),
     addEventListener(type, fn) { this[type] = fn; }};
@@ -84,9 +89,15 @@ async function harness(request = null) {
       cameraCalls.push('open');
       return settings.camera ? settings.camera.promise : {close() {cameraCalls.push('close');}, snap:async () => ({})};
     }, name:async () => { cameraCalls.push('name'); return settings.object; }},
-    Narration:{stop() {}, voiceName:() => settings.voiceName, warm:() => voiceSetupCalls.push('warm'),
+    Narration:{stop() { playbackCalls.push('stop'); playback('idle'); }, voiceName:() => settings.voiceName,
+      voiceId:() => settings.voiceId, voiceSource:() => settings.voiceSource,
+      playbackState:() => settings.playback, subscribe:listener => { playbackListener = listener; listener(settings.playback); return () => {}; },
+      pause() { playbackCalls.push('pause'); playback('paused'); }, resume() { playbackCalls.push('resume'); playback('playing'); },
+      selectVoice(id, name) { settings.voiceId = id; settings.voiceName = name; },
+      listVoices:async () => { if (settings.voiceListError) throw settings.voiceListError; return settings.voiceList ? settings.voiceList.promise : settings.voices; },
+      prefetch:(lines, options) => prefetched.push({lines, options}), warm:() => voiceSetupCalls.push('warm'),
       interject:language => voiceSetupCalls.push(language), speak:(lines, options) => {
-      narrations.push({lines, options}); return new Promise(() => {});
+      narrations.push({lines, options}); playback('playing'); return new Promise(() => {});
     }},
     fetch:async (url, options = {}) => {
       const body = options.body ? JSON.parse(options.body) : null;
@@ -119,8 +130,92 @@ async function harness(request = null) {
     await flush();
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
-  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, document, start, submit};
+  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls,
+    document, start, submit, playback, playbackCalls, prefetched};
 }
+
+test('illustration playback controls pause, resume and replay the displayed passage', async () => {
+  const h = await harness();
+  assert.equal(h.element('playNarration').disabled, true);
+  await h.start();
+  assert.equal(h.element('pauseNarration').disabled, false);
+  const readings = h.narrations.length;
+  h.element('pauseNarration').onclick();
+  assert.equal(h.settings.playback, 'paused');
+  assert.equal(h.element('playNarration').disabled, false);
+  h.element('playNarration').onclick();
+  assert.equal(h.playbackCalls.at(-1), 'resume');
+  assert.equal(h.narrations.length, readings, 'Resume does not restart the passage');
+  h.playback('idle');
+  h.element('playNarration').onclick();
+  assert.equal(h.narrations.length, readings + 1);
+  assert.equal(h.element('readAloud').checked, true);
+});
+
+test('loading narration can be paused and displayed source identifies browser fallback', async () => {
+  const h = await harness(); await h.start();
+  h.playback('loading');
+  assert.equal(h.element('pauseNarration').disabled, false);
+  h.element('pauseNarration').onclick();
+  assert.equal(h.settings.playback, 'paused');
+  h.settings.voiceSource = 'browser'; h.playback('playing');
+  assert.match(h.element('narrationStatus').textContent, /browser voice/);
+});
+
+test('playback is gated during next-picture preparation and prefetch never starts reading', async () => {
+  const h = await harness(); await h.start();
+  h.settings.answer = accepted(); h.settings.media = imageResult(h.settings.answer);
+  const readings = h.narrations.length;
+  await h.submit();
+  assert.equal(h.element('playNarration').disabled, true);
+  assert.equal(h.element('pauseNarration').disabled, true);
+  h.element('playNarration').onclick();
+  assert.equal(h.narrations.length, readings);
+  assert.equal(h.prefetched.at(-1).lines[0].text, 'A new paper house.');
+  assert.equal(h.prefetched.at(-1).options.language, 'en');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.narrations.length, readings + 1);
+});
+
+test('settings selects saved voices immediately without opening registration', async () => {
+  const h = await harness(); await h.start();
+  h.settings.voices = [{id:'mom', name:'Mom'}, {id:'dad', name:'Dad'}];
+  await h.element('settingsButton').onclick();
+  assert.equal(h.element('readerSettings').hidden, false);
+  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom', 'dad']);
+  h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
+  assert.equal(h.settings.voiceId, 'dad');
+  assert.match(h.element('readerName').textContent, /Dad/);
+  assert.match(h.element('readBy').textContent, /Dad/);
+  assert.equal(h.narrations.length, 2, 'Current passage restarts with the chosen voice');
+  h.element('voiceSelect').value = ''; h.element('voiceSelect').onchange();
+  assert.equal(h.settings.voiceId, null);
+});
+
+test('settings keeps the current voice on list failure and forgets a deleted saved voice on refresh', async () => {
+  const h = await harness();
+  h.settings.voiceId = 'dad'; h.settings.voiceName = 'Dad'; h.settings.voiceListError = new Error('offline');
+  await h.element('settingsButton').onclick();
+  assert.equal(h.settings.voiceId, 'dad');
+  assert.equal(h.element('voiceSelect').value, 'dad');
+  assert.match(h.element('voiceSelectStatus').textContent, /Couldn't load/);
+  h.element('settingsButton').onclick();
+  h.settings.voiceListError = null;
+  await h.element('settingsButton').onclick();
+  assert.equal(h.settings.voiceId, null);
+  assert.equal(h.element('voiceSelect').value, '');
+});
+
+test('a late saved-voice response cannot overwrite reopened settings', async () => {
+  const h = await harness(); const old = deferred();
+  h.settings.voiceList = old;
+  const opening = h.element('settingsButton').onclick();
+  h.element('settingsButton').onclick();
+  h.settings.voiceList = null; h.settings.voices = [{id:'mom', name:'Mom'}];
+  await h.element('settingsButton').onclick();
+  old.resolve([{id:'old', name:'Old voice'}]); await opening;
+  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom']);
+});
 
 test('merged parent voice registration, return links and warmup remain available in the child reader', async () => {
   const h = await harness();

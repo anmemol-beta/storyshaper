@@ -32,6 +32,7 @@ RELATIONS = {
 VOICE_ID = re.compile(r"^[0-9a-f]{12}$")
 # Read at the end of the bedtime passage on voice.html; heard in the recording = spoken consent.
 CONSENT_SENTENCE = "I'm happy for my voice to read stories to my child."
+CONSENT_SENTENCE_KO = "제 목소리로 아이에게 동화를 읽어 주는 것에 동의합니다."
 CONSENT_WORDS = ("happy", "voice", "read", "stories", "child")
 
 
@@ -49,7 +50,9 @@ def text_error(expected, heard):
 def consent_heard(transcript):
     """True when the transcript contains most of the consent sentence (speech recognition drops or changes words)."""
     words = set(re.findall(r"[a-z]+", (transcript or "").lower()))
-    return sum(w in words or w + "ren" in words for w in CONSENT_WORDS) >= 4
+    korean = re.sub(r"[^가-힣]", "", transcript or "")
+    return (sum(w in words or w + "ren" in words for w in CONSENT_WORDS) >= 4
+            or re.sub(r"[^가-힣]", "", CONSENT_SENTENCE_KO) in korean)
 
 
 class VoiceError(Exception):

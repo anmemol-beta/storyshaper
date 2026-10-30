@@ -18,6 +18,7 @@ from speech.transcribe import MuseTranscriber
 from story_agent.provider import load_env
 from story_agent.server import ROOT, APIError, runtime_options
 from .see import IMAGE_TYPES, MuseVision, VisionError
+from narration.runtime import managed_narration
 
 # The page sends one frame of at most 768 px, about 100 KB as JPEG.
 MAX_IMAGE = 4 * 1024 * 1024
@@ -93,7 +94,8 @@ def main():
         with VisionServer(("127.0.0.1", args.port), app) as server:
             print(f"Story + media + speech + camera: http://127.0.0.1:{server.server_port}/", flush=True)
             print("Camera, speech and live story: " + ("configured" if key else "not configured; set MODEL_API_KEY in .env"), flush=True)
-            server.serve_forever()
+            with managed_narration():
+                server.serve_forever()
     except KeyboardInterrupt:
         pass
     except OSError as exc:

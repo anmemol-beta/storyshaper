@@ -6,7 +6,8 @@
     "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
-    "loading", "loadingText", "retryMedia", "addVoice"];
+    "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
+    "narrationControls", "playNarration", "pauseNarration", "narrationStatus"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -16,6 +17,8 @@
   let requestController = null, inputController = null, inputToken = 0, recording = null, camera = null;
   let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
   let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
+  let savedVoices = [], voiceListLoading = false, voiceListRequest = 0;
+  let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
   ui.mode.value = selectedMode;
 
@@ -49,6 +52,22 @@
     ui.book.setAttribute("aria-busy", String(Boolean(pending) || activity === "request"));
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? "DRAWING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
+    ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
+    syncPlayback();
+  }
+
+  function syncPlayback() {
+    const available = configured && Boolean(displayed) && !pending && activity === "idle";
+    ui.playNarration.disabled = !available || ["playing", "loading"].includes(playback);
+    ui.pauseNarration.disabled = !available || !["playing", "loading"].includes(playback);
+    ui.playNarration.textContent = playback === "paused" ? t("▶ Resume", "▶ 이어 듣기") : t("▶ Play", "▶ 재생");
+    ui.pauseNarration.textContent = t("Ⅱ Pause", "Ⅱ 일시정지");
+    const browserVoice = typeof Narration !== "undefined" && Narration.voiceSource?.() === "browser";
+    ui.narrationStatus.textContent = !displayed ? "" : playback === "paused" ? t("Paused", "일시정지했어요")
+      : playback === "loading" ? t("Preparing narration…", "낭독을 준비하고 있어요…")
+      : playback === "playing" ? browserVoice ? t("Reading with the browser voice", "기본 음성으로 읽는 중")
+        : t("Reading aloud", "소리 내어 읽는 중")
+      : t("Tap Play to hear this page", "재생을 누르면 이 장면을 읽어 줘요");
   }
 
   function stopNarration() {
@@ -131,7 +150,60 @@
     ui.cameraCancel.textContent = t("Cancel", "닫기");
     ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
     ui.settingsButton.setAttribute("aria-label", t("Reader settings", "낭독 설정"));
+    ui.voiceSelectLabel.textContent = t("Saved voices", "저장된 목소리");
+    ui.narrationControls.setAttribute("aria-label", t("Narration playback", "낭독 재생"));
+    voiceOptions();
     reader();
+    syncPlayback();
+  }
+
+  function voiceOptions() {
+    const selected = typeof Narration !== "undefined" ? Narration.voiceId?.() || "" : "";
+    const options = [{id: "", name: t("Storybook voice", "기본 목소리")}, ...savedVoices];
+    // Keep the selected name while a service error prevents refreshing the list.
+    if (selected && !options.some(voice => voice.id === selected))
+      options.push({id: selected, name: Narration.voiceName?.() || selected});
+    ui.voiceSelect.replaceChildren(...options.map(voice => {
+      const option = document.createElement("option");
+      option.value = voice.id;
+      option.textContent = voice.name;
+      return option;
+    }));
+    ui.voiceSelect.value = selected;
+  }
+
+  async function loadVoices() {
+    const request = ++voiceListRequest;
+    voiceListLoading = true;
+    ui.voiceSelectStatus.textContent = t("Loading saved voices…", "저장된 목소리를 불러오고 있어요…");
+    syncControls();
+    try {
+      if (typeof Narration === "undefined" || !Narration.listVoices) throw new Error("Voice service unavailable");
+      const voices = await Narration.listVoices();
+      if (request !== voiceListRequest || ui.readerSettings.hidden) return;
+      savedVoices = voices.filter(voice => typeof voice.id === "string" && typeof voice.name === "string");
+      const selected = Narration.voiceId?.();
+      if (selected && !savedVoices.some(voice => voice.id === selected)) chooseVoice("");
+      voiceOptions();
+      ui.voiceSelectStatus.textContent = savedVoices.length ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
+        : t("No saved voices yet. Add a parent's voice.", "저장된 목소리가 없어요. 부모 목소리를 추가해 주세요.");
+    } catch {
+      if (request !== voiceListRequest || ui.readerSettings.hidden) return;
+      voiceOptions();
+      ui.voiceSelectStatus.textContent = t("Couldn't load saved voices. Reopen settings to try again.", "목소리 목록을 불러오지 못했어요. 설정을 다시 열어 주세요.");
+    } finally {
+      if (request === voiceListRequest) { voiceListLoading = false; syncControls(); }
+    }
+  }
+
+  function chooseVoice(id) {
+    const voice = savedVoices.find(voice => voice.id === id);
+    if (id && !voice) { voiceOptions(); return; }
+    stopNarration();
+    Narration.selectVoice?.(id || null, voice?.name || "");
+    reader();
+    voiceOptions();
+    if (displayed && !pending && activity === "idle" && ui.readAloud.checked) { replay++; narrate(); }
   }
 
   function reader() {
@@ -199,6 +271,9 @@
 
   function receive(state) {
     if (!valid(state)) throw new Error("Invalid story state");
+    if (typeof Narration !== "undefined" && ui.readAloud.checked)
+      Narration.prefetch?.(state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text}] : state.lines,
+        {language: state.language});
     const translationOnly = state.diagnostics?.languageChanged === true
       && displayed?.sessionId === state.sessionId && displayed?.sceneId === state.sceneId;
     snapshot = state;
@@ -425,7 +500,28 @@
     media.retry(pending);
   };
   ui.restart.onclick = ui.cover.onclick = begin;
-  ui.settingsButton.onclick = () => { ui.readerSettings.hidden = !ui.readerSettings.hidden; };
+  ui.settingsButton.onclick = () => {
+    ui.readerSettings.hidden = !ui.readerSettings.hidden;
+    ui.settingsButton.setAttribute("aria-expanded", String(!ui.readerSettings.hidden));
+    if (!ui.readerSettings.hidden) return loadVoices();
+    voiceListRequest++;
+    voiceListLoading = false;
+    syncControls();
+  };
+  ui.voiceSelect.onchange = () => {
+    if (!ui.voiceSelect.disabled && typeof Narration !== "undefined") chooseVoice(ui.voiceSelect.value);
+  };
+  ui.playNarration.onclick = () => {
+    if (ui.playNarration.disabled || !displayed || pending || activity !== "idle" || typeof Narration === "undefined") return;
+    ui.readAloud.checked = true;
+    localStorage.setItem("story-read-aloud", "1");
+    if (playback === "paused") Narration.resume?.();
+    else { replay++; narrate(); }
+  };
+  ui.pauseNarration.onclick = () => {
+    if (!ui.pauseNarration.disabled && typeof Narration !== "undefined") Narration.pause?.();
+  };
+  if (typeof Narration !== "undefined") Narration.subscribe?.(state => { playback = state; syncPlayback(); });
   ui.readAloud.checked = localStorage.getItem("story-read-aloud") !== "0";
   ui.readAloud.onchange = () => {
     localStorage.setItem("story-read-aloud", ui.readAloud.checked ? "1" : "0");
@@ -483,10 +579,10 @@
     }
   });
   window.addEventListener("pagehide", () => cancelWork());
-  window.addEventListener("focus", reader);
+  window.addEventListener("focus", () => { reader(); voiceOptions(); if (!ui.readerSettings.hidden) loadVoices(); });
   labels();
   syncControls();
-  if (typeof Narration !== "undefined") Narration.warm?.();
+  if (typeof Narration !== "undefined") Narration.warm?.(selectedLanguage);
   api("/api/config").then(data => {
     config = data;
     media.configure(data);

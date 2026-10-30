@@ -5,6 +5,7 @@ Meta Global AI Developer Hackathon Kickoff*.html
 experiments/out/
 *.m4a
 voice/.venv*/
+voice/.models/
 __pycache__/
 *.py[cod]
 voice/cache/
