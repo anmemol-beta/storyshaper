@@ -4,7 +4,7 @@ const LABEL = { paper: "paper house", straw: "straw house", wood: "wood house", 
 
 // Scene fields: img (string or fn), chapter, lines (read in order), ask / hints / then / end,
 // build (child-driven redraw: answer -> house), choose (remember child's pick).
-// An `ask` answer with an `icon` is offered as a numbered picture card after three missed tries on that question;
+// An `ask` answer with an `icon` is offered as a numbered touch card after the first missed answer;
 // only answers that move the story forward get one.
 const SCENES = {
   intro: { img: "intro", chapter: 0, lines: ["Once upon a time, a mother pig lived with her three little pigs.", "\"You're all grown up now. Go and build your own homes!\""], then: "p1" },

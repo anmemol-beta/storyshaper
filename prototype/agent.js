@@ -1,4 +1,4 @@
-/* Text-only agent test surface. All story data is rendered as text, never HTML. */
+/* Story test surface. Story text is rendered as text, never HTML. */
 (() => {
   "use strict";
 
@@ -12,10 +12,11 @@
     "narrative", "questionTitle", "questionLabel", "questionIntent", "answerForm",
     "startPanel", "startStoryButton", "questionPanel", "attemptNote",
     "answer", "micButton", "cameraButton", "cameraPanel", "cameraVideo", "cameraShot", "snapButton", "cameraCancel",
-    "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
+    "rejectTranscript", "sendButton", "choicePanel", "choicePrompt", "choices", "requestStatus", "requestError",
     "requestErrorText", "retryButton", "sceneValue", "versionValue", "attemptsValue",
     "inputModeValue", "reasonValue", "stateJson", "mediaJson", "diagnosticsJson",
-    "history", "historyEmpty", "historyCount", "mediaNotice"
+    "history", "historyEmpty", "historyCount", "mediaNotice",
+    "storyImage", "storyImageNext", "imagePanel", "imageCaption", "imageProgress"
   ].map(id => [id, byId(id)]));
 
   const decisions = {
@@ -33,14 +34,42 @@
   // Push-to-talk (voice-input.js). Absent outside a browser, and hidden until the server can transcribe.
   const voice = typeof VoiceInput === "undefined" ? null : VoiceInput;
   let recording = null;
+  let transcribing = false, voiceEpoch = 0, transcriptionController = null;
+  let localChoiceBinding = null, announcedChoices = null, choiceSpeech = null;
   const voiceReady = () => Boolean(voice?.supported() && config?.speechAvailable);
   // Show-it answers (camera-input.js): the child holds the material up and the camera names it.
   const camera = typeof CameraInput === "undefined" ? null : CameraInput;
   let cameraSession = null;
   let cameraShotUrl = null;
   const cameraReady = () => Boolean(camera?.supported() && config?.visionAvailable);
-  // The server allows three missed tries on a question before offering three choices (roadmap §4).
-  const MAX_TRIES = 3;
+  let imageState = {state: "reference"};
+  const media = typeof StoryMediaPlayer === "undefined" ? null
+    : new StoryMediaPlayer(ui.storyImage, ui.storyImageNext, {onState: renderImageState});
+
+  function renderImageState(state) {
+    imageState = state;
+    const waiting = state.state === "generating" || state.state === "loading";
+    ui.imagePanel.setAttribute("aria-busy", String(waiting));
+    ui.imageProgress.hidden = !waiting;
+    ui.imageProgress.textContent = waiting ? t(state.state === "generating"
+      ? "Muse is drawing your new picture…" : "Loading the scene picture…") : "";
+    const captions = {
+      reference: "Original reference illustration · not generated for this answer",
+      generating: "Previous picture · a new picture is being generated",
+      loading: "Previous picture · loading the next scene",
+      generated: "New picture for your answer · Muse Image",
+      prepared: "Prepared illustration · offline mode",
+      fallback: "Prepared illustration · live generation unavailable",
+      failed: "Previous picture · picture update unavailable",
+      kept: "Previous picture · choose an answer to continue",
+      unavailable: "Reference illustration · image service is not connected"
+    };
+    ui.imageCaption.textContent = t(captions[state.state] || captions.reference);
+    ui.mediaNotice.hidden = !["failed", "fallback", "unavailable"].includes(state.state);
+    ui.mediaNotice.textContent = ui.mediaNotice.hidden ? "" : t(state.state === "unavailable"
+      ? "Start the integrated server to use pictures and the microphone."
+      : "This picture is unavailable. You can keep reading and answering.");
+  }
   const reasonText = {
     unclear_answer: "the story could not use that answer",
     material_not_allowed: "that material is not one the pig can use here",
@@ -66,16 +95,12 @@
     clock = null;
     ui.sendButton.textContent = t("Continue story →");
   }
-  function showAttemptNote(answer, result) {
+  function showAttemptNote(result) {
     const used = result.decision !== "clarify" && result.decision !== "redirect";
     ui.attemptNote.hidden = used;
     if (used) return;
     const why = t(reasonText[result.reason] || result.reason);
-    const shown = answer || t("(nothing heard)");
-    ui.attemptNote.textContent = result.choiceMode
-      ? t("“{answer}” was not used: {why}. Pick one of the three choices, or try another answer.", {answer: shown, why})
-      : t("“{answer}” was not used: {why}. {left} more tries, then three choices appear.",
-        {answer: shown, why, left: Math.max(0, MAX_TRIES - result.attempts)});
+    ui.attemptNote.textContent = t("{why}. Tap a picture to keep reading.", {why});
   }
   const decisionLabel = decision => t(decisions[decision] || decision);
   const errorMessage = error => AgentLanguage.language === "ko"
@@ -86,11 +111,13 @@
     busy = value;
     ui.storyCard.setAttribute("aria-busy", String(value));
     ui.requestStatus.textContent = message;
-    ui.mode.disabled = value || !config;
+    const voiceBusy = Boolean(recording) || transcribing || Boolean(cameraSession);
+    ui.mode.disabled = value || voiceBusy || !config;
     // Restart can interrupt an answer; its generation token rejects the old result.
     ui.startButton.disabled = !config;
     ui.startButton.textContent = snapshot ? t("Start over") : t("Start session");
-    const canAnswer = Boolean(snapshot?.question) && !value;
+    const canAnswer = Boolean(snapshot?.question) && !value && !voiceBusy;
+    const canChoose = Boolean(snapshot?.question) && !value;
     // Before a session there is nothing to answer, so the answer box is hidden, not shown disabled.
     ui.startPanel.hidden = Boolean(snapshot);
     ui.questionPanel.hidden = !snapshot;
@@ -98,18 +125,79 @@
     ui.startStoryButton.disabled = !config || value;
     ui.answer.disabled = !canAnswer;
     ui.sendButton.disabled = !canAnswer || !ui.answer.value.trim();
+    ui.rejectTranscript.disabled = !canAnswer;
     ui.micButton.hidden = !voiceReady();
-    ui.micButton.disabled = (!canAnswer && !recording) || Boolean(cameraSession);
+    ui.micButton.disabled = value || transcribing || !snapshot?.question || Boolean(cameraSession);
     ui.cameraButton.hidden = !cameraReady();
     ui.cameraButton.disabled = !canAnswer || Boolean(recording) || Boolean(cameraSession);
     ui.snapButton.disabled = value;
     ui.cameraCancel.disabled = value;
     ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
     ui.micButton.setAttribute("aria-pressed", String(Boolean(recording)));
-    ui.choices.querySelectorAll("button").forEach(button => { button.disabled = !canAnswer; });
+    ui.choices.querySelectorAll("button").forEach(button => { button.disabled = !canChoose; });
     ui.retryButton.disabled = value;
-    ui.refreshConfig.disabled = value;
-    languageButtons.forEach(button => { button.disabled = value; });
+    ui.refreshConfig.disabled = value || voiceBusy;
+    languageButtons.forEach(button => { button.disabled = value || voiceBusy; });
+    if (!value) inviteChoices();
+  }
+
+  const choiceBinding = state => state?.question ? `${state.sessionId}/${state.question.id}` : null;
+  const wantsChoices = state => Boolean(state?.question &&
+    (state.choiceMode || localChoiceBinding === choiceBinding(state)));
+
+  function stopChoiceSpeech() {
+    if (choiceSpeech) {
+      try {
+        if (choiceSpeech === "narration") Narration.stop();
+        else speechSynthesis.cancel();
+      } catch {}
+      choiceSpeech = null;
+    }
+  }
+
+  function inviteChoices() {
+    if (!snapshot?.question || ui.choicePanel.hidden || !ui.choices.children.length) return;
+    const binding = `${choiceBinding(snapshot)}/${snapshot.language}`;
+    if (announcedChoices === binding) return;
+    announcedChoices = binding;
+    ui.choicePanel.scrollIntoView?.({block: "nearest"});
+    ui.choices.children[0].focus({preventScroll: true});
+    stopChoiceSpeech();
+    // The cards are already enabled. Reading the invitation never gates a tap.
+    const invitation = t("Let's pick a picture! Tap the one you like.");
+    const options = snapshot.question.choices.map((choice, index) => `${index + 1}. ${choice.label}.`).join(" ");
+    if (typeof Narration !== "undefined") {
+      Narration.stop();
+      choiceSpeech = "narration";
+      Narration.speak([{speakerId: "narrator", text: invitation}, {speakerId: "narrator", text: options}], {
+        key: `choices:${binding}`, language: snapshot.language
+      });
+      return;
+    }
+    try {
+      choiceSpeech = new SpeechSynthesisUtterance(`${invitation} ${options}`);
+      choiceSpeech.lang = snapshot.language === "ko" ? "ko-KR" : "en-US";
+      speechSynthesis.speak(choiceSpeech);
+    } catch { choiceSpeech = null; }
+  }
+
+  function cancelVoice() {
+    voiceEpoch++;
+    recording?.stop();
+    recording = null;
+    transcribing = false;
+    transcriptionController?.abort();
+    transcriptionController = null;
+  }
+
+  function offerLocalChoices(message = t("Let's pick a picture! Tap the one you like.")) {
+    if (!snapshot?.question) return;
+    localChoiceBinding = choiceBinding(snapshot);
+    ui.rejectTranscript.hidden = true;
+    renderSnapshot(snapshot);
+    ui.attemptNote.hidden = false;
+    ui.attemptNote.textContent = t("Let's pick a picture! Tap the one you like.");
+    setBusy(false, message);
   }
 
   function clearRequestError() {
@@ -164,13 +252,15 @@
     const authoredFallback = snapshot?.diagnostics?.authoredFallback === true;
     ui.modeBadge.dataset.mode = authoredFallback ? "authored" : mode;
     ui.modeBadge.textContent = authoredFallback
-      ? t("Authored fallback · no model call this turn")
+      ? t("Authored fallback · prepared story text")
       : modeLabel(mode);
   }
 
   function renderSnapshot(next) {
     if (!isSnapshot(next)) throw new Error(t("The server returned an invalid story state. Please start a new session."));
     snapshot = next;
+    if (localChoiceBinding !== choiceBinding(next)) localChoiceBinding = null;
+    if (next.question && config?.speechAvailable && !voice?.supported()) localChoiceBinding = choiceBinding(next);
     renderMode();
     ui.decisionBadge.textContent = decisionLabel(next.decision);
     ui.decisionBadge.dataset.decision = next.decision;
@@ -186,20 +276,6 @@
       paragraph.append(speaker, words);
       ui.narrative.append(paragraph);
     }
-    // Read the passage and question aloud in each character's voice (narration.js); a re-render of the same version is not read again.
-    if (typeof Narration !== "undefined") {
-      const paragraphs = [...ui.narrative.children];
-      const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text}] : next.lines;
-      // After three missed tries the three choices are read too, so a child who cannot read can pick one.
-      const options = next.choiceMode && next.question?.choices;
-      if (Array.isArray(options) && options.length) {
-        spoken.push({speakerId: "narrator", text: options.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")});
-      }
-      Narration.speak(spoken, {
-        key: `${next.sessionId}:${next.version}:${AgentLanguage.language}`, language: AgentLanguage.language,
-        onLine: i => paragraphs.forEach((p, k) => p.classList.toggle("speaking", k === i))
-      });
-    }
     ui.questionLabel.textContent = next.question ? t("Current question") : t("The end");
     ui.questionTitle.textContent = next.question?.text || t("The pigs are safe together. Thank you for shaping their story.");
     ui.questionIntent.hidden = !next.question?.intent;
@@ -207,19 +283,23 @@
     ui.sceneValue.textContent = next.sceneId;
     ui.versionValue.textContent = String(next.version);
     ui.attemptsValue.textContent = String(next.attempts);
-    ui.inputModeValue.textContent = next.choiceMode ? t("3 choices + text") : (next.question ? t("Free text") : t("Complete"));
+    ui.inputModeValue.textContent = wantsChoices(next) ? t("Touch choices + optional speech or text") : (next.question ? t("Free text") : t("Complete"));
     ui.reasonValue.textContent = next.reason ? t(next.reason) : "—";
     ui.stateJson.textContent = JSON.stringify(next.storyState, null, 2);
     ui.mediaJson.textContent = next.mediaPlan ? JSON.stringify(next.mediaPlan, null, 2) : t("No new media handoff for this turn.");
     ui.diagnosticsJson.textContent = JSON.stringify(next.diagnostics, null, 2);
     const state = next.storyState;
     const currentHouse = state?.houses?.find(house => house.houseId === `house${state.houseIndex}`);
-    ui.mediaNotice.hidden = !(currentHouse?.material === "custom" && ["predict", "reflect"].includes(state.stage));
-    ui.mediaNotice.textContent = ui.mediaNotice.hidden ? "" : t("A picture for this material is not available yet. Keep reading with the reference picture.");
+    if (!media) {
+      ui.mediaNotice.hidden = !(currentHouse?.material === "custom" && ["predict", "reflect"].includes(state.stage));
+      ui.mediaNotice.textContent = ui.mediaNotice.hidden ? "" : t("A picture for this material is not available yet. Keep reading with the reference picture.");
+    }
     ui.choices.replaceChildren();
     const choices = next.question?.choices;
-    ui.choicePanel.hidden = !(next.choiceMode && Array.isArray(choices) && choices.length === 3);
+    ui.choicePanel.hidden = !(wantsChoices(next) && Array.isArray(choices) && choices.length === 3);
+    if (ui.choicePanel.hidden) { announcedChoices = null; stopChoiceSpeech(); }
     if (!ui.choicePanel.hidden) {
+      ui.choicePrompt.textContent = t("Let's pick a picture! Tap the one you like.");
       choices.forEach((choice, index) => {
         const button = document.createElement("button");
         button.type = "button";
@@ -227,13 +307,32 @@
         const number = document.createElement("span");
         number.className = "choice-number";
         number.textContent = String(index + 1);
+        const picture = document.createElement("span");
+        picture.className = "choice-picture";
+        picture.setAttribute("aria-hidden", "true");
+        picture.textContent = ({paper: "📄", straw: "🌾", wood: "🪵", cookie: "🍪", icecream: "🍦",
+          brick: "🧱", brick_team: "🧱", stone: "🪨"})[choice.id] || ["💡", "👀", "🤝"][index];
         const label = document.createElement("span");
         label.textContent = choice.label;
-        button.append(number, label);
-        button.addEventListener("click", () => sendAnswer(choice.answer, choice.id));
+        button.append(number, picture, label);
+        button.addEventListener("click", () => {
+          if (snapshot !== next) return;
+          return sendAnswer(choice.answer, choice.id);
+        });
         ui.choices.append(button);
       });
     }
+    // Choice invitations use the same narration service via inviteChoices,
+    // after cards are enabled. Do not start a competing passage narration.
+    if (typeof Narration !== "undefined" && ui.choicePanel.hidden) {
+      const paragraphs = [...ui.narrative.children];
+      const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text}] : next.lines;
+      Narration.speak(spoken, {
+        key: `${next.sessionId}:${next.version}:${AgentLanguage.language}`, language: AgentLanguage.language,
+        onLine: i => paragraphs.forEach((p, k) => p.classList.toggle("speaking", k === i))
+      });
+    }
+    media?.update(next);
   }
 
   function appendHistory(question, answer, result) {
@@ -287,7 +386,9 @@
       const data = await api("/api/config", { signal: configController.signal });
       connectionFailure = null;
       config = { liveAvailable: data.liveAvailable === true, model: String(data.model || "configured model"),
-        speechAvailable: data.speechAvailable === true, visionAvailable: data.visionAvailable === true };
+        speechAvailable: data.speechAvailable === true, visionAvailable: data.visionAvailable === true,
+        mediaAvailable: data.mediaAvailable === true, imageGenerationAvailable: data.imageGenerationAvailable === true };
+      media?.configure(config);
       ui.mode.querySelector('[value="live"]').disabled = !config.liveAvailable;
       ui.mode.value = snapshot?.providerMode || (config.liveAvailable ? "live" : "mock");
       renderConfig();
@@ -313,6 +414,12 @@
   async function startSession() {
     if (!config) return;
     const token = ++epoch;
+    cancelVoice();
+    closeCamera();
+    media?.reset();
+    stopChoiceSpeech();
+    if (typeof Narration !== "undefined") Narration.stop();
+    stopClock();
     controller?.abort();
     controller = new AbortController();
     const activeController = controller;
@@ -332,6 +439,7 @@
       turnCount = 0;
       renderHistory();
       ui.answer.value = "";
+      ui.rejectTranscript.hidden = true;
       setBusy(false, t("{mode}. Answer the question to begin.", {mode: modeLabel(result.providerMode)}));
       ui.questionTitle.focus({ preventScroll: true });
     } catch (error) {
@@ -344,10 +452,13 @@
     }
   }
 
-  // heardNothing: a recording with no words. It is sent as an empty answer so the server counts
-  // a missed try, the same as an unclear answer (development-roadmap.md §4).
-  async function sendAnswer(answer, choiceId, retainedRequest = null, {heardNothing = false} = {}) {
-    if (busy || !snapshot?.question || (!String(answer).trim() && !heardNothing && !retainedRequest)) return;
+  async function sendAnswer(answer, choiceId, retainedRequest = null) {
+    if (busy || !snapshot?.question || (!String(answer).trim() && !retainedRequest)) return;
+    if (!choiceId && (recording || transcribing)) return;
+    cancelVoice();
+    stopChoiceSpeech();
+    if (typeof Narration !== "undefined") Narration.stop();
+    ui.rejectTranscript.hidden = true;
     const current = snapshot;
     const payload = retainedRequest?.payload || {
       sessionId: current.sessionId, version: current.version, questionId: current.question.id,
@@ -361,7 +472,7 @@
     clearRequestError();
     setBusy(true, t("Listening to your idea and checking the next part…"));
     // Answer the child at once in the parent's voice while the next part is written.
-    if (typeof Narration !== "undefined") Narration.interject(AgentLanguage.language);
+    if (typeof Narration !== "undefined" && !choiceId) Narration.interject(AgentLanguage.language);
     startClock();
     // A live turn performs interpretation and composition, each with a 30s timeout.
     const timeout = setTimeout(() => activeController.abort(), 110000);
@@ -374,23 +485,23 @@
       // The picture stays on screen while the story thinks, and goes once the story has answered.
       closeCamera();
       appendHistory(questionText, payload.answer || t("(nothing heard)"), result);
-      showAttemptNote(payload.answer, result);
+      showAttemptNote(result);
       if (result.decision === "accept" || result.decision === "complete") ui.answer.value = "";
       const readyMessage = result.decision === "complete"
         ? t("The story is complete. Start over to test another idea.")
         : t("The current story and question are ready.");
       setBusy(false, result.diagnostics?.authoredFallback === true
-        ? t("An authored option was applied without a model call. {message}", {message: readyMessage})
+        ? t("A prepared answer continued the story. {message}", {message: readyMessage})
         : readyMessage);
       if (result.decision === "service_error") {
         const recoveryMessage = result.choiceMode
-          ? t("The generation service could not complete this turn. Choose one of the three authored options to continue without a model call, or retry live generation. Your retry count is preserved.")
+          ? t("Story generation is unavailable. Tap a choice to continue, or retry. Your story progress is preserved.")
           : t("The generation service could not complete this turn. Your question and retry count are preserved.");
         showRequestError(recoveryMessage, {
           fresh: true, payload, questionText
         });
       }
-      ui.questionTitle.focus({ preventScroll: true });
+      if (ui.choicePanel.hidden) ui.questionTitle.focus({ preventScroll: true });
     } catch (error) {
       if (token !== epoch) return;
       setBusy(false);
@@ -407,9 +518,10 @@
           ? t("The request timed out. Retry the same request to safely retrieve its result; this does not add another attempt.")
           : t("{message} Retry this request to safely recover its result.", {message: errorMessage(error)});
         showRequestError(message, { payload, questionText });
+        offerLocalChoices(message);
       }
     } finally {
-      stopClock();
+      if (token === epoch) stopClock();
       clearTimeout(timeout);
       if (token === epoch) controller = null;
     }
@@ -430,6 +542,7 @@
     renderHistory();
     ui.retryButton.textContent = t(retryRequest?.fresh ? "Try generation again" : "Retry this request");
     ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
+    if (media) renderImageState(imageState);
     ui.cameraButton.textContent = t("Show it to the camera");
     ui.snapButton.textContent = t(ui.cameraShot.hidden ? "Take the picture" : "Show something else");
     if (connectionFailure) {
@@ -450,7 +563,7 @@
   }
 
   async function switchLanguage(language) {
-    if (busy || language === AgentLanguage.language) return;
+    if (busy || recording || transcribing || language === AgentLanguage.language) return;
     if (!snapshot) {
       clearRequestError();
       applyLanguage(language);
@@ -489,53 +602,67 @@
     }
   }
 
-  // First press records, second press (or 8 s) stops. The text lands in the answer box so the
-  // tester confirms with "Continue" or speaks again. Speech service errors never use up a try.
+  // Voice failures expose the current authored choices locally, without a round trip
+  // or a model call. Their IDs are validated by the server when a card is tapped.
   async function toggleRecording() {
     if (recording) return recording.stop();
-    if (busy || !snapshot?.question || !voiceReady()) return;
-    // Stop the story voice so the microphone hears only the child.
+    if (busy || transcribing || cameraSession || !snapshot?.question || !voiceReady()) return;
     if (typeof Narration !== "undefined") Narration.stop();
-    const token = epoch, questionId = snapshot.question.id;
+    const token = epoch, voiceToken = ++voiceEpoch;
+    const {sessionId, version, question: {id: questionId}} = snapshot;
+    const stillCurrent = () => token === epoch && voiceToken === voiceEpoch
+      && snapshot?.sessionId === sessionId && snapshot?.version === version && snapshot?.question?.id === questionId;
     // Opening the microphone takes a moment. A second press meanwhile means "stop", not a second recording.
     const opening = {stopRequested: false, stop() { this.stopRequested = true; }};
     recording = opening;
+    stopChoiceSpeech();
     clearRequestError();
+    ui.answer.value = "";
+    ui.rejectTranscript.hidden = true;
     setBusy(false, t("Listening… press the button again when you are done (8 seconds at most)."));
     let active;
     try {
       active = await voice.record();
     } catch (error) {
+      if (!stillCurrent()) return;
       recording = null;
-      setBusy(false);
-      showRequestError(error.name === "NotAllowedError"
-        ? t("Microphone permission was refused. Type the answer or choose an option instead.")
-        : t("The microphone could not start. Type the answer instead."));
+      offerLocalChoices(error.name === "NotAllowedError"
+        ? t("The microphone is unavailable. Tap a picture to keep reading.")
+        : t("The microphone could not start. Tap a picture to keep reading."));
       return;
     }
+    if (!stillCurrent()) { active.stop(); active.done.catch(() => {}); return; }
     recording = active;
     if (opening.stopRequested) active.stop();
-    let transcript;
+    let transcript, timeout;
+    const transcription = new AbortController();
     try {
       const clip = await active.done;
+      if (!stillCurrent()) return;
       recording = null;
-      setBusy(true, t("Turning your voice into text…"));
-      transcript = await voice.transcribe(clip);
+      transcribing = true;
+      transcriptionController = transcription;
+      setBusy(false, t("Turning your voice into text…"));
+      timeout = setTimeout(() => transcription.abort(), 30000);
+      transcript = await voice.transcribe(clip, {signal: transcription.signal});
     } catch (error) {
+      if (!stillCurrent()) return;
       recording = null;
-      if (token !== epoch) return;
-      setBusy(false);
-      showRequestError(t("{message} Your retry count is unchanged.", {message: errorMessage(error)}));
+      transcribing = false;
+      offerLocalChoices(t("Speech recognition is unavailable. Tap a picture to keep reading."));
       return;
+    } finally {
+      clearTimeout(timeout);
+      if (transcriptionController === transcription) transcriptionController = null;
     }
-    setBusy(false);
-    if (token !== epoch || snapshot?.question?.id !== questionId) return;
+    if (!stillCurrent()) return;
+    transcribing = false;
     if (!transcript.trim()) {
-      await sendAnswer("", null, null, {heardNothing: true});
-      if (ui.requestError.hidden) ui.requestStatus.textContent = t("Nothing was heard. That counts as one try.");
+      offerLocalChoices(t("Nothing was heard. Tap a picture to keep reading."));
       return;
     }
     ui.answer.value = transcript;
+    ui.rejectTranscript.hidden = false;
     setBusy(false, t("Heard: “{text}”. Continue the story, or speak again.", {text: transcript}));
     ui.sendButton.focus();
   }
@@ -614,6 +741,11 @@
   ui.snapButton.addEventListener("click", snapAndName);
   ui.cameraCancel.addEventListener("click", () => { closeCamera(); setBusy(false); });
   ui.micButton.addEventListener("click", toggleRecording);
+  ui.rejectTranscript.addEventListener("click", () => {
+    if (busy || !snapshot?.question) return;
+    ui.answer.value = "";
+    offerLocalChoices();
+  });
 
   ui.startButton.addEventListener("click", startSession);
   ui.startStoryButton.addEventListener("click", startSession);
@@ -621,7 +753,10 @@
   ui.refreshConfig.addEventListener("click", loadConfig);
   // The selector must change the provider actually used, not just its visible label.
   ui.mode.addEventListener("change", () => snapshot ? startSession() : renderMode());
-  ui.answer.addEventListener("input", () => { ui.sendButton.disabled = busy || !snapshot?.question || !ui.answer.value.trim(); });
+  ui.answer.addEventListener("input", () => {
+    ui.rejectTranscript.hidden = true;
+    ui.sendButton.disabled = busy || recording || transcribing || !snapshot?.question || !ui.answer.value.trim();
+  });
   ui.answerForm.addEventListener("submit", event => {
     event.preventDefault();
     sendAnswer(ui.answer.value);
@@ -630,6 +765,11 @@
     if (!retryRequest) return;
     const request = retryRequest;
     sendAnswer(request.payload.answer, request.payload.choiceId, request.fresh ? null : request);
+  });
+  globalThis.addEventListener?.("pagehide", () => {
+    cancelVoice(); stopChoiceSpeech();
+    closeCamera(); media?.cancel();
+    if (typeof Narration !== "undefined") Narration.stop();
   });
   applyLanguage(AgentLanguage.language);
   setBusy(false);

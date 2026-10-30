@@ -65,8 +65,8 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 
 ## Where the voices are used
 
-- **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after three missed tries is read the same way.
-- **Story agent lab (`agent.html`)**: every passage, question and, after three missed tries, the three choices are read; the moment an answer is sent, a short "let's see…" line is said in the parent's voice while the next part is written.
+- **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after the first missed answer is read the same way; the cards can be tapped before the invitation finishes.
+- **Story agent lab (`agent.html`)**: passages and questions are read in character. The first unaccepted answer or speech failure opens three active touch choices, with an invitation and option labels read through the same narration service. This replaces passage narration for that failure so voices do not overlap. Free-text or confirmed voice answers trigger a short "let's see…" line while the next part is written; immediate authored touch choices need no waiting interjection.
 - **Voice setup (`voice.html`)**: saving a voice voices the whole picture book (`audio/lines.json`) and the "let's see…" lines in the background, and has a switch to read every character, the wolf too, in that voice (`localStorage["story-voice-all"]`, sent as `allRoles`).
 
 ## Page module

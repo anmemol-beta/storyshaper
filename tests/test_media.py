@@ -114,6 +114,15 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(normalize(state).action, 'build')
         korean = engine.change_language(state, 'ko')
         self.assertEqual(normalize(korean).asset_key, normalize(state).asset_key)
+        self.assertEqual(normalize(korean).selection, state['selection'])
+        self.assertEqual(normalize(korean).selection, normalize(state).selection)
+        tampered = deepcopy(state)
+        tampered['mediaPlan']['selection']['label'] = 'Other material'
+        with self.assertRaises(InvalidPlan):
+            normalize(tampered)
+        later = engine.answer(state, 'The house might stay standing')
+        self.assertIsNone(later['selection'])
+        self.assertNotIn('selection', later['mediaPlan'], 'Later free speech must not reuse an old touch as its source')
 
     def test_registry_missing_unreviewed_and_escaping_assets_are_not_served(self):
         registry = AssetRegistry({'revision': 1, 'images': {'house1/paper/build':
@@ -401,6 +410,33 @@ class APITests(unittest.TestCase):
 
     def binding(self):
         return {key: self.state[key] for key in ('sessionId', 'sceneId', 'version')}
+
+    def test_first_failure_touch_selection_reaches_media_job_with_server_owned_material(self):
+        status, start = self.http('POST', '/api/sessions', {'mode': 'mock', 'language': 'ko'})
+        self.assertEqual(status, 200)
+        status, failed = self.http('POST', '/api/answer', {
+            'sessionId': start['sessionId'], 'version': start['version'],
+            'questionId': start['question']['id'], 'requestId': 'empty', 'answer': ''})
+        self.assertEqual(status, 200)
+        self.assertTrue(failed['choiceMode'])
+        self.assertEqual(failed['attempts'], 1)
+        choice = failed['question']['choices'][0]
+        status, accepted = self.http('POST', '/api/answer', {
+            'sessionId': failed['sessionId'], 'version': failed['version'],
+            'questionId': failed['question']['id'], 'requestId': 'tap',
+            'choiceId': choice['id'], 'answer': '벽돌로 바꿔 줘', 'selection': {'label': 'forged'}})
+        self.assertEqual(status, 200)
+        self.assertEqual(accepted['mediaPlan']['selection']['label'], choice['label'])
+        self.assertEqual(accepted['mediaPlan']['selection']['answer'], choice['answer'])
+        self.assertEqual(accepted['mediaPlan']['material'], choice['id'])
+        status, job = self.http('POST', '/api/media/jobs', {
+            key: accepted[key] for key in ('sessionId', 'sceneId', 'version')})
+        self.assertEqual(status, 200)
+        result = wait_job(self.app.media, job)
+        self.assertEqual(result['spec']['selection'], accepted['mediaPlan']['selection'])
+        self.assertEqual(result['spec']['material'], choice['id'])
+        self.assertEqual(result['image']['url'], '/prototype/img/paper_house.jpg')
+        self.assertFalse(result['generated'])
 
     def test_custom_material_job_uses_server_identity_and_keeps_story_progressing(self):
         start = self.app.create('mock', 'ko')

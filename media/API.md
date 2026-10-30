@@ -1,12 +1,23 @@
-# 로컬 미디어 API — 1~2단계 구현
+# 미디어 API — 준비 그림과 실시간 생성
 
-외부 API·키 없이 실행하는 동화 시험 서버 + 미디어 API다. 동화 엔진·기존 서버 파일과 UI 파일은 수정하지 않고 `MediaPlayground`/`MediaHandler`로 확장했다.
+`MediaPlayground`/`MediaHandler`로 동화 서버를 확장한다. `prototype/agent.html`의 플레이어가 승인된 새 답마다 미디어 작업을 요청한다. 아래 오프라인 서버는 키 없이 준비된 그림을 제공한다.
 
 ```powershell
 python -m media.server --port 8000
 ```
 
-같은 서버의 `http://127.0.0.1:8000/prototype/agent.html`에서 기존 mock 동화를 진행할 수 있다. 이 화면은 아직 미디어 API를 호출하거나 영상을 재생하지 않는다. 플레이어 연결은 `ui_mvp`의 별도 작업이다. 현재 CLI는 `.env`를 읽지 않으며 실제 모델 모드를 활성화하지 않는다. 실제 Spark 검증이 필요하면 기존 동화 서버를 사용한다.
+같은 서버의 `http://127.0.0.1:8000/prototype/agent.html`에서 mock 동화를 진행할 수 있다. `media.server`는 `.env`를 읽지 않는다. 실제 이미지·마이크는 `ffmpeg` 설치와 `.env`의 `MODEL_API_KEY` 설정 후 `python3 -m vision.server` 또는 `python3 -m speech.server`로 실행한다. 카메라는 `vision.server`에서 제공한다. 실시간 영상 생성은 포함하지 않는다.
+
+## 새 답마다 실시간 그림
+
+- `/api/config`의 `mediaAvailable`, `imageGenerationAvailable`, `speechAvailable`로 기능을 알린다. 실제 AI 세션의 승인된 새 답은 Muse Image 편집 1회(`muse-image-1.0`)와 독립 이미지 검수 1회(`muse-spark-1.3`, `low`)를 사용한다. mock 세션은 이미지 모델을 호출하지 않는다.
+- 승인된 재료·시공·행동·배역·앞선 집 상태만 프롬프트에 넣는다. 자유 답 원문·실패한 발화·오디오·카메라 프레임은 이미지 요청에 넣지 않는다. 기존 장면·배역, 가능하면 같은 집의 직전 생성 그림을 참조한다. JPEG로 디코딩해 2MB 이하로 제한하며 안전·재료·배역·행동 검수 네 항목을 모두 통과해야 제공한다.
+- 성공은 `status:ready`, `source:muse_image`, `generated:true`, `generationRequested:true`, `image.reviewed:true`다. `/api/media/images/<id>?sessionId=<id>`로 JPEG를 제공하며 미만료 세션과 이미지 소유 세션이 같아야 한다. 운영 계정 인증은 별도다.
+- 실패는 `generated:false`, `generationRequested:true`다. 해당 재료의 준비 그림 또는 이전 그림으로 계속하며 캡션으로 생성 성공과 구분한다. 자동 유료 재시도는 없다.
+- 생성 키는 세션·승인된 장면 사실이다. 중복 요청·언어만 바뀐 버전은 같은 진행 중/완료 작업을 공유하며 취소된 같은 장면도 자동 재제출하지 않는다. 세션 간 생성 그림은 공유하지 않는다. 서버 재시작 이후에는 새 생성이다.
+- 대기 중에도 답변·마이크·첫 실패 터치 선택이 가능하다. 새 답·재시작·페이지 이탈은 이전 표시를 취소하며 언어 전환은 작업을 유지해 새 버전에 연결한다. 늦은 응답·이미지 로딩도 현재 바인딩을 확인한다.
+
+공식 규격: [Meta Image Generation](https://dev.meta.ai/docs/image-generation), [Image Understanding](https://dev.meta.ai/docs/image-understanding). 키·공급자 오류 본문을 클라이언트에 노출하지 않는다.
 
 ## 클라이언트 연결 순서
 
@@ -15,7 +26,7 @@ python -m media.server --port 8000
 3. 응답의 sessionId/sceneId/version이 앱의 현재 상태와 모두 같고 apply=true일 때 image를 표시한다. image=null이면 마지막 검증 이미지를 유지하고 미지원 장면임을 안내한다. 이전 이미지를 새 재료의 생성 결과로 표시하지 않는다.
 4. queued/running 동안 이미지를 유지하면서 상태를 조회한다. 준비된 결과에 video가 있어야만 재생한다. fallback/failed는 영상 재생 없이 이미지를 유지하는 정상 복구 경로다.
 5. 언어 변경과 동화 답변으로 새 version이 오면 이전 결과를 바로 적용하지 않는다. 현재 바인딩으로 다시 요청한다. 같은 공개 로컬 콘텐츠는 진행 중 작업 또는 완료 결과를 재사용한다.
-6. 페이지 이탈·이전 페이지·녹음 시작·재시작 때 재생을 멈추고 기존 jobId를 취소한다. 재시작은 새 sessionId를 사용한다. 서버는 서로 다른 탭·세션 중 어느 것이 현재 사용자 화면인지 알 수 없으므로 이 취소 호출과 클라이언트의 현재 토큰 검사가 필요하다.
+6. 페이지 이탈·새 답·재시작은 기존 jobId 표시를 취소한다. 녹음 시작은 이미지 작업을 막지 않는다. 재시작은 새 sessionId를 사용한다. 서버는 어느 탭·세션이 현재 화면인지 알 수 없으므로 취소 호출과 클라이언트의 현재 토큰 검사가 필요하다.
 
 ## 생성·조회·취소
 
@@ -23,6 +34,7 @@ python -m media.server --port 8000
 | --- | --- | --- |
 | POST | `/api/media/jobs` | `{sessionId, sceneId, version}` |
 | GET | `/api/media/jobs/<jobId>?sessionId=<sessionId>` | 해당 작업의 세션 |
+| GET | `/api/media/images/<imageId>?sessionId=<sessionId>` | 해당 세션의 검수된 JPEG |
 | POST | `/api/media/cancel` | `{sessionId, jobId}` |
 
 현재 세션의 권위 있는 snapshot에서 MediaSpec을 만든다. 클라이언트가 전송한 mediaPlan·상태·자산 URL은 허용하지 않는다. 오래된 scene/version은 HTTP 409, 다른 세션의 작업 조회는 404, 서버 인스턴스의 작업 한도는 429다. 기존 localhost Host/Origin 검사를 재사용한다. 세션 ID는 로컬 개발용 접근 구분이며 운영 로그인/가족 권한이 아니다.
@@ -56,7 +68,9 @@ python -m media.server --port 8000
 
 예시의 spec은 핵심 두 항목만 발췌했다. 실제 응답은 정규화한 story_id/house_id/target_house_id/material 등도 포함한다.
 
-상태는 queued/running/ready/fallback/failed/cancelled다. ready는 레지스트리에 등록되고 reviewed=true인 로컬 MP4가 있을 때만 반환한다. clarify/redirect/service_error 등 새 미디어 계획이 없으면 `{status: "no_new_media", jobId: null, apply: false}`를 반환한다. `generated=false`는 기존 로컬 자산을 사용한다는 뜻이며 실제 생성 성공을 뜻하지 않는다.
+터치로 고른 답은 동화 응답의 `selection`과 `mediaPlan.selection`에 서버가 확정한 `{choiceId, label, answer, sessionId, sceneId, questionId, version, language}`를 담는다. 장면·질문·버전·언어는 **선택 당시의 원래 질문**을 가리키며, 미디어 계획 자체는 진행 후 장면을 가리킨다. 미디어 작업의 `spec.selection`에도 같은 기록을 전달해 추후 이미지 생성에서 실제 선택과 재료를 대조할 수 있다. 언어 전환은 원래 기록을 보존한다. 클라이언트가 보낸 임의 선택 문구·재료는 사용하지 않으며 미디어 작업 생성 요청에는 계속 바인딩 3개 필드만 받는다. 자유 발화 턴의 `selection`은 `null`이고 이전 터치를 새 발화의 출처로 표시하지 않는다.
+
+상태는 queued/running/ready/fallback/failed/cancelled다. ready는 독립 검수된 생성 이미지 또는 등록된 reviewed=true 로컬 MP4가 있을 때 반환한다. clarify/redirect/service_error 등 새 미디어 계획이 없으면 `{status: "no_new_media", jobId: null, apply: false}`를 반환한다. `generated=false`는 실제 생성 성공을 뜻하지 않는다.
 
 ## 자산과 캐시
 
@@ -68,11 +82,11 @@ python -m media.server --port 8000
 
 ## 작업 한계와 후속 연결
 
-동시 로컬 작업자는 2개, 작업 바인딩은 서버 인스턴스당 최대 256개, 기본 제한시간은 대기 시간을 포함해 15초다. 작업·중복 방지·캐시는 메모리에만 존재한다. 서버 재시작 시 모두 사라진다. 이 한도에 도달하면 새 로컬 서버 인스턴스로 시험을 다시 시작한다.
+동시 작업자는 2개, 바인딩은 서버 인스턴스당 최대 256개다. 대기 포함 제한시간은 로컬 15초, 실제 이미지 120초다. 이미지 HTTP 요청은 75초, 검수는 30초, 디코딩은 15초 이내로 제한하며 자동 재호출하지 않는다. 작업·그림·중복 방지·캐시는 메모리에만 존재하고 서버 재시작 시 사라진다. 한도에 도달하면 새 로컬 서버 인스턴스로 시험한다.
 
-취소와 timeout은 늦게 도착한 결과의 적용을 막는다. 작업 제공자는 취소 Event를 협조적으로 확인해야 한다. 이미 무효화된 화면 바인딩의 공유 콘텐츠 작업은 제한시간 안에서 끝날 수 있지만 그 결과를 옛 화면에는 적용하지 않는다. 같은 sessionId/sceneId/version 요청을 다시 보내면 기존 jobId와 실패·취소 상태를 유지하며 자동 재시도하지 않는다. 취소 이후 새로운 세션 또는 새 version의 요청은 취소된 콘텐츠 작업을 상속하지 않고 새 로컬 작업에 연결한다. 이전 작업의 완료·제한시간 콜백과 반복 취소는 새 작업에 영향을 주지 않는다.
+취소와 timeout은 늦은 결과 적용을 막는다. 제공자는 취소 Event를 협조적으로 확인해야 한다. 무효화된 바인딩의 공유 작업은 제한시간 안에서 끝날 수 있지만 옛 화면에는 적용하지 않는다. 동일 sessionId/sceneId/version 요청은 기존 jobId와 실패·취소 상태를 유지하며 자동 재시도하지 않는다. 로컬 콘텐츠는 취소 뒤 새 세션·새 버전에서 새 작업을 만들 수 있다. 실제 이미지는 같은 세션·같은 장면 사실의 취소 상태를 언어 전환 뒤에도 유지해 유료 재제출하지 않는다. 이전 완료·제한시간 콜백과 반복 취소는 새 작업에 영향을 주지 않는다.
 
-외부 유료 제출·task ID 저장·제출 여부 불명확 처리·needs_review 승인 흐름·운영 영속 저장은 3단계 이후다. 현재 LocalProvider에 외부 유료 호출을 추가하지 않는다. 향후 Runway 어댑터는 별도의 영속 제출 기록과 과금 중복 방지 규약을 갖춰야 한다.
+`LocalProvider`는 오프라인 전용이며 별도 `MuseImageProvider`가 실시간 생성·검수를 담당한다. 운영 영속 제출 기록·서버 재시작 이후 중복 방지·가족 권한·영상 공급자 연결은 후속이다. 유료 영상 어댑터에는 별도 제출 기록과 과금 중복 방지 규약이 필요하다.
 
 검증 명령:
 

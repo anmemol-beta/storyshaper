@@ -22,7 +22,7 @@ STORY = json.loads(Path(__file__).with_name("story.json").read_text(encoding="ut
 STORIES = {"en": STORY, "ko": json.loads(
     Path(__file__).with_name("story.ko.json").read_text(encoding="utf-8"))}
 SUPPORTED_LANGUAGES = tuple(STORIES)
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 1
 
 
 class Provider(Protocol):
@@ -397,8 +397,12 @@ class StoryEngine:
             material = named_materials[0] if state["stage"] == "choose" else None
             proposed_state, draft, facts = self._transition(state, material)
             self._validate_candidate(draft, draft, facts)
+            selection = {"choiceId": selected["id"], "label": selected["label"],
+                         "answer": selected["answer"], "sessionId": original["sessionId"],
+                         "sceneId": original["sceneId"], "questionId": original["question"]["id"],
+                         "version": original["version"], "language": original["language"]}
             return self._accepted_snapshot(original, proposed_state, draft, facts,
-                                           authored_fallback=True)
+                                           authored_fallback=True, selection=selection)
         combined = self.pipeline == "two_call"
         phase = "interpret_compose" if combined else "interpret"
         try:
@@ -503,7 +507,8 @@ class StoryEngine:
         return self._accepted_snapshot(original, proposed_state, candidate, facts,
                                        authored_fallback=False)
 
-    def _accepted_snapshot(self, original, proposed_state, candidate, facts, *, authored_fallback):
+    def _accepted_snapshot(self, original, proposed_state, candidate, facts, *, authored_fallback,
+                           selection=None):
         result = deepcopy(original)
         result.update({
             "version": original["version"] + 1,
@@ -512,13 +517,14 @@ class StoryEngine:
             "decision": "complete" if proposed_state["stage"] == "complete" else "accept",
             "reason": "story_complete" if proposed_state["stage"] == "complete" else "answer_accepted",
             "attempts": 0, "choiceMode": False, "storyState": proposed_state,
-            "mediaPlan": self._media_plan(result, proposed_state, facts),
+            "selection": deepcopy(selection),
             "diagnostics": {"phase": "authored_fallback" if authored_fallback else "review",
                             "validated": True, "authoredFallback": authored_fallback,
                             "checks": ["schema", "transition", "grounding",
                                        "authored_content" if authored_fallback else "safety_review"]},
             "providerMode": self._mode(),
         })
+        result["mediaPlan"] = self._media_plan(result, proposed_state, facts)
         # Media version must refer to this newly accepted snapshot.
         result["mediaPlan"]["version"] = result["version"]
         result["mediaPlan"]["sceneId"] = result["sceneId"]
@@ -544,7 +550,7 @@ class StoryEngine:
         result["question"] = self._question(state)
         if result["decision"] in {"clarify", "redirect"}:
             result["lines"] = [_line(self._failure_message(
-                state, result["decision"], result["reason"], result["attempts"]))]
+                state, result["decision"], result["reason"]))]
         elif result["decision"] == "service_error":
             result["lines"] = [_line(self._service_message(language))]
         else:
@@ -863,7 +869,7 @@ class StoryEngine:
     def _child_failure(self, original, decision, reason):
         result = deepcopy(original)
         attempts = original["attempts"] + 1
-        message = self._failure_message(original["storyState"], decision, reason, attempts)
+        message = self._failure_message(original["storyState"], decision, reason)
         result.update({"version": original["version"] + 1, "decision": decision, "reason": reason,
                        "attempts": attempts, "choiceMode": attempts >= MAX_ATTEMPTS,
                        "lines": [_line(message)], "mediaPlan": None,
@@ -872,56 +878,41 @@ class StoryEngine:
         return result
 
     @staticmethod
-    def _failure_message(state, decision, reason, attempts):
-        # While choosing a material, an answer the story cannot use (an unknown
-        # material, a mishearing, silence) is answered by naming the usable
-        # materials rather than by claiming the child was not understood.
+    def _failure_message(state, decision, reason):
+        # Show the authored touch choices on the first missed answer. Never
+        # require another spoken attempt before the child can continue.
         choosing = state["stage"] == "choose"
-        story = STORIES[state["language"]]
-        labels = [story["materials"][key]["label"]
-                  for key in STORY["houses"][state["houseIndex"] - 1]["allowedMaterials"]]
         if state["language"] == "ko":
             if reason == "unsupported_material":
                 message = "새 재료로 집을 짓고 싶구나! 그 재료로 안전한 집을 짓는 방법은 아직 준비하지 못했어."
             elif decision == "clarify":
                 message = ("이 집을 지을 재료가 필요해요." if choosing else
-                           "생각을 잘 알아듣지 못했어요. 한 번 더 이야기해 줄래요?")
+                           "생각을 잘 알아듣지 못했어요.")
             elif reason == "material_not_allowed":
                 message = ("마지막 집은 튼튼하게 서 있을 수 있는 재료로 골라 봐요." if state["houseIndex"] == 3 else
                            "그 튼튼한 재료는 마지막 집에 써 봐요.")
             else:
                 message = "돼지들이 안전하게 지내도록 지금 이야기 속에서 도와줘요."
-                if not choosing:
-                    message += " 다른 생각을 해 볼까요?"
-            if attempts >= MAX_ATTEMPTS:
-                message += " 여기 세 가지 생각 중에서 마음에 드는 것을 눌러 골라 봐요."
-            elif choosing:
-                message += f" 예를 들면 {', '.join(labels)} 같은 재료가 있어요. 어떤 걸로 지어 볼까요?"
+            message += " 이번에는 그림을 보고 마음에 드는 것을 톡 눌러 줘요!"
             return message
         if reason == "unsupported_material":
             message = "You have a new material in mind! I don't have a safe way to build with it yet."
         elif decision == "clarify":
             message = ("This house needs a building material." if choosing else
-                       "I didn't quite understand. Could you tell me your idea once more?")
+                       "I didn't quite understand.")
         elif reason == "material_not_allowed":
             message = ("For this last house, let's choose something strong that stays standing."
                        if state["houseIndex"] == 3 else
                        "Let's save those strong materials for the pigs' last house.")
         else:
             message = "Let's keep the pigs safe and help with this part of their story."
-            if not choosing:
-                message += " Could we try another idea?"
-        if attempts >= MAX_ATTEMPTS:
-            message += " Let's choose one of these three ideas. You can tap the one you like."
-        elif choosing:
-            options = ", ".join(labels[:-1]) + (", or " if len(labels) > 2 else " or ") + labels[-1]
-            message += f" For example, we can use {options}. Which one shall we try?"
+        message += " Let's pick a picture! Tap the one you like."
         return message
 
     @staticmethod
     def _service_message(language):
-        return ("동화 도우미에게 잠깐 시간이 필요해요. 답을 다시 이야기하거나 세 가지 생각 중 하나를 눌러 계속 읽을 수 있어요." if language == "ko" else
-                "Our story helper needs a moment. You can try your answer again, or tap one of these three ideas to keep reading.")
+        return ("동화 도우미에게 잠깐 시간이 필요해요. 그림을 보고 마음에 드는 것을 톡 눌러 계속 읽어요!" if language == "ko" else
+                "Our story helper needs a moment. Tap a picture to keep reading!")
 
     def _service_error(self, original, phase):
         result = deepcopy(original)
@@ -950,6 +941,8 @@ class StoryEngine:
                 "narration": [], "status": "validated_plan_only",
                 "visualConstraints": constraints}
         plan["materialLabel"] = facts["materialLabel"]
+        if snapshot.get("selection") is not None:
+            plan["selection"] = deepcopy(snapshot["selection"])
         if facts["material"] == CUSTOM_MATERIAL:
             chosen = next(item for item in state["houses"] if item["houseId"] == facts["houseId"])
             plan.update(materialSpec=deepcopy(chosen["materialSpec"]), materialId=chosen["materialId"])
