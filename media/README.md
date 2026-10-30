@@ -76,3 +76,15 @@ References:
 - [Runway pricing](https://docs.dev.runwayml.com/guides/pricing/)
 - [Luma video API guide](https://docs.lumalabs.ai/docs/video-generation) (points to current Luma Agents documentation)
 - [Team role and integration meeting](../docs/meetings/2026-10-28-2049-roles-and-integration.md)
+
+## Scene pictures for every allowed material
+
+The story agent only accepts the materials in `story_agent/story.json`, so the pictures it can ask for are a finite set: for each house and allowed material, the finished house (`build`) and what happens to it (the material's outcome). All 24 are now in `scene_registry.json`. The 16 that the book did not have were made ahead of time with Muse Image (`muse-image-1.0`) and are in `prototype/img/scenes/`. Made in advance, no child waits for a redraw, and every picture was looked at before it was committed.
+
+```bash
+python3 -m media.generate_scenes --dry-run     # list missing pictures and their prompts
+python3 -m media.generate_scenes               # make them (MODEL_API_KEY in .env), then look at each one
+python3 -m media.generate_scenes --only house1/cookie/eaten   # remake one picture
+```
+
+Each picture is an edit of an existing page (the empty plot for a build, the build for its outcome, the brick pages for stone), with the wolf from `wolf_paper.jpg` as a reference, so the watercolor style and the pigs stay the same. The prompt names only the pigs on that page: naming all three made the model draw all three on single-pig pages in the first run. On 2026-10-30 each edit took 10–25 s; one was rejected once by the content filter and passed on retry.
