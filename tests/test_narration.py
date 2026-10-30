@@ -132,6 +132,15 @@ class NarratorTest(unittest.TestCase):
         self.assertEqual(n.wait("aaaaaaaaaaaa", queued["key"], 0.5), "unknown")
 
 
+class FillerListTest(unittest.TestCase):
+    def test_warm_script_uses_the_same_fillers_as_the_page(self):
+        import re
+        from narration.warm import FILLERS
+        page = (Path(__file__).resolve().parent.parent / "prototype" / "narration.js").read_text()
+        block = re.search(r"const FILLERS = \[(.*?)\];", page, re.S).group(1)
+        self.assertEqual(re.findall(r'"([^"]+)"', block), FILLERS)
+
+
 class ClipAnalysisTest(unittest.TestCase):
     def test_suggests_the_part_with_the_most_talking(self):
         audio = speech_like([(0, 4), (1, 1), (0, 6), (1, 12), (0, 4)])
@@ -181,6 +190,16 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertEqual([v["name"] for v in self.library.saved()], ["Dad"])
         self.library.delete(draft["id"])
         self.assertFalse(folder.exists())
+
+    def test_recorded_consent_sentence_is_heard(self):
+        library = VoiceLibrary(self.root / "p2", lambda wav: "and dreamed of honey. I'm happy for my voice to read stories to my child.")
+        draft = library.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True)
+        self.assertTrue(draft["consentHeard"])
+        library.choose(draft["id"], 2, 12)
+        self.assertTrue(library.save(draft["id"], "Dad", "me", True)["consent"]["spoken"])
+        quiet = VoiceLibrary(self.root / "p3", lambda wav: "once upon a time")
+        self.assertFalse(quiet.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True)["consentHeard"])
+        self.assertNotIn("consentHeard", quiet.create((self.root / "talk.wav").read_bytes(), "video/mp4"))
 
     def test_consent_and_bad_files_are_refused(self):
         draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
@@ -234,13 +253,20 @@ class HttpTest(unittest.TestCase):
         draft = json.loads(body)
         vid = draft["id"]
         self.assertEqual(self.request("GET", f"/api/voices/{vid}/full.wav")[0], 200)
-        # A draft cannot read stories yet.
+        # A draft without a chosen clip cannot read yet.
         self.assertEqual(self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "voiceId": vid})[0], 409)
         status, _, body = self.request("POST", f"/api/voices/{vid}/clip", draft["suggestions"][0])
         self.assertEqual((status, json.loads(body)["transcript"]), (200, "hello"))
         status, _, body = self.request("POST", f"/api/voices/{vid}/preview", {})
         preview = json.loads(body)
         self.assertEqual(self.request("GET", preview["url"] + "?wait=5")[0], 200)
+        # The preview is the book's first line in the same voice, so the book starts without waiting.
+        status, _, body = self.request("POST", "/api/voice/lines", {"lines": [{"text": preview["text"]}], "voiceId": vid, "peek": True})
+        self.assertEqual(json.loads(body)["clips"][0]["key"], preview["key"])
+        self.assertTrue(json.loads(body)["clips"][0]["ready"])
+        status, _, body = self.request("POST", "/api/voice/lines", {"lines": [{"text": "Not yet read."}], "voiceId": vid, "peek": True})
+        self.assertFalse(json.loads(body)["clips"][0]["ready"])
+        self.assertEqual(self.request("GET", json.loads(body)["clips"][0]["url"])[0], 404)  # peek queues nothing
         self.assertEqual(self.request("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me"})[0], 400)
         status, _, _ = self.request("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me", "attested": True})
         self.assertEqual(status, 200)

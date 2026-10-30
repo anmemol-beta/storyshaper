@@ -1,13 +1,15 @@
 """Local narration server. Run: voice/.venv-chatterbox/bin/python -m narration.server
 
 Reading
-POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?, "allRoles"?}  queue lines, newest first
+POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?, "allRoles"?, "peek"?}  queue lines,
+                                   newest first ("peek": only report which are ready)
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
 GET    /api/voice/config           roles and languages
 
 Parent voices (narration/voices.py)
 GET    /api/voices                 saved voices
-POST   /api/voices                 raw recording or video body -> draft voice with suggested clips
+POST   /api/voices[?recorded=1]    raw recording or video body -> draft voice with suggested clips
+                                   (recorded=1: also check that the consent sentence was read)
 GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
 POST   /api/voices/<id>/clip       {"start", "end"} -> quality and Muse Voice Transcribe transcript
 POST   /api/voices/<id>/preview    a sample story line in the chosen clip's voice
@@ -44,7 +46,8 @@ CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text())
 CACHE = ROOT / "voice" / "cache"
 PROFILES = ROOT / "voice" / "profiles"
 PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
-PREVIEW_TEXT = "Once upon a time, three little pigs set out to build their very own homes."
+# The preview is the picture book's first line, so the book can start the moment the voice is saved.
+PREVIEW_TEXT = "Once upon a time, a mother pig lived with her three little pigs."
 MAX_BODY = 16384
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_LINES = 20
@@ -87,10 +90,11 @@ class Narrator:
     def path(self, voice, key):
         return self.cache / voice / f"{key}.mp3"
 
-    def submit(self, lines, voice="default", parent_ref=None, all_roles=False):
+    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True):
         """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
-        all_roles reads every character, the wolf too, in the parent's voice."""
+        all_roles reads every character, the wolf too, in the parent's voice.
+        enqueue=False only reports which lines are ready (for progress)."""
         batch = -next(self.batch)
         clips = []
         with self.cond:
@@ -100,7 +104,7 @@ class Narrator:
                 settings = self.settings(role, parent_ref, all_roles)
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
-                if not ready:
+                if not ready and enqueue:
                     self.failed.discard((voice, key))
                     heapq.heappush(self.queue, (batch, next(self.seq), voice, key, settings, text))
                     self.queued[(voice, key)] = batch
@@ -216,13 +220,13 @@ class Handler(BaseHTTPRequestHandler):
         return body
 
     def parent_ref(self, voice_id):
-        """The saved voice's clip, or None for the default parent voice."""
+        """The voice's chosen clip, or None for the default parent voice. The clip's hash is part of the
+        reference, so choosing another clip never reuses lines read with the old one. A draft can read too,
+        so the first pages are ready by the time the parent presses Save."""
         if voice_id in (None, "default"):
             return "default", None
-        library = self.server.library
-        if library.meta(voice_id).get("status") != "saved":
-            raise VoiceError(409, "voice_not_saved", "Save the voice before reading stories with it.")
-        return voice_id, str(library.ref(voice_id))
+        ref = self.server.library.ref(voice_id)
+        return voice_id, f"{ref}#{hashlib.sha1(ref.read_bytes()).hexdigest()[:8]}"
 
     def handle_safely(self, action):
         if not self.guarded():
@@ -292,12 +296,14 @@ class Handler(BaseHTTPRequestHandler):
                 raise VoiceError(400, "invalid_lines",
                                  f"Send 1-{MAX_LINES} lines, each with text up to {MAX_TEXT} characters.")
             voice, ref = self.parent_ref(body.get("voiceId"))
-            return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True)})
+            return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
+                                                             enqueue=body.get("peek") is not True)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
                 raise VoiceError(415, "unsupported_type", "Upload a recording or a video file.")
-            return self.reply(201, library.create(self.body(MAX_UPLOAD), kind))
+            recorded = parse_qs(urlsplit(self.path).query).get("recorded") == ["1"]
+            return self.reply(201, library.create(self.body(MAX_UPLOAD), kind, check_consent=recorded))
         route = VOICE_ROUTE.match(path)
         if not route or not route.group(2):
             raise VoiceError(404, "not_found", "Not found.")
@@ -306,11 +312,7 @@ class Handler(BaseHTTPRequestHandler):
             body = self.json_body()
             return self.reply(200, library.choose(voice_id, body.get("start"), body.get("end")))
         if action == "preview":
-            # Previews of an unsaved clip use their own cache folder, so a new clip is never served an old preview.
-            ref = library.ref(voice_id)
-            clip_id = hashlib.sha1(ref.read_bytes()).hexdigest()[:8]
-            [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT}],
-                                     voice_id, f"{ref}#{clip_id}")
+            [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT}], *self.parent_ref(voice_id))
             return self.reply(200, clip)
         if action == "save":
             body = self.json_body()

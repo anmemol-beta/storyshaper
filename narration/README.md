@@ -15,9 +15,11 @@ The casting comes from a listening test of four options (roadmap §5, `voice/cha
 Needs the Chatterbox environment (`voice/.venv-chatterbox`) and `ffmpeg`.
 
 ```bash
-voice/.venv-chatterbox/bin/python -m narration.server     # http://127.0.0.1:8100
-python3 -m story_agent.server                              # http://127.0.0.1:8000/prototype/agent.html
+scripts/demo.sh            # both servers; voices the book and the fillers for every saved voice ahead
+scripts/demo.sh --wait     # ...and waits until all of it is voiced (before recording a demo)
 ```
+
+Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m speech.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
 
 The agent page reads every new passage and question aloud and highlights the line being read.
 If the narration server is not running, the page uses the browser voice. Another server address: `agent.html?voiceServer=http://127.0.0.1:8101`.

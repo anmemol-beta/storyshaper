@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한국어 낭독 시험</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1d2333; --muted:#5b6378; --line:#dde1ea; --accent:#2f4fb5; --bad:#a3471b; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system, "Apple SD Gothic Neo", sans-serif; line-height:1.55; }
+  main { max-width:900px; margin:0 auto; padding:28px 16px 60px; display:flex; flex-direction:column; gap:16px; }
+  h1 { margin:0; font-size:1.5rem; }
+  p { margin:0; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; display:grid; gap:10px; }
+  .q { font-weight:600; font-size:1.05rem; }
+  .row { display:grid; grid-template-columns:120px minmax(0,1fr); gap:6px 12px; align-items:center; }
+  .tag { font-weight:700; color:var(--accent); font-size:.9rem; }
+  audio { width:100%; height:36px; }
+  .heard { grid-column:2; font-size:.88rem; color:var(--muted); }
+  .heard b { color:var(--bad); }
+  @media (max-width:560px) { .row { grid-template-columns:1fr; } .heard { grid-column:1; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>한국어 낭독 시험 (Chatterbox Multilingual)</h1>
+  <p>기준 음성은 현준님의 <b>영어</b> 녹음(voice/ref_clip.wav)입니다. 같은 한국어 문장을 기본 설정(cfg 0.5)과 억양 줄이기 설정(cfg 0)으로 만들었고, Muse Voice Transcribe로 다시 받아써 글자 오류율을 쟀습니다(받아쓰기 자체의 오류도 섞여 있음).</p>
+  <div id="lines"></div>
+</main>
+<script>
+// From voice/out/korean/results.json, inlined so the page also works when opened as a file.
+const results = [{"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "cfg": 0.5, "file": "1_cfg0.5.mp3", "seconds": 24.0, "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요..", "cer": 0.0}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "cfg": 0.0, "file": "1_cfg0.mp3", "seconds": 8.5, "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요.", "cer": 0.0}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "cfg": 0.5, "file": "2_cfg0.5.mp3", "seconds": 10.4, "heard": " 첫째 되지는 되지는 회사들이 따뜻한 풀밭을 찾았어요.", "cer": 0.389}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "cfg": 0.0, "file": "2_cfg0.mp3", "seconds": 7.3, "heard": "저제 되지는 햇살이 따뜻함 불밭을 찾았어요..", "cer": 0.278}, {"line": 3, "text": "무엇으로 집을 지었을까?", "cfg": 0.5, "file": "3_cfg0.5.mp3", "seconds": 4.7, "heard": "워스로 집을 지었을까?", "cer": 0.3}, {"line": 3, "text": "무엇으로 집을 지었을까?", "cfg": 0.0, "file": "3_cfg0.mp3", "seconds": 4.0, "heard": "워스로스로 15이었을까?", "cer": 0.7}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "cfg": 0.5, "file": "4_cfg0.5.mp3", "seconds": 6.3, "heard": "종이분아 첫째 대지는 종이를 접고 또 또 접었어요.", "cer": 0.211}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "cfg": 0.0, "file": "4_cfg0.mp3", "seconds": 5.9, "heard": "종이구나 첫째 돼지는 종이를 적고 또고 또 적었어요.", "cer": 0.211}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "cfg": 0.5, "file": "5_cfg0.5.mp3", "seconds": 5.9, "heard": "첫째 되지는 동생의 집으로 달려갔어요.", "cer": 0.062}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "cfg": 0.0, "file": "5_cfg0.mp3", "seconds": 6.3, "heard": "첫째 되지는 동생의 집으로 달려왔어요.", "cer": 0.125}];
+{
+  const byLine = {};
+  results.forEach(r => (byLine[r.line] ||= []).push(r));
+  document.getElementById("lines").innerHTML = Object.values(byLine).map(rows => `
+    <div class="card" style="margin-bottom:14px">
+      <div class="q">${rows[0].text}</div>
+      ${rows.map(r => `
+        <div class="row">
+          <span class="tag">cfg ${r.cfg}</span>
+          <audio controls preload="none" src="out/korean/${r.file}"></audio>
+          <span class="heard">받아쓴 결과: “${r.heard}” · 오류율 <b>${Math.round(r.cer * 100)}%</b> · 생성 ${r.seconds}초</span>
+        </div>`).join("")}
+    </div>`).join("");
+}
+</script>
+</body>
+</html>

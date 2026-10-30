@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Start everything the demo needs, voice the book ahead, and stop both servers on Ctrl-C.
+#   scripts/demo.sh           start, voice the book and fillers for every saved voice in the background
+#   scripts/demo.sh --wait    also wait until all of it is voiced before printing the links
+set -euo pipefail
+cd "$(dirname "$0")/.."
+LOGS="${TMPDIR:-/tmp}/storyshaper"
+mkdir -p "$LOGS"
+
+voice/.venv-chatterbox/bin/python -m narration.server > "$LOGS/narration.log" 2>&1 &
+NARRATION=$!
+python3 -m speech.server > "$LOGS/story.log" 2>&1 &
+STORY=$!
+trap 'kill $NARRATION $STORY 2>/dev/null; echo; echo "Stopped."' EXIT INT TERM
+
+echo "Starting servers (Chatterbox takes about a minute to load; logs in $LOGS)…"
+for i in $(seq 1 180); do
+  curl -sf -o /dev/null -H "Host: 127.0.0.1:8100" http://127.0.0.1:8100/api/voices &&
+    curl -sf -o /dev/null http://127.0.0.1:8000/api/config && break
+  kill -0 $NARRATION 2>/dev/null || { echo "Narration server stopped:"; tail -5 "$LOGS/narration.log"; exit 1; }
+  kill -0 $STORY 2>/dev/null || { echo "Story server stopped:"; tail -5 "$LOGS/story.log"; exit 1; }
+  sleep 1
+done
+
+python3 -m narration.warm "$@"
+cat <<MSG
+
+Ready.
+  Add a parent's voice   http://127.0.0.1:8000/prototype/voice.html
+  Picture book           http://127.0.0.1:8000/prototype/index.html
+  Live story agent       http://127.0.0.1:8000/prototype/agent.html
+Press Ctrl-C to stop.
+MSG
+wait
