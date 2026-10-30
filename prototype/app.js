@@ -156,8 +156,10 @@ function readLines(lines, done) {
     line.replaceChildren(box);
     const lineDone = () => { if (!live()) return; spans.forEach((s) => (s.className = "done")); laterRead(() => readOne(i + 1), 450 / rate()); };
     const timed = () => { const ms = (words.length * 300) / rate(); highlight(spans, ms); laterRead(lineDone, ms + 200); };
-    // The prepared parent-voice clips are English only. Korean uses Korean browser TTS.
-    const clip = language === "en" && $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
+    // A voice registered on voice.html comes from the narration server; otherwise the prepared clips (English only).
+    // Korean uses Korean browser TTS.
+    const prepared = language === "en" && $("voice").checked && typeof NARRATION !== "undefined" && NARRATION[text];
+    const clip = (serverUrls && serverUrls[i]) || (prepared && `audio/${prepared}`);
     if (!clip) {
       if (!$("voice").checked) return timed();
       let settled = false;
@@ -183,11 +185,15 @@ function readLines(lines, done) {
     audio.onloadedmetadata = () => live() && highlight(spans, (audio.duration * 1000) / rate());
     audio.onended = () => { if (!live()) return; playing = null; lineDone(); };
     audio.onerror = fallBack;
-    audio.src = `audio/${clip}`;
+    audio.src = clip;
     audio.defaultPlaybackRate = audio.playbackRate = rate(); // loading a new src resets playbackRate to the default
     audio.play().catch(fallBack);
   };
-  readOne(0);
+  // Ask for the registered voice's clips for the whole passage at once (narration.js); the server makes them in order.
+  let serverUrls = null;
+  if (language === "en" && $("voice").checked && typeof Narration !== "undefined" && Narration.usesParentVoice()) {
+    Narration.prepare(queue).then((urls) => { serverUrls = urls; if (live()) readOne(0); });
+  } else readOne(0);
 }
 
 // The question stays on screen, marked like with a highlighter pen.
@@ -238,6 +244,24 @@ function showHints(list, numbered) {
   hints.hidden = false;
 }
 
+// The picture-card invitation in the parent's voice from the narration server, or the browser voice without it.
+function readChoices(text) {
+  if (language !== "en" || typeof Narration === "undefined") return speak(text);
+  const gen = ++readGen;
+  Narration.prepare([text]).then((urls) => {
+    if (gen !== readGen) return;
+    if (!urls) return speak(text);
+    const audio = (playing = voiceEl);
+    const fallBack = () => { if (gen !== readGen || playing !== audio) return; playing = null; speak(text); };
+    audio.onloadedmetadata = null;
+    audio.onended = () => { if (playing === audio) playing = null; };
+    audio.onerror = fallBack;
+    audio.src = urls[0];
+    audio.defaultPlaybackRate = audio.playbackRate = rate();
+    audio.play().catch(fallBack);
+  });
+}
+
 // After MAX_TRIES missed tries on one question: numbered picture cards, read aloud, so a child who cannot read
 // or be understood can still answer. The mic stays on for a child who wants to talk again.
 function showChoices() {
@@ -248,8 +272,7 @@ function showChoices() {
   showHints(cards, true);
   setAnswers(current.ask);
   setPhase("ASKING", copy().PICK);
-  // The longer invitation is only read aloud, in the browser voice: it has no pre-generated parent-voice clip yet.
-  if ($("voice").checked) speak(`${copy().CHOICES} ${cards.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")}`);
+  if ($("voice").checked) readChoices(`${copy().CHOICES} ${cards.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")}`);
   return true;
 }
 

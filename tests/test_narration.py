@@ -79,6 +79,17 @@ class NarratorTest(unittest.TestCase):
         self.assertIn(b"wolf_libritts_1188.wav", read(wolf))
         self.assertEqual(narrator["url"], f"/audio/abcdef123456/{narrator['key']}.mp3")
 
+    def test_all_roles_reads_the_wolf_in_the_parent_voice(self):
+        n = Narrator(FakeVoice(), self.tmp.name)
+        [usual] = n.submit([{"speakerId": "wolf", "text": "Let me in!"}], "abcdef123456", "/profiles/dad.wav")
+        [every] = n.submit([{"speakerId": "wolf", "text": "Let me in!"}], "abcdef123456", "/profiles/dad.wav", True)
+        [default] = n.submit([{"speakerId": "wolf", "text": "Let me in!"}], all_roles=True)
+        for voice, clip in (("abcdef123456", usual), ("abcdef123456", every), ("default", default)):
+            self.assertEqual(n.wait(voice, clip["key"], 5), "ready")
+        self.assertIn(b"wolf_libritts_1188.wav", n.path("abcdef123456", usual["key"]).read_bytes())
+        self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", every["key"]).read_bytes())
+        self.assertIn(b"voice/ref_clip.wav", n.path("default", default["key"]).read_bytes())
+
     def test_newest_request_is_voiced_first_in_line_order(self):
         voice = FakeVoice(hold=True)
         n = Narrator(voice, self.tmp.name)
