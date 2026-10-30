@@ -65,6 +65,12 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 | `GET /api/voices` | | `{voices: [{id, name, source, savedAt, consent}]}` |
 | `DELETE /api/voices/<id>` | | `{deleted: id}` |
 
+## Languages
+
+The parent records once, in English, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. The Korean picture book lines are in `prototype/audio/lines.ko.json` (written by `node experiments/narration_lines.mjs`) and are voiced ahead by `narration/warm.py` and on saving a voice. Korean fillers: `FILLERS_KO`.
+
+On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes to play, so live Korean passages pause between lines; the picture book is fine once voiced ahead.
+
 ## Where the voices are used
 
 - **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after the first missed answer is read the same way; the cards can be tapped before the invitation finishes.

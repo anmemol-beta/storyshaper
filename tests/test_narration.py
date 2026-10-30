@@ -90,6 +90,17 @@ class NarratorTest(unittest.TestCase):
         self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", every["key"]).read_bytes())
         self.assertIn(b"voice/ref_clip.wav", n.path("default", default["key"]).read_bytes())
 
+    def test_korean_lines_use_the_same_parent_clip_with_their_own_cache(self):
+        n = Narrator(FakeVoice(), self.tmp.name)
+        [en] = n.submit([{"text": "Hello."}], "abcdef123456", "/profiles/dad.wav")
+        [ko] = n.submit([{"text": "Hello."}], "abcdef123456", "/profiles/dad.wav", language="ko")
+        [en_again] = n.submit([{"text": "Hello."}], "abcdef123456", "/profiles/dad.wav", language="en")
+        self.assertNotEqual(en["key"], ko["key"])
+        self.assertEqual(en["key"], en_again["key"])        # English keys are unchanged by the language option
+        for clip in (en, ko):
+            self.assertEqual(n.wait("abcdef123456", clip["key"], 5), "ready")
+            self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", clip["key"]).read_bytes())
+
     def test_newest_request_is_voiced_first_in_line_order(self):
         voice = FakeVoice(hold=True)
         n = Narrator(voice, self.tmp.name)
@@ -137,8 +148,10 @@ class FillerListTest(unittest.TestCase):
         import re
         from narration.warm import FILLERS
         page = (Path(__file__).resolve().parent.parent / "prototype" / "narration.js").read_text()
-        block = re.search(r"const FILLERS = \[(.*?)\];", page, re.S).group(1)
-        self.assertEqual(re.findall(r'"([^"]+)"', block), FILLERS)
+        from narration.warm import FILLERS_KO
+        for name, expected in (("FILLERS", FILLERS), ("FILLERS_KO", FILLERS_KO)):
+            block = re.search(rf"const {name} = \[(.*?)\];", page, re.S).group(1)
+            self.assertEqual(re.findall(r'"([^"]+)"', block), expected)
 
 
 class ClipAnalysisTest(unittest.TestCase):
@@ -287,6 +300,7 @@ class HttpTest(unittest.TestCase):
 
     def test_rejects_bad_requests(self):
         self.assertEqual(self.request("POST", "/api/voice/lines", {"lines": []})[0], 400)
+        self.assertEqual(self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "language": "fr"})[0], 400)
         self.assertEqual(self.request("POST", "/api/voice/lines", {"lines": [{"text": "x" * 501}]})[0], 400)
         self.assertEqual(self.request("POST", "/api/voices", raw=b"hello", headers={"Content-Type": "text/plain"})[0], 415)
         self.assertEqual(self.request("GET", "/audio/../../.env")[0], 404)
