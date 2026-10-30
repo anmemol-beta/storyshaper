@@ -1,0 +1,101 @@
+{
+  "label": "c-minimal_r-minimal",
+  "mode": "live",
+  "composeEffort": "minimal",
+  "reviewEffort": "minimal",
+  "repeats": 1,
+  "modelCalls": 4,
+  "callLimit": 6,
+  "allAccepted": false,
+  "automatedChecksPassed": false,
+  "manualQualityReviewRequired": true,
+  "liveLatencyEvidence": true,
+  "scenarios": [
+    {
+      "scenario": "vinyl_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 5420.845,
+      "calls": [
+        {
+          "requestBytes": 13665,
+          "instructionChars": 3414,
+          "inputChars": 5563,
+          "reasoningEffort": "minimal",
+          "inputTokens": 2799,
+          "outputTokens": 627,
+          "reasoningTokens": 503,
+          "cachedInputTokens": 0,
+          "phase": "interpret_compose",
+          "ok": true,
+          "durationMs": 2691.41
+        },
+        {
+          "requestBytes": 4113,
+          "instructionChars": 1416,
+          "inputChars": 1332,
+          "reasoningEffort": "minimal",
+          "inputTokens": 801,
+          "outputTokens": 584,
+          "reasoningTokens": 565,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 2727.34
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      }
+    },
+    {
+      "scenario": "icecream_choose",
+      "repeat": 1,
+      "decision": "service_error",
+      "reason": "generation_unavailable",
+      "accepted": false,
+      "durationMs": 5451.719,
+      "calls": [
+        {
+          "requestBytes": 13695,
+          "instructionChars": 3414,
+          "inputChars": 5568,
+          "reasoningEffort": "minimal",
+          "inputTokens": 2802,
+          "outputTokens": 477,
+          "reasoningTokens": 346,
+          "cachedInputTokens": 0,
+          "phase": "interpret_compose",
+          "ok": true,
+          "durationMs": 2505.31
+        },
+        {
+          "requestBytes": 4010,
+          "instructionChars": 1416,
+          "inputChars": 1170,
+          "reasoningEffort": "minimal",
+          "inputTokens": 749,
+          "outputTokens": 564,
+          "reasoningTokens": 545,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 2944.3
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": false
+      },
+      "failureCode": "validation_or_review_failed"
+    },
+    {
+      "scenario": "icecream_predict",
+      "repeat": 1,
+      "skipped": true,
+      "reason": "icecream_choice_not_accepted",
+      "calls": []
+    }
+  ]
+}
