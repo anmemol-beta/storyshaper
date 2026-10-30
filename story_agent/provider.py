@@ -72,19 +72,27 @@ def parse_output(data: dict) -> dict:
     return result
 
 
+# None omits the setting, so the model uses its own default effort.
+EFFORTS = (None, "minimal", "low", "medium", "high", "xhigh", "max")
+
+
 class MetaProvider:
     mode = "live"
 
     def __init__(self, api_key: str, model: str = "muse-spark-1.3", timeout: float = 30,
-                 compose_reasoning_effort: str | None = "low"):
+                 compose_reasoning_effort: str | None = "low",
+                 review_reasoning_effort: str | None = "low"):
         if not api_key:
             raise ProviderError("missing_api_key")
         self._api_key = api_key
         self.model = model
         self.timeout = timeout
-        if compose_reasoning_effort not in (None, "minimal", "low", "medium", "high", "xhigh", "max"):
+        if compose_reasoning_effort not in EFFORTS:
             raise ValueError("Unsupported compose reasoning effort")
+        if review_reasoning_effort not in EFFORTS:
+            raise ValueError("Unsupported review reasoning effort")
         self.compose_reasoning_effort = compose_reasoning_effort
+        self.review_reasoning_effort = review_reasoning_effort
 
     def complete(self, instructions: str, payload: dict) -> dict:
         result, _ = self.complete_with_metrics(instructions, payload)
@@ -95,7 +103,8 @@ class MetaProvider:
         started = time.perf_counter()
         input_text = json.dumps(payload, ensure_ascii=False)
         policy = instructions + "\nReturn only one JSON object; no Markdown or commentary."
-        effort = self.compose_reasoning_effort if payload.get("phase") in {"compose", "interpret_compose"} else None
+        effort = {"compose": self.compose_reasoning_effort, "interpret_compose": self.compose_reasoning_effort,
+                  "review": self.review_reasoning_effort}.get(payload.get("phase"))
         request_body = {
             "model": self.model,
             "instructions": policy,
