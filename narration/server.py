@@ -1,0 +1,409 @@
+"""Local narration server. Run: voice/.venv-chatterbox/bin/python -m narration.server
+
+Reading
+POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?}  queue lines, newest request first
+GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
+GET    /api/voice/config           roles and languages
+
+Parent voices (narration/voices.py)
+GET    /api/voices                 saved voices
+POST   /api/voices                 raw recording or video body -> draft voice with suggested clips
+GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
+POST   /api/voices/<id>/clip       {"start", "end"} -> quality and Muse Voice Transcribe transcript
+POST   /api/voices/<id>/preview    a sample story line in the chosen clip's voice
+POST   /api/voices/<id>/save       {"name", "relation", "attested": true}
+DELETE /api/voices/<id>            the voice, its clip and every line read with it
+
+Clips are cached in voice/cache/<voice>/ by (role settings, reference clip, text), so a line is generated once.
+The story pages call this server from another local port, so local origins are allowed (CORS).
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import heapq
+import itertools
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import threading
+import time
+import urllib.request
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+from .voices import VoiceError, VoiceLibrary
+
+ROOT = Path(__file__).resolve().parent.parent
+CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text())
+CACHE = ROOT / "voice" / "cache"
+PROFILES = ROOT / "voice" / "profiles"
+PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
+PREVIEW_TEXT = "Once upon a time, three little pigs set out to build their very own homes."
+MAX_BODY = 16384
+MAX_UPLOAD = 100 * 1024 * 1024
+MAX_LINES = 20
+MAX_TEXT = 500
+LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
+AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
+VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save))?$")
+
+
+class Narrator:
+    """Queues lines and generates them one at a time on a single worker thread."""
+
+    def __init__(self, synthesize, cache_dir=CACHE, casting=CASTING):
+        self.synthesize, self.cache, self.casting = synthesize, Path(cache_dir), casting
+        self.cache.mkdir(parents=True, exist_ok=True)
+        self.cond = threading.Condition()
+        self.queue, self.queued, self.failed, self.dropped = [], {}, set(), set()
+        self.batch = itertools.count()
+        self.seq = itertools.count()
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def role(self, speaker_id):
+        speaker_id = str(speaker_id or "narrator")
+        if speaker_id.startswith("pig"):
+            return "pig"
+        return speaker_id if speaker_id in self.casting else "narrator"
+
+    def settings(self, role, parent_ref=None):
+        settings = dict(self.casting[role])
+        if parent_ref is not None and role in PARENT_ROLES:
+            settings["ref"] = str(parent_ref)
+        return settings
+
+    @staticmethod
+    def key(settings, text):
+        return hashlib.sha1(f"{json.dumps(settings, sort_keys=True)}\n{text}".encode()).hexdigest()[:16]
+
+    def path(self, voice, key):
+        return self.cache / voice / f"{key}.mp3"
+
+    def submit(self, lines, voice="default", parent_ref=None):
+        """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
+        voice names the cache folder; parent_ref replaces the parent reference clip for that voice."""
+        batch = -next(self.batch)
+        clips = []
+        with self.cond:
+            self.dropped.discard(voice)
+            for line in lines:
+                text, role = line["text"].strip(), self.role(line.get("speakerId"))
+                settings = self.settings(role, parent_ref)
+                key = self.key(settings, text)
+                ready = self.path(voice, key).exists()
+                if not ready:
+                    self.failed.discard((voice, key))
+                    heapq.heappush(self.queue, (batch, next(self.seq), voice, key, settings, text))
+                    self.queued[(voice, key)] = batch
+                clips.append({"speakerId": line.get("speakerId", "narrator"), "role": role, "text": text,
+                              "key": key, "url": f"/audio/{voice}/{key}.mp3", "ready": ready})
+            self.cond.notify_all()
+        return clips
+
+    def wait(self, voice, key, timeout):
+        """Return "ready", "failed", "pending" (still queued after timeout) or "unknown"."""
+        deadline = time.monotonic() + timeout
+        with self.cond:
+            while True:
+                if self.path(voice, key).exists():
+                    return "ready"
+                if (voice, key) in self.failed:
+                    return "failed"
+                if (voice, key) not in self.queued:
+                    return "unknown"
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return "pending"
+                self.cond.wait(left)
+
+    def forget(self, voice):
+        """Drop a voice's queued lines and delete every clip already read with it."""
+        with self.cond:
+            self.dropped.add(voice)
+            self.queue = [item for item in self.queue if item[2] != voice]
+            heapq.heapify(self.queue)
+            self.queued = {k: v for k, v in self.queued.items() if k[0] != voice}
+            shutil.rmtree(self.cache / voice, ignore_errors=True)
+            self.cond.notify_all()
+
+    def _work(self):
+        while True:
+            with self.cond:
+                while not self.queue:
+                    self.cond.wait()
+                batch, _, voice, key, settings, text = heapq.heappop(self.queue)
+                # A line can sit in the queue twice (asked for again later); skip stale or finished copies.
+                if self.queued.get((voice, key)) != batch or self.path(voice, key).exists():
+                    continue
+            try:
+                audio = self.synthesize(text, settings)
+                with self.cond:
+                    if voice not in self.dropped:      # the voice may have been deleted while this line was read
+                        self.path(voice, key).parent.mkdir(parents=True, exist_ok=True)
+                        tmp = self.path(voice, key).with_suffix(".part")
+                        tmp.write_bytes(audio)
+                        tmp.replace(self.path(voice, key))
+            except Exception as exc:  # one bad line must not stop the queue
+                print(f"failed {voice}/{key}: {exc}", flush=True)
+                with self.cond:
+                    self.failed.add((voice, key))
+            with self.cond:
+                self.queued.pop((voice, key), None)
+                self.cond.notify_all()
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "StoryShaperNarration/1"
+
+    def log_message(self, *args):
+        pass
+
+    def cors(self):
+        origin = self.headers.get("Origin")
+        if origin and LOCAL_ORIGIN.match(origin):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
+    def reply(self, status, body, content_type="application/json"):
+        data = json.dumps(body).encode() if content_type == "application/json" else body
+        self.send_response(status)
+        self.cors()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "max-age=86400" if content_type == "audio/mpeg" else "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def error(self, status, code, message):
+        self.reply(status, {"error": {"code": code, "message": message}})
+
+    def guarded(self):
+        port = self.server.server_port
+        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
+            self.error(403, "invalid_host", "Use the local server address.")
+            return False
+        origin = self.headers.get("Origin")
+        if origin and not LOCAL_ORIGIN.match(origin):
+            self.error(403, "invalid_origin", "Only local pages can use this server.")
+            return False
+        return True
+
+    def body(self, limit):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if not 0 < length <= limit:
+            raise VoiceError(413, "body_size", f"Request must be between 1 and {limit} bytes.")
+        return self.rfile.read(length)
+
+    def json_body(self):
+        try:
+            body = json.loads(self.body(MAX_BODY))
+        except (ValueError, UnicodeError):
+            raise VoiceError(400, "invalid_json", "Send a JSON object.")
+        if not isinstance(body, dict):
+            raise VoiceError(400, "invalid_json", "Send a JSON object.")
+        return body
+
+    def parent_ref(self, voice_id):
+        """The saved voice's clip, or None for the default parent voice."""
+        if voice_id in (None, "default"):
+            return "default", None
+        library = self.server.library
+        if library.meta(voice_id).get("status") != "saved":
+            raise VoiceError(409, "voice_not_saved", "Save the voice before reading stories with it.")
+        return voice_id, str(library.ref(voice_id))
+
+    def handle_safely(self, action):
+        if not self.guarded():
+            return
+        try:
+            action()
+        except VoiceError as exc:
+            self.error(exc.status, exc.code, exc.message)
+        except Exception as exc:
+            print(f"error: {exc!r}", flush=True)
+            self.error(500, "server_error", "The narration server could not do this.")
+
+    def do_OPTIONS(self):
+        if not self.guarded():
+            return
+        self.send_response(204)
+        self.cors()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_GET(self):
+        self.handle_safely(self._get)
+
+    def do_POST(self):
+        self.handle_safely(self._post)
+
+    def do_DELETE(self):
+        self.handle_safely(self._delete)
+
+    def _get(self):
+        url = urlsplit(self.path)
+        if url.path == "/api/voice/config":
+            return self.reply(200, {"roles": sorted(self.server.narrator.casting), "languages": ["en"]})
+        if url.path == "/api/voices":
+            return self.reply(200, {"voices": self.server.library.saved()})
+        route = VOICE_ROUTE.match(url.path)
+        if route and route.group(2) == "full.wav":
+            full = self.server.library.folder(route.group(1)) / "full.wav"
+            if not full.exists():
+                raise VoiceError(404, "not_found", "The full recording is deleted once a voice is saved.")
+            return self.reply(200, full.read_bytes(), "audio/wav")
+        match = AUDIO.match(url.path)
+        if not match:
+            raise VoiceError(404, "not_found", "Not found.")
+        try:
+            wait = min(max(float(parse_qs(url.query).get("wait", ["0"])[0]), 0), 30)
+        except ValueError:
+            wait = 0
+        voice, key = match.groups()
+        state = self.server.narrator.wait(voice, key, wait)
+        if state == "ready":
+            return self.reply(200, self.server.narrator.path(voice, key).read_bytes(), "audio/mpeg")
+        raise VoiceError(*{"pending": (504, "not_ready", "Still generating. Ask again or use the default voice."),
+                           "failed": (500, "generation_failed", "This line could not be voiced. Use the default voice."),
+                           "unknown": (404, "not_found", "Queue the line with /api/voice/lines first.")}[state])
+
+    def _post(self):
+        path = urlsplit(self.path).path
+        library, narrator = self.server.library, self.server.narrator
+        if path == "/api/voice/lines":
+            body = self.json_body()
+            lines = body.get("lines")
+            if (not isinstance(lines, list) or not 0 < len(lines) <= MAX_LINES
+                    or not all(isinstance(l, dict) and isinstance(l.get("text"), str)
+                               and 0 < len(l["text"].strip()) <= MAX_TEXT for l in lines)):
+                raise VoiceError(400, "invalid_lines",
+                                 f"Send 1-{MAX_LINES} lines, each with text up to {MAX_TEXT} characters.")
+            voice, ref = self.parent_ref(body.get("voiceId"))
+            return self.reply(200, {"clips": narrator.submit(lines, voice, ref)})
+        if path == "/api/voices":
+            kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+            if not kind.startswith(("audio/", "video/")):
+                raise VoiceError(415, "unsupported_type", "Upload a recording or a video file.")
+            return self.reply(201, library.create(self.body(MAX_UPLOAD), kind))
+        route = VOICE_ROUTE.match(path)
+        if not route or not route.group(2):
+            raise VoiceError(404, "not_found", "Not found.")
+        voice_id, action = route.groups()
+        if action == "clip":
+            body = self.json_body()
+            return self.reply(200, library.choose(voice_id, body.get("start"), body.get("end")))
+        if action == "preview":
+            # Previews of an unsaved clip use their own cache folder, so a new clip is never served an old preview.
+            ref = library.ref(voice_id)
+            clip_id = hashlib.sha1(ref.read_bytes()).hexdigest()[:8]
+            [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT}],
+                                     voice_id, f"{ref}#{clip_id}")
+            return self.reply(200, clip)
+        if action == "save":
+            body = self.json_body()
+            return self.reply(200, library.save(voice_id, body.get("name"), body.get("relation"), body.get("attested")))
+        raise VoiceError(404, "not_found", "Not found.")
+
+    def _delete(self):
+        route = VOICE_ROUTE.match(urlsplit(self.path).path)
+        if not route or route.group(2):
+            raise VoiceError(404, "not_found", "Not found.")
+        self.server.library.delete(route.group(1))
+        self.server.narrator.forget(route.group(1))
+        self.reply(200, {"deleted": route.group(1)})
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, address, narrator, library):
+        self.narrator, self.library = narrator, library
+        super().__init__(address, Handler)
+
+
+def muse_transcriber(api_key):
+    """Return transcribe(wav16k_bytes) -> text, using Muse Voice Transcribe."""
+    def transcribe(wav):
+        boundary = uuid.uuid4().hex
+        request = json.dumps({"model": "muse-voice-transcribe-1.0", "audioEncoding": "WAV", "mode": "PUSH_TO_TALK"})
+        body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"request\"\r\n"
+                f"Content-Type: application/json\r\n\r\n{request}\r\n"
+                f"--{boundary}\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"clip.wav\"\r\n"
+                f"Content-Type: audio/wav\r\n\r\n").encode() + wav + f"\r\n--{boundary}--\r\n".encode()
+        req = urllib.request.Request("https://api.meta.ai/v1/asr/transcribe", data=body, method="POST", headers={
+            "Authorization": f"Bearer {api_key}", "Accept": "application/json",
+            "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        # A 10 s clip normally takes about 3 s; one call once hung past 30 s, so give up sooner and retry once.
+        for attempt in (1, 2):
+            try:
+                with urllib.request.urlopen(req, timeout=20) as res:
+                    return json.load(res).get("transcript", "")
+            except TimeoutError:
+                if attempt == 2:
+                    raise
+    return transcribe
+
+
+def load_api_key():
+    env = ROOT / ".env"
+    if env.exists():
+        for line in env.read_text().splitlines():
+            name, _, value = line.partition("=")
+            if name.strip() == "MODEL_API_KEY":
+                return value.strip().strip("\"'")
+    return os.environ.get("MODEL_API_KEY", "")
+
+
+def chatterbox_synthesizer():
+    """Load Chatterbox once and return synthesize(text, settings) -> mp3 bytes."""
+    import torch
+    import torchaudio as ta
+    from chatterbox.tts import ChatterboxTTS
+
+    device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+    model = ChatterboxTTS.from_pretrained(device=device)
+
+    def synthesize(text, voice):
+        exaggeration = voice["exclaim_exaggeration"] if "!" in text else voice["exaggeration"]
+        ref = ROOT / voice["ref"].split("#", 1)[0]       # casting refs are repo-relative, profile refs absolute
+        wav = model.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = Path(tmp) / "line.wav", Path(tmp) / "line.mp3"
+            ta.save(str(src), wav, model.sr)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(src), "-filter:a", f"atempo={voice['tempo']}",
+                            "-ac", "1", "-b:a", "64k", str(out)], check=True)
+            return out.read_bytes()
+
+    return synthesize
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--port", type=int, default=8100)
+    args = parser.parse_args()
+    api_key = load_api_key()
+    print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
+          flush=True)
+    print("Loading Chatterbox…", flush=True)
+    narrator = Narrator(chatterbox_synthesizer())
+    library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
+    with Server(("127.0.0.1", args.port), narrator, library) as server:
+        print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+
+
+if __name__ == "__main__":
+    main()

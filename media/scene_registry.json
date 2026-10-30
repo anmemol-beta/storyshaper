@@ -1,5 +1,5 @@
 {
-  "revision": 1,
+  "revision": 2,
   "images": {
     "house1/choose": {"file": "empty1.jpg", "cast": ["pig1"]},
     "house2/choose": {"file": "pig2_empty.jpg", "cast": ["pig2"]},
@@ -12,7 +12,23 @@
     "house2/wood/collapsed": {"file": "wolf_wood.jpg", "cast": ["pig1", "pig2", "wolf"]},
     "house3/brick/build": {"file": "brick.jpg", "cast": ["pig3"]},
     "house3/brick/stood": {"file": "wolf_brick.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"]},
-    "ending": {"file": "ending.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"]}
+    "ending": {"file": "ending.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"]},
+    "house1/wood/build": {"file": "scenes/house1_wood_build.jpg", "cast": ["pig1"], "model": "muse-image-1.0"},
+    "house1/cookie/build": {"file": "scenes/house1_cookie_build.jpg", "cast": ["pig1"], "model": "muse-image-1.0"},
+    "house1/icecream/build": {"file": "scenes/house1_icecream_build.jpg", "cast": ["pig1"], "model": "muse-image-1.0"},
+    "house2/paper/build": {"file": "scenes/house2_paper_build.jpg", "cast": ["pig2"], "model": "muse-image-1.0"},
+    "house2/straw/build": {"file": "scenes/house2_straw_build.jpg", "cast": ["pig2"], "model": "muse-image-1.0"},
+    "house2/cookie/build": {"file": "scenes/house2_cookie_build.jpg", "cast": ["pig2"], "model": "muse-image-1.0"},
+    "house2/icecream/build": {"file": "scenes/house2_icecream_build.jpg", "cast": ["pig2"], "model": "muse-image-1.0"},
+    "house3/stone/build": {"file": "scenes/house3_stone_build.jpg", "cast": ["pig3"], "model": "muse-image-1.0"},
+    "house1/wood/collapsed": {"file": "scenes/house1_wood_collapsed.jpg", "cast": ["pig1", "wolf"], "model": "muse-image-1.0"},
+    "house1/cookie/eaten": {"file": "scenes/house1_cookie_eaten.jpg", "cast": ["pig1", "wolf"], "model": "muse-image-1.0"},
+    "house1/icecream/melted": {"file": "scenes/house1_icecream_melted.jpg", "cast": ["pig1"], "model": "muse-image-1.0"},
+    "house2/paper/blown_away": {"file": "scenes/house2_paper_blown_away.jpg", "cast": ["pig1", "pig2", "wolf"], "model": "muse-image-1.0"},
+    "house2/straw/blown_away": {"file": "scenes/house2_straw_blown_away.jpg", "cast": ["pig1", "pig2", "wolf"], "model": "muse-image-1.0"},
+    "house2/cookie/eaten": {"file": "scenes/house2_cookie_eaten.jpg", "cast": ["pig1", "pig2", "wolf"], "model": "muse-image-1.0"},
+    "house2/icecream/melted": {"file": "scenes/house2_icecream_melted.jpg", "cast": ["pig1", "pig2"], "model": "muse-image-1.0"},
+    "house3/stone/stood": {"file": "scenes/house3_stone_stood.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"], "model": "muse-image-1.0"}
   },
   "clips": {}
 }
