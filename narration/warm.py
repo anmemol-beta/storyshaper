@@ -29,6 +29,9 @@ FILLERS_KO = [
     "준비됐니? 자, 간다!",
 ]
 
+# Read when live.html offers three words instead of free answers (prototype/live-book.js; checked by tests).
+CHOICE_PROMPT = {"en": "Tap one of these three words.", "ko": "세 가지 중 하나를 톡 골라 줘!"}
+
 
 def call(path, body=None):
     req = urllib.request.Request(SERVER + path, data=json.dumps(body).encode() if body is not None else None,
@@ -56,8 +59,10 @@ def main():
     audio = ROOT / "prototype" / "audio"
     # The same parent voice reads both books. The server voices the newest request first, so the Korean
     # book (queued last) is voiced before the English one.
-    books = {"en": ([line["text"] for line in json.loads((audio / "lines.json").read_text(encoding="utf-8"))], FILLERS),
-             "ko": ([line["text"] for line in json.loads((audio / "lines.ko.json").read_text(encoding="utf-8"))], FILLERS_KO)}
+    books = {"en": ([line["text"] for line in json.loads((audio / "lines.json").read_text(encoding="utf-8"))],
+                    FILLERS + [CHOICE_PROMPT["en"]]),
+             "ko": ([line["text"] for line in json.loads((audio / "lines.ko.json").read_text(encoding="utf-8"))],
+                    FILLERS_KO + [CHOICE_PROMPT["ko"]])}
     voices = ["default"] + [v["id"] for v in call("/api/voices")["voices"]]
     names = {v["id"]: v["name"] for v in call("/api/voices")["voices"]}
     for voice in voices:
