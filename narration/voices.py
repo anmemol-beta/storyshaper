@@ -2,7 +2,8 @@
 
 A profile lives in voice/profiles/<id>/ (git-ignored):
   full.wav   the whole upload as 24 kHz mono audio; deleted when the profile is saved
-  ref.wav    the chosen 5-20 s clip that Chatterbox imitates
+  ref.wav    the chosen 5-20 s clip that Chatterbox imitates (or, on request, practice sentences: ref_original.wav
+             keeps the first clip)
   meta.json  name, consent, transcript of the clip, quality numbers
 """
 from __future__ import annotations
@@ -107,6 +108,33 @@ def suggest_clips(samples, sr, count=3):
             break
     return [{"start": round(s * FRAME, 2), "end": round(s * FRAME + length, 2), "speech": round(r, 2)}
             for r, s in sorted(picked, key=lambda p: p[1])]
+
+
+def steady_sample(recordings, sr=SR, seconds=CLIP_TARGET):
+    """A voice sample made of practice sentences read in the parent's usual voice: the ones whose pitch is closest
+    to their typical pitch and whose pitch movement is typical. Very lively or creaky readings make Chatterbox
+    pitch the whole story higher (docs/internal/voice-worklog-2026-10-31.md §10).
+    Returns (indexes of the sentences used, samples)."""
+    import librosa
+    measured = []
+    for i, samples in enumerate(recordings):
+        speech, _ = librosa.effects.trim(samples, top_db=35)
+        f0, _, _ = librosa.pyin(librosa.resample(speech, orig_sr=sr, target_sr=16000), fmin=60, fmax=400, sr=16000)
+        f0 = f0[~np.isnan(f0)]
+        if len(f0) > 10:
+            semitones = 12 * np.log2(f0)
+            measured.append((i, speech, float(np.median(semitones)), float(np.std(semitones))))
+    pitch = np.median([m[2] for m in measured])
+    movement = np.median([m[3] for m in measured])
+    gap = np.zeros(int(0.3 * sr), dtype=np.float32)
+    used, parts, total = [], [], 0
+    for i, speech, p, m in sorted(measured, key=lambda m: abs(m[2] - pitch) + abs(m[3] - movement)):
+        used.append(i)
+        parts += [speech, gap]
+        total += len(speech) + len(gap)
+        if total >= seconds * sr:
+            break
+    return used, np.concatenate(parts)[: int(seconds * sr)]
 
 
 def split_utterances(samples, sr, min_s=1.5, max_s=12.0, gap_s=0.35):
@@ -331,7 +359,35 @@ class VoiceLibrary:
     def training_status(self, voice_id):
         clips = self._training_clips(voice_id)
         return {"clips": sorted(clips.values(), key=lambda c: c["n"]),
-                "seconds": round(sum(c["seconds"] for c in clips.values()), 1)}
+                "seconds": round(sum(c["seconds"] for c in clips.values()), 1),
+                "sample": self.meta(voice_id).get("sample")}
+
+    def sample_from_practice(self, voice_id):
+        """Replace the voice sample (ref.wav) with practice sentences read in the parent's usual voice; the first
+        sample is kept as ref_original.wav so it can be restored."""
+        folder = self.folder(voice_id)
+        good = [c for c in self._training_clips(voice_id).values()
+                if c.get("source", "read") == "read" and not c.get("excluded") and (c.get("match") or 0) >= 0.9]
+        if len(good) < 3:
+            raise VoiceError(409, "too_few_sentences", "Read at least 3 practice sentences clearly first.")
+        recordings = [read_wav(folder / "train" / c.get("file", f"{c['n']:03d}.wav"))[0] for c in good]
+        used, samples = steady_sample(recordings)
+        if not (folder / "ref_original.wav").exists():
+            shutil.copy(self.ref(voice_id), folder / "ref_original.wav")
+        write_wav(folder / "ref.wav", samples)
+        meta = self.meta(voice_id)
+        meta["sample"] = {"from": "practice", "sentences": sorted(good[i]["n"] for i in used)}
+        self._write_meta(voice_id, meta)
+        return meta["sample"]
+
+    def restore_sample(self, voice_id):
+        folder = self.folder(voice_id)
+        if (folder / "ref_original.wav").exists():
+            shutil.move(folder / "ref_original.wav", folder / "ref.wav")
+        meta = self.meta(voice_id)
+        meta.pop("sample", None)
+        self._write_meta(voice_id, meta)
+        return {"from": "original"}
 
     def ref(self, voice_id):
         path = self.folder(voice_id) / "ref.wav"
