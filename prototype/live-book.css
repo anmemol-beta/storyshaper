@@ -1,3 +1,5 @@
+.tool.add-voice { width: auto; padding: 0 12px; font-size: .78rem; font-weight: 700; color: var(--action-primary); border-color: var(--border-soft); text-decoration: none; }
+.reader-app .tools .add-voice { grid-column: 1 / -1; justify-self: start; }
 .live-select { display: flex; gap: 5px; align-items: center; font-size: .75rem; }
 .live-select select { max-width: 150px; background: var(--bg-story); color: var(--text-main); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px; min-height: 44px; }
 .reader-settings { flex: none; max-height: 25dvh; overflow: auto; padding: 12px 16px; background: var(--bg-story); border: 1px solid var(--border-soft); border-radius: 16px; }

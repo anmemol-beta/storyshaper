@@ -56,6 +56,8 @@ const AgentLanguage = (() => {
     "Type an answer, or speak it or show it to the camera when those are available. Media generation is a separate integration.": "답을 입력하거나, 쓸 수 있으면 말로 답하거나 카메라에 보여 주세요. 이미지·영상 생성은 별도로 연결합니다.",
     "Speak an answer": "말로 답하기",
     "Start the story →": "동화 시작하기 →",
+    "Read by {name}": "{name} 목소리로 읽어요", "Read by the storybook voice": "기본 목소리로 읽어요", "Change": "바꾸기",
+    "Add a parent's voice": "부모 목소리 추가하기",
     "Choose the mode above first. The first question and the answer box appear here.": "먼저 위에서 실행 방식을 고르세요. 첫 질문과 답 입력칸이 여기에 나타납니다.",
     "Thinking… {seconds}s": "생각하는 중… {seconds}초",
     "the story could not use that answer": "이야기에 쓸 수 없는 답이에요",

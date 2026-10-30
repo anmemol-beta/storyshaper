@@ -1,0 +1,57 @@
+[
+  {
+    "line": 1,
+    "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.",
+    "file": "vc_1.mp3",
+    "source": "vc_src_1.mp3",
+    "seconds": 2.1,
+    "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼 형제가 살았어요..",
+    "cer": 0.0,
+    "sourceHeard": "옛날 옛적에 옛적에 엄마 돼지와 아기 돼지 삼 형제가 살았어요.",
+    "sourceCer": 0.136
+  },
+  {
+    "line": 2,
+    "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.",
+    "file": "vc_2.mp3",
+    "source": "vc_src_2.mp3",
+    "seconds": 1.6,
+    "heard": "첫째 뒤에 지닌 햇살이 깔끔한 풀밭을 풀밭을 찾아왔어요.",
+    "cer": 0.556,
+    "sourceHeard": "첫째 돼지는 돼지는 햇살이 따뜻한 풀밭에 찾았어요..",
+    "sourceCer": 0.222
+  },
+  {
+    "line": 3,
+    "text": "무엇으로 집을 지었을까?",
+    "file": "vc_3.mp3",
+    "source": "vc_src_3.mp3",
+    "seconds": 1.5,
+    "heard": "我가 스루지브이지었을까?",
+    "cer": 0.6,
+    "sourceHeard": "무엇으로 집을 지었을까??",
+    "sourceCer": 0.0
+  },
+  {
+    "line": 4,
+    "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.",
+    "file": "vc_4.mp3",
+    "source": "vc_src_4.mp3",
+    "seconds": 1.1,
+    "heard": "종이구나 첫째 되지는 종이를 적고 또 적었어요.",
+    "cer": 0.158,
+    "sourceHeard": "종이구나. 첫째 되지는 종이를 접고 또 접었어요.",
+    "sourceCer": 0.053
+  },
+  {
+    "line": 5,
+    "text": "첫째 돼지는 동생의 집으로 달려갔어요.",
+    "file": "vc_5.mp3",
+    "source": "vc_src_5.mp3",
+    "seconds": 1.4,
+    "heard": "첩지해지는 제의해진 종생의 집으로 달려갔어요..",
+    "cer": 0.5,
+    "sourceHeard": "첫째 되지는 되지는 동생의 집으로 달려갔어요..",
+    "sourceCer": 0.25
+  }
+]

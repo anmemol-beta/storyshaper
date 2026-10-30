@@ -102,6 +102,13 @@
     const why = t(reasonText[result.reason] || result.reason);
     ui.attemptNote.textContent = t("{why}. Tap a picture to keep reading.", {why});
   }
+  // Who reads the story: the parent voice saved on voice.html, or the storybook voice; without one, offer to add it.
+  function showReader() {
+    const name = typeof Narration !== "undefined" && typeof Narration.voiceName === "function" ? Narration.voiceName() : null;
+    const line = byId("readerText"), add = byId("addVoice");
+    if (line) line.textContent = name ? t("Read by {name}", {name}) : t("Read by the storybook voice");
+    if (add) add.hidden = Boolean(name);
+  }
   const decisionLabel = decision => t(decisions[decision] || decision);
   const errorMessage = error => AgentLanguage.language === "ko"
     ? (error.code ? t(error.code) : t("Could not connect to the local server. Please check the server and try again."))
@@ -165,7 +172,7 @@
     stopChoiceSpeech();
     // The cards are already enabled. Reading the invitation never gates a tap.
     const invitation = t("Let's pick a picture! Tap the one you like.");
-    const options = snapshot.question.choices.map((choice, index) => `${index + 1}. ${choice.label}.`).join(" ");
+    const options = snapshot.question.choices.map((choice, index) => `${index + 1}. ${String(choice.label).replace(/[.!?]+$/, "")}.`).join(" ");
     if (typeof Narration !== "undefined") {
       Narration.stop();
       choiceSpeech = "narration";
@@ -537,6 +544,7 @@
 
   function applyLanguage(language) {
     AgentLanguage.set(language);
+    showReader();
     renderConfig();
     renderMode();
     renderHistory();
@@ -774,5 +782,6 @@
   applyLanguage(AgentLanguage.language);
   setBusy(false);
   if (typeof Narration !== "undefined") Narration.warm();
+  showReader();
   loadConfig();
 })();

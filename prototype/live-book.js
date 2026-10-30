@@ -6,7 +6,7 @@
     "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
-    "loading", "loadingText", "retryMedia"];
+    "loading", "loadingText", "retryMedia", "addVoice"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -135,10 +135,15 @@
   }
 
   function reader() {
-    const name = typeof Narration !== "undefined" && Narration.voiceName?.()
-      || t("Default reader", "기본 목소리");
+    const saved = typeof Narration !== "undefined" && Narration.voiceName?.();
+    const name = saved || t("Storybook voice", "기본 목소리");
     ui.readerName.textContent = t("Reader: ", "읽어주는 목소리: ") + name;
     ui.readBy.textContent = t("Read by ", "읽어주는 목소리: ") + name;
+    ui.changeVoice.textContent = saved ? t("Change voice", "목소리 바꾸기") : t("Add a parent's voice", "부모 목소리 추가하기");
+    ui.addVoice.hidden = Boolean(saved);
+    ui.addVoice.textContent = t("🎙 Add a parent's voice", "🎙 부모 목소리 추가");
+    for (const link of [ui.changeVoice, ui.addVoice])
+      link.href = "voice.html?return=index.html&lang=" + ui.language.value;
   }
 
   function highlight(index) {
@@ -300,6 +305,8 @@
     retryPayload = payload; // A lost response can be replayed without advancing twice.
     activity = "request";
     say(t("Thinking…", "생각하고 있어요…"));
+    if (!choiceId && ui.readAloud.checked && typeof Narration !== "undefined")
+      Narration.interject?.(selectedLanguage);
     syncControls();
     requestController = new AbortController();
     try {
@@ -477,6 +484,7 @@
   window.addEventListener("focus", reader);
   labels();
   syncControls();
+  if (typeof Narration !== "undefined") Narration.warm?.();
   api("/api/config").then(data => {
     config = data;
     media.configure(data);
