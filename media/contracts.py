@@ -1,6 +1,8 @@
 """Normalize server-issued story snapshots without interpreting a child's answer."""
+from copy import deepcopy
 from dataclasses import dataclass
-from story_agent.engine import STORY
+from story_agent.engine import STORY, StoryEngine
+from story_agent.materials import BEHAVIORS, CUSTOM_MATERIAL, material_meta
 
 
 class InvalidPlan(ValueError):
@@ -18,6 +20,8 @@ class MediaSpec:
     material: str
     action: str
     outcome: str
+    material_id: str | None = None
+    material_spec: dict | None = None
 
     @property
     def token(self):
@@ -29,7 +33,7 @@ class MediaSpec:
             return f'{self.target_house_id}/choose'
         if self.action == 'safe_ending':
             return 'ending'
-        return f'{self.house_id}/{self.material}/{self.action}'
+        return f'{self.house_id}/{self.material_id or self.material}/{self.action}'
 
 
 def normalize(snapshot):
@@ -40,6 +44,10 @@ def normalize(snapshot):
             if plan is not None:
                 raise InvalidPlan('nonaccepted_plan')
             return None
+        try:
+            StoryEngine._validate_snapshot(snapshot)
+        except ValueError as exc:
+            raise InvalidPlan('invalid_snapshot') from exc
         state = snapshot['storyState']
         index, stage = state['houseIndex'], state['stage']
         if (type(index) is not int or not 1 <= index <= 3
@@ -68,12 +76,28 @@ def normalize(snapshot):
             raise InvalidPlan('invalid_transition')
         material = plan['material']
         house_id = f'house{source_index}'
-        if material not in STORY['houses'][source_index - 1]['allowedMaterials']:
-            raise InvalidPlan('invalid_material')
-        outcome = STORY['materials'][material]['outcome']
+        houses = state['houses']
+        material_id = material_spec = None
+        if material == CUSTOM_MATERIAL:
+            selected = houses[-1]
+            material_spec = selected['materialSpec']
+            material_id = selected['materialId']
+            meta = material_meta(material_spec, state['language'])
+            outcome = BEHAVIORS[material_spec['behavior']]
+            if (plan.get('materialSpec') != material_spec
+                    or plan.get('materialId') != material_id
+                    or plan.get('materialLabel') != meta['label']
+                    or plan.get('construction') != meta['build']
+                    or (outcome == 'stood') != (source_index == 3)):
+                raise InvalidPlan('invalid_custom_material')
+        else:
+            if material not in STORY['houses'][source_index - 1]['allowedMaterials']:
+                raise InvalidPlan('invalid_material')
+            if 'materialSpec' in plan or 'materialId' in plan:
+                raise InvalidPlan('invalid_material')
+            outcome = STORY['materials'][material]['outcome']
         action = {'choose': 'move_to_next_house', 'predict': 'build',
                   'reflect': outcome, 'complete': 'safe_ending'}[stage]
-        houses = state['houses']
         if (len(houses) != source_index or houses[-1]['houseId'] != house_id
                 or houses[-1]['material'] != material or houses[-1]['outcome'] != outcome
                 or houses[-1]['resolved'] is not (stage != 'predict')
@@ -82,6 +106,7 @@ def normalize(snapshot):
                 or (snapshot['decision'] == 'complete') != (stage == 'complete')):
             raise InvalidPlan('inconsistent_action')
         return MediaSpec(snapshot['sessionId'], scene, snapshot['version'], STORY['storyId'],
-                         house_id, f'house{index}', material, action, outcome)
+                         house_id, f'house{index}', material, action, outcome,
+                         material_id, deepcopy(material_spec))
     except (KeyError, TypeError, IndexError, AttributeError) as exc:
         raise InvalidPlan('malformed_plan') from exc

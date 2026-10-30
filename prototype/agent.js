@@ -14,7 +14,7 @@
     "answer", "micButton", "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
     "requestErrorText", "retryButton", "sceneValue", "versionValue", "attemptsValue",
     "inputModeValue", "reasonValue", "stateJson", "mediaJson", "diagnosticsJson",
-    "history", "historyEmpty", "historyCount"
+    "history", "historyEmpty", "historyCount", "mediaNotice"
   ].map(id => [id, byId(id)]));
 
   const decisions = {
@@ -38,6 +38,7 @@
   const reasonText = {
     unclear_answer: "the story could not use that answer",
     material_not_allowed: "that material is not one the pig can use here",
+    unsupported_material: "a safe story branch for that material is not available yet",
     outside_story_rules: "it does not fit this part of the story",
     instruction_override: "it tries to change the story's rules",
     unsafe_request: "it is not safe for this story",
@@ -187,6 +188,10 @@
     ui.stateJson.textContent = JSON.stringify(next.storyState, null, 2);
     ui.mediaJson.textContent = next.mediaPlan ? JSON.stringify(next.mediaPlan, null, 2) : t("No new media handoff for this turn.");
     ui.diagnosticsJson.textContent = JSON.stringify(next.diagnostics, null, 2);
+    const state = next.storyState;
+    const currentHouse = state?.houses?.find(house => house.houseId === `house${state.houseIndex}`);
+    ui.mediaNotice.hidden = !(currentHouse?.material === "custom" && ["predict", "reflect"].includes(state.stage));
+    ui.mediaNotice.textContent = ui.mediaNotice.hidden ? "" : t("A picture for this material is not available yet. Keep reading with the reference picture.");
     ui.choices.replaceChildren();
     const choices = next.question?.choices;
     ui.choicePanel.hidden = !(next.choiceMode && Array.isArray(choices) && choices.length === 3);
@@ -331,7 +336,7 @@
     clearRequestError();
     setBusy(true, t("Listening to your idea and checking the next part…"));
     startClock();
-    // A live turn performs three sequential model calls, each with a 30s timeout.
+    // A live turn performs interpretation and composition, each with a 30s timeout.
     const timeout = setTimeout(() => activeController.abort(), 110000);
     try {
       const result = await api("/api/answer", {

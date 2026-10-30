@@ -3,6 +3,8 @@ const AgentLanguage = (() => {
   let language = "en";
   try { if (localStorage.getItem("story-language") === "ko") language = "ko"; } catch {}
   const korean = {
+    "a safe story branch for that material is not available yet": "이 재료로 안전하게 이어갈 이야기는 아직 준비되지 않았어요",
+    "A picture for this material is not available yet. Keep reading with the reference picture.": "이 재료의 그림은 아직 준비되지 않았어요. 참고 그림과 함께 이야기를 계속 읽을 수 있어요",
     "Story agent lab · StoryShaper": "동화 에이전트 시험 · StoryShaper",
     "Skip to the current question": "현재 질문으로 이동",
     "Display language": "화면 언어",
@@ -124,6 +126,7 @@ const AgentLanguage = (() => {
     "Could not connect to the local server. Please check the server and try again.": "로컬 서버에 연결하지 못했습니다. 서버를 확인한 뒤 다시 시도해 주세요.",
     "story_started": "동화를 시작했습니다", "answer_accepted": "답을 반영했습니다", "story_complete": "동화를 마쳤습니다",
     "unclear_answer": "답의 뜻을 다시 확인합니다", "material_not_allowed": "이 장면에서 사용할 다른 재료가 필요합니다",
+    "unsupported_material": "뜻을 이해했지만 이 재료의 안전한 이야기 분기는 아직 준비되지 않았습니다",
     "outside_story_rules": "현재 장면의 범위에 맞춰 다시 생각해 주세요", "generation_unavailable": "생성을 완료하지 못했습니다",
     "instruction_override": "동화 진행 규칙을 바꾸는 요청입니다", "unsafe_request": "안전한 내용으로 다시 이야기해 주세요",
     "private_information": "개인정보가 포함되어 있습니다", "fixed_story_change": "동화의 고정 사건을 바꾸는 요청입니다",

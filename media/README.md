@@ -79,7 +79,7 @@ References:
 
 ## Scene pictures for every allowed material
 
-The story agent only accepts the materials in `story_agent/story.json`, so the pictures it can ask for are a finite set: for each house and allowed material, the finished house (`build`) and what happens to it (the material's outcome). All 24 are now in `scene_registry.json`. The 16 that the book did not have were made ahead of time with Muse Image (`muse-image-1.0`) and are in `prototype/img/scenes/`. Made in advance, no child waits for a redraw, and every picture was looked at before it was committed.
+The authored materials in `story_agent/story.json` have a finite set of pictures: for each house and authored material, the finished house (`build`) and what happens to it (the material's outcome). All 24 are now in `scene_registry.json`. The agent also accepts independently reviewed custom materials. Those preserve their `materialSpec` and stable `materialId`; when no matching picture exists, the media API returns an explicit missing-art fallback and the story keeps progressing with the reference picture. Custom choices are never mapped to another material's art, and their cache bindings remain within the session. Language switches keep the same material identity. No automatic paid generation is performed. The 16 that the book did not have were made ahead of time with Muse Image (`muse-image-1.0`) and are in `prototype/img/scenes/`. Made in advance, no child waits for a redraw, and every picture was looked at before it was committed.
 
 ```bash
 python3 -m media.generate_scenes --dry-run     # list missing pictures and their prompts

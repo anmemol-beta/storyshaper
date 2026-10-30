@@ -1,0 +1,159 @@
+{
+  "label": "low-only",
+  "mode": "live",
+  "composeEffort": "low",
+  "repeats": 1,
+  "modelCalls": 8,
+  "callLimit": 9,
+  "allAccepted": false,
+  "automatedChecksPassed": false,
+  "manualQualityReviewRequired": true,
+  "liveLatencyEvidence": true,
+  "scenarios": [
+    {
+      "scenario": "vinyl_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 31256.475,
+      "calls": [
+        {
+          "requestBytes": 4255,
+          "instructionChars": 1854,
+          "inputChars": 1282,
+          "reasoningEffort": "default",
+          "inputTokens": 903,
+          "outputTokens": 3505,
+          "reasoningTokens": 3459,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 13252.02
+        },
+        {
+          "requestBytes": 6496,
+          "instructionChars": 2148,
+          "inputChars": 2107,
+          "reasoningEffort": "low",
+          "inputTokens": 1322,
+          "outputTokens": 1426,
+          "reasoningTokens": 1230,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 5773.48
+        },
+        {
+          "requestBytes": 5533,
+          "instructionChars": 1604,
+          "inputChars": 1971,
+          "reasoningEffort": "default",
+          "inputTokens": 1112,
+          "outputTokens": 3115,
+          "reasoningTokens": 3096,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 12227.02
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      }
+    },
+    {
+      "scenario": "icecream_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 35756.335,
+      "calls": [
+        {
+          "requestBytes": 4285,
+          "instructionChars": 1854,
+          "inputChars": 1287,
+          "reasoningEffort": "default",
+          "inputTokens": 906,
+          "outputTokens": 4538,
+          "reasoningTokens": 4515,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 18154.17
+        },
+        {
+          "requestBytes": 6362,
+          "instructionChars": 2148,
+          "inputChars": 1852,
+          "reasoningEffort": "low",
+          "inputTokens": 1245,
+          "outputTokens": 1452,
+          "reasoningTokens": 1185,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 5759.14
+        },
+        {
+          "requestBytes": 5536,
+          "instructionChars": 1604,
+          "inputChars": 1775,
+          "reasoningEffort": "default",
+          "inputTokens": 1065,
+          "outputTokens": 3014,
+          "reasoningTokens": 2995,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 11837.14
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      }
+    },
+    {
+      "scenario": "icecream_predict",
+      "repeat": 1,
+      "decision": "service_error",
+      "reason": "generation_unavailable",
+      "accepted": false,
+      "durationMs": 20019.089,
+      "calls": [
+        {
+          "requestBytes": 4642,
+          "instructionChars": 1854,
+          "inputChars": 1445,
+          "reasoningEffort": "default",
+          "inputTokens": 966,
+          "outputTokens": 3449,
+          "reasoningTokens": 3425,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 13713.37
+        },
+        {
+          "requestBytes": 7120,
+          "instructionChars": 2148,
+          "inputChars": 2075,
+          "reasoningEffort": "low",
+          "inputTokens": 1370,
+          "outputTokens": 1719,
+          "reasoningTokens": 1394,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 6304.45
+        }
+      ],
+      "checks": {
+        "processBeforeResultHint": null,
+        "noExtraTurn": false
+      },
+      "failureCode": "validation_or_review_failed"
+    }
+  ]
+}

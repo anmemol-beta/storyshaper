@@ -40,6 +40,9 @@ class AssetRegistry:
         record = {'story': spec.story_id, 'sceneAsset': spec.asset_key,
                   'registry': self.data['revision'], 'provider': 'local-reviewed-v1',
                   'image': self.image(spec), 'clip': self.clip(spec)}
+        if spec.material_id is not None:
+            # Custom choices belong to this session; never share personalized work.
+            record.update(session=spec.session_id, materialId=spec.material_id)
         return hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()
 
 

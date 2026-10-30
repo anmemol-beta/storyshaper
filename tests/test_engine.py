@@ -9,6 +9,7 @@ from story_agent import MockProvider, StoryEngine
 
 
 class AlteredProvider(MockProvider):
+    story_pipeline = "legacy_three_call"  # Preserve old phase-specific adversarial fixtures.
     def __init__(self, phase, change):
         self.phase = phase
         self.change = change
@@ -90,10 +91,10 @@ class StoryEngineTests(unittest.TestCase):
         failed = self.engine.answer(self.start, "magnesium")
         self.assertEqual((failed["decision"], failed["attempts"]), ("clarify", 1))
         self.assertEqual([line["text"] for line in failed["lines"]], [
-            "This house needs a building material. We can use paper, straw, wood, cookie, "
-            "or ice cream here. Which one shall we try?"])
+            "This house needs a building material. For example, we can use paper, straw, wood, cookie, "
+            "or ice cream. Which one shall we try?"])
         redirected = self.engine.answer(failed, "brick")
-        self.assertIn("last house. We can use paper, straw, wood, cookie, or ice cream here.",
+        self.assertIn("last house. For example, we can use paper, straw, wood, cookie, or ice cream.",
                       redirected["lines"][0]["text"])
         third = self.engine.answer(redirected, "magnesium")
         self.assertTrue(third["choiceMode"])
@@ -106,7 +107,7 @@ class StoryEngineTests(unittest.TestCase):
             state = self.engine.answer(state, "Use strong materials together")
         last = self.engine.answer(state, "ice cream")
         self.assertTrue(last["lines"][0]["text"].endswith(
-            "We can use brick or stone here. Which one shall we try?"))
+            "For example, we can use brick or stone. Which one shall we try?"))
 
     def test_unclear_prediction_still_asks_to_say_it_again(self):
         predict = self.engine.answer(self.start, "paper")
@@ -356,6 +357,181 @@ class StoryEngineTests(unittest.TestCase):
         for kwargs in ({"answer": "", "choice_id": "not-a-choice"}, {"answer": "x" * 2001}):
             with self.assertRaises(ValueError):
                 self.engine.answer(self.start, **kwargs)
+
+
+
+
+class CombinedTestProvider(MockProvider):
+    """One complete invocation per recorded phase, with explicit adversarial overrides."""
+
+    def __init__(self, *, change=None, review=None, descriptor=None):
+        self.change = change
+        self.review = review
+        self.descriptor = descriptor
+        self.calls = []
+
+    def _interpret(self, payload):
+        if self.descriptor is not None and payload['stage'] == 'choose':
+            return {'decision': 'accept', 'material': deepcopy(self.descriptor), 'reason': 'creative_material_identified'}
+        return super()._interpret(payload)
+
+    def complete(self, instructions, payload):
+        self.calls.append((instructions, deepcopy(payload)))
+        result = super().complete(instructions, payload)
+        if payload['phase'] == 'review' and self.review is not None:
+            return deepcopy(self.review)
+        if payload['phase'] == 'interpret_compose' and self.change is not None:
+            return self.change(result)
+        return result
+
+
+class TwoCallEngineTests(unittest.TestCase):
+    def assert_unchanged_failure(self, engine, start, answer, *, count=1):
+        before = deepcopy(start)
+        result = engine.answer(start, answer)
+        self.assertEqual(result['decision'], 'service_error', result)
+        self.assertEqual(start, before)
+        for key in ('storyState', 'version', 'attempts'):
+            self.assertEqual(result[key], start[key])
+        self.assertIsNone(result['mediaPlan'])
+        self.assertEqual(result['diagnostics']['performance']['modelCalls'], count)
+        return result
+
+    def test_default_pipeline_finishes_nine_turns_in_eighteen_calls(self):
+        provider = CombinedTestProvider()
+        engine = StoryEngine(provider, 'ko')
+        state = engine.start('two-call-story')
+        for material in ('비닐', '펠트', '강철'):
+            for answer in (material, '집이 그대로 있을 것 같아요', '함께 단단히 붙였어요'):
+                state = engine.answer(state, answer)
+                self.assertIn(state['decision'], ('accept', 'complete'), state)
+                self.assertEqual(state['diagnostics']['performance']['modelCalls'], 2)
+        self.assertEqual(state['decision'], 'complete')
+        self.assertEqual(state['version'], 9)
+        self.assertEqual([payload['phase'] for _, payload in provider.calls],
+                         ['interpret_compose', 'review'] * 9)
+        self.assertEqual(state['storyState']['events'], ['first_house_cannot_shelter',
+            'second_house_cannot_shelter', 'third_house_stands', 'pigs_safe_together', 'wolf_leaves'])
+        self.assertTrue(all(house['material'] == 'custom' for house in state['storyState']['houses']))
+
+    def test_combined_schema_rejects_model_owned_state_and_question_metadata(self):
+        changes = (
+            lambda output: {**output, 'storyState': {'stage': 'complete'}},
+            lambda output: {**output, 'interpretation': {**output['interpretation'], 'houseIndex': 3}},
+            lambda output: {**output, 'candidate': None},
+            lambda output: {**output, 'candidate': {**output['candidate'], 'question': {'id': 'house3_choose'}}},
+            lambda output: {**output, 'candidate': {**output['candidate'], 'choices': []}},
+            lambda output: {**output, 'candidate': {**output['candidate'], 'questionText': None}},
+            lambda output: {**output, 'candidate': {**output['candidate'], 'questionText': True}},
+            lambda output: {**output, 'candidate': {**output['candidate'], 'lines': []}},
+        )
+        for change in changes:
+            with self.subTest(change=change):
+                engine = StoryEngine(CombinedTestProvider(change=change))
+                result = self.assert_unchanged_failure(engine, engine.start('schema'), 'paper')
+                self.assertEqual(result['diagnostics']['phase'], 'interpret_compose')
+
+    def test_server_rejects_known_material_substitution_and_wrong_question_grounding(self):
+        def substitute(output):
+            output['interpretation']['material'] = 'wood'
+            return output
+        def forget_material(output):
+            output['candidate']['questionText'] = 'What happens to the ice cream in the warm sun?'
+            return output
+        for change in (substitute, forget_material):
+            engine = StoryEngine(CombinedTestProvider(change=change))
+            self.assert_unchanged_failure(engine, engine.start('identity'), 'paper')
+
+    def test_unsafe_wrong_language_and_unapproved_speakers_never_reach_review(self):
+        for lines in ([{'speakerId': 'narrator', 'text': 'The dragon burns the paper house.'}],
+                      [{'speakerId': 'narrator', 'text': 'The wolf ate the pig in the paper house.'}],
+                      [{'speakerId': 'narrator', 'text': '종이집을 지었어요.'}],
+                      [{'speakerId': 'dragon', 'text': 'The paper house is ready.'}]):
+            with self.subTest(lines=lines):
+                def change(output):
+                    output['candidate']['lines'] = lines
+                    return output
+                provider = CombinedTestProvider(change=change)
+                engine = StoryEngine(provider)
+                self.assert_unchanged_failure(engine, engine.start('unsafe'), 'paper')
+                self.assertEqual(len(provider.calls), 1)
+
+    def test_independent_review_gets_original_answer_interpretation_and_canonical_question(self):
+        provider = CombinedTestProvider(review={'safe': True, 'coherent': False})
+        engine = StoryEngine(provider)
+        self.assert_unchanged_failure(engine, engine.start('review'), 'paper', count=2)
+        instructions, review = provider.calls[1]
+        self.assertEqual(review['phase'], 'review')
+        self.assertEqual(review['answer'], 'paper')
+        self.assertEqual(review['interpretation']['material'], 'paper')
+        self.assertEqual(review['answeredQuestion']['intent'], 'choose_material')
+        expected = engine._question(engine._transition(engine.start('fresh')['storyState'], 'paper')[0])
+        self.assertEqual(review['candidate']['question']['id'], expected['id'])
+        self.assertEqual(review['candidate']['question']['choices'], expected['choices'])
+        self.assertIn('relevant answers', instructions)
+
+    def test_custom_wrong_strength_is_reviewed_before_redirect_or_child_failure(self):
+        descriptor = {'source': 'vinyl', 'labels': {'en': 'vinyl', 'ko': '비닐'}, 'behavior': 'rigid'}
+        for accepted in (False, True):
+            with self.subTest(review=accepted):
+                provider = CombinedTestProvider(descriptor=descriptor,
+                    review={'safe': accepted, 'coherent': accepted})
+                engine = StoryEngine(provider)
+                start = engine.start('strength')
+                result = engine.answer(start, 'vinyl')
+                self.assertEqual(result['diagnostics']['performance']['modelCalls'], 2)
+                self.assertEqual(result['storyState'], start['storyState'])
+                self.assertIsNone(result['mediaPlan'])
+                self.assertEqual(result['attempts'], 1 if accepted else 0)
+                self.assertEqual(result['decision'], 'redirect' if accepted else 'service_error')
+                self.assertEqual(provider.calls[1][1]['materialSpec'], descriptor)
+                self.assertNotIn('candidate', provider.calls[1][1])
+
+    def test_custom_name_replacement_and_invalid_material_are_service_errors(self):
+        def replace_name(output):
+            output['interpretation']['material']['labels']['en'] = 'rubber'
+            return output
+        descriptor = {'source': 'felt', 'labels': {'en': 'felt', 'ko': '펠트'}, 'behavior': 'light_flexible'}
+        provider = CombinedTestProvider(descriptor=descriptor, change=replace_name)
+        engine = StoryEngine(provider)
+        self.assert_unchanged_failure(engine, engine.start('renamed'), 'felt')
+
+    def test_nonaccept_response_has_one_call_and_no_generated_candidate(self):
+        provider = CombinedTestProvider()
+        engine = StoryEngine(provider)
+        start = engine.start('unclear')
+        result = engine.answer(start, 'I do not have an answer')
+        self.assertEqual(result['decision'], 'clarify')
+        self.assertEqual(result['attempts'], 1)
+        self.assertEqual(result['diagnostics']['performance']['modelCalls'], 1)
+        self.assertEqual(result['storyState'], start['storyState'])
+        self.assertIn('For example', result['lines'][0]['text'])
+
+    def test_ending_question_cannot_be_invented_in_combined_response(self):
+        provider = CombinedTestProvider()
+        engine = StoryEngine(provider)
+        state = engine.start('ending')
+        for material in ('paper', 'wood', 'brick'):
+            state = engine.answer(state, material)
+            state = engine.answer(state, 'The walls might stay standing')
+            if material != 'brick':
+                state = engine.answer(state, 'They helped together')
+        def add_question(output):
+            output['candidate']['questionText'] = 'What happens next?'
+            return output
+        provider.change = add_question
+        self.assert_unchanged_failure(engine, state, 'They helped together')
+
+    def test_offline_choice_after_combined_failure_uses_no_model_calls(self):
+        provider = CombinedTestProvider(review={'safe': False, 'coherent': False})
+        engine = StoryEngine(provider)
+        failed = engine.answer(engine.start('fallback'), 'paper')
+        before = len(provider.calls)
+        result = engine.answer(failed, '', choice_id='paper')
+        self.assertEqual(result['decision'], 'accept')
+        self.assertTrue(result['diagnostics']['authoredFallback'])
+        self.assertEqual(result['diagnostics']['performance']['modelCalls'], 0)
+        self.assertEqual(len(provider.calls), before)
 
 
 if __name__ == "__main__":

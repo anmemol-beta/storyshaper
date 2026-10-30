@@ -60,7 +60,7 @@ python -m media.server --port 8000
 
 ## 자산과 캐시
 
-- `scene_registry.json`은 집·재료·action을 정확히 매핑한다. 첫째 종이/짚, 둘째 나무, 셋째 벽돌과 집별 빈 터·결말 이미지가 등록돼 있다. 다른 조합은 미지원이며 엉뚱한 재료·배역 자산으로 치환하지 않는다.
+- `scene_registry.json`은 집·재료·action을 정확히 매핑한다. 등록 재료의 집별 build·outcome 24개 장면과 빈 터·결말 이미지가 등록돼 있다. 검증된 새 재료는 materialSpec·materialId를 보존하지만 그림이 없으면 명시적인 미지원 fallback을 반환하며 다른 재료·배역 자산으로 치환하지 않는다.
 - `build`는 아직 사건 전이다. `outcome`에 예정된 사건이 있어도 사건 클립을 선택하지 않는다. `move_to_next_house`는 scene의 목적지 집으로 이동한다.
 - clips는 현재 비어 있다. 실제 검수된 MP4를 `prototype/video/`에 두고 해당 asset_key에 `{file, reviewed: true, cast}`를 등록하면 로컬 클립 경로로 연결할 수 있다. 테스트의 MP4 바이트는 HTTP 전달용 fixture이며 재생 가능한 생성 결과가 아니다.
 - 미검수/누락/허용 경로 밖 자산은 선택하지 않는다. video 경로는 레지스트리에 등록된 검수 파일만 video/mp4로 제공한다.
