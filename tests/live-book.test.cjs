@@ -50,7 +50,8 @@ async function harness(request = null) {
   const elements = new Map(), calls = [], shows = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
-  const settings = {answer:null, language:null, media:null, session:null, transcript:'paper', recordError:null,
+  const voiceSetupCalls = [];
+  const settings = {answer:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
     transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper'};
   let timerId = 0;
   const document = {documentElement:{}, hidden:false, getElementById:element, createElement:() => new Element(),
@@ -78,7 +79,8 @@ async function harness(request = null) {
       cameraCalls.push('open');
       return settings.camera ? settings.camera.promise : {close() {cameraCalls.push('close');}, snap:async () => ({})};
     }, name:async () => { cameraCalls.push('name'); return settings.object; }},
-    Narration:{stop() {}, voiceName:() => null, speak:(lines, options) => {
+    Narration:{stop() {}, voiceName:() => settings.voiceName, warm:() => voiceSetupCalls.push('warm'),
+      interject:language => voiceSetupCalls.push(language), speak:(lines, options) => {
       narrations.push({lines, options}); return new Promise(() => {});
     }},
     fetch:async (url, options = {}) => {
@@ -112,8 +114,26 @@ async function harness(request = null) {
     await flush();
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
-  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, document, start, submit};
+  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, document, start, submit};
 }
+
+test('merged parent voice registration, return links and warmup remain available in the child reader', async () => {
+  const h = await harness();
+  assert.equal(h.element('addVoice').hidden, false);
+  assert.equal(h.element('addVoice').href, 'voice.html?return=index.html&lang=en');
+  assert.deepEqual(h.voiceSetupCalls, ['warm']);
+  h.settings.voiceName = 'Mom';
+  h.element('language').value = 'ko';
+  await h.element('language').onchange();
+  assert.equal(h.element('addVoice').hidden, true);
+  assert.match(h.element('readerName').textContent, /Mom/);
+  assert.equal(h.element('changeVoice').href, 'voice.html?return=index.html&lang=ko');
+  await h.start();
+  h.settings.answer = accepted();
+  await h.submit();
+  assert.deepEqual(h.voiceSetupCalls, ['warm', 'ko']);
+  assert.equal(h.element('send').disabled, true, 'Voice fillers preserve the image display gate');
+});
 
 test('index is the child reader with offline/AI selection and no developer navigation', () => {
   const html = read('index.html');
