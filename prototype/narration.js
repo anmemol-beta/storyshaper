@@ -66,31 +66,40 @@ const Narration = (() => {
     });
   }
 
-  async function queue(lines) {
-    const id = voiceId();
+  // voice: a voice id other than the saved one (a draft on voice.html). peek: only ask which lines are ready.
+  async function queue(lines, {voice = null, peek = false} = {}) {
+    const id = voice || voiceId();
     const response = await fetch(`${server}/api/voice/lines`, {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({lines, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})})
+      body: JSON.stringify({lines, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {})})
     });
     if (!response.ok) {
       // The saved voice was deleted on the server: forget it and read with the sample voice.
-      if (id && (response.status === 404 || response.status === 409)) {
-        try { localStorage.removeItem("story-voice"); } catch {}
-        return queue(lines);
+      if (!voice && id && (response.status === 404 || response.status === 409)) {
+        try { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); } catch {}
+        return queue(lines, {peek});
       }
       throw new Error(`narration ${response.status}`);
     }
     return (await response.json()).clips;
   }
 
+  const asLines = lines => lines.map(line => typeof line === "string" ? {speakerId: "narrator", text: line}
+    : {speakerId: line.speakerId || "narrator", text: line.text});
+
   // Clip URLs for these lines, in order (null if the server is unavailable or the language has no cloned voice).
-  async function prepare(lines, {language = "en"} = {}) {
+  async function prepare(lines, {language = "en", voice = null} = {}) {
     if (language !== "en") return null;
     try {
-      const clips = await queue(lines.map(line => typeof line === "string" ? {speakerId: "narrator", text: line}
-        : {speakerId: line.speakerId || "narrator", text: line.text}));
+      const clips = await queue(asLines(lines), {voice});
       return clips.map(c => `${server}${c.url}?wait=${WAIT}`);
     } catch { return null; }
+  }
+
+  // How many of these lines are already voiced (null if the server is unavailable). Queues nothing.
+  async function readyCount(lines, {voice = null} = {}) {
+    try { return (await queue(asLines(lines), {voice, peek: true})).filter(c => c.ready).length; }
+    catch { return null; }
   }
 
   // A short line in the parent's voice, said at once. Skipped if it is not generated yet: a robot voice
@@ -135,5 +144,6 @@ const Narration = (() => {
     if (my === token) onLine(-1);
   }
 
-  return {speak, stop, prepare, interject, warm, usesParentVoice: () => Boolean(voiceId())};
+  return {speak, stop, prepare, readyCount, interject, warm,
+    usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
 })();
