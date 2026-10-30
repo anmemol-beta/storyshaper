@@ -7,17 +7,14 @@ cd "$(dirname "$0")/.."
 LOGS="${TMPDIR:-/tmp}/storyshaper"
 mkdir -p "$LOGS"
 
-voice/.venv-chatterbox/bin/python -m narration.server > "$LOGS/narration.log" 2>&1 &
-NARRATION=$!
 python3 -m src.server > "$LOGS/story.log" 2>&1 &
 STORY=$!
-trap 'kill $NARRATION $STORY 2>/dev/null; echo; echo "Stopped."' EXIT INT TERM
+trap 'kill -TERM $STORY 2>/dev/null; wait $STORY 2>/dev/null; echo; echo "Stopped."' EXIT INT TERM
 
-echo "Starting servers (Chatterbox takes about a minute to load; logs in $LOGS)…"
+echo "Starting app and voice service (models load on first use; logs in $LOGS)…"
 for i in $(seq 1 180); do
   curl -sf -o /dev/null -H "Host: 127.0.0.1:8100" http://127.0.0.1:8100/api/voices &&
     curl -sf -o /dev/null http://127.0.0.1:8000/api/config && break
-  kill -0 $NARRATION 2>/dev/null || { echo "Narration server stopped:"; tail -5 "$LOGS/narration.log"; exit 1; }
   kill -0 $STORY 2>/dev/null || { echo "Story server stopped:"; tail -5 "$LOGS/story.log"; exit 1; }
   sleep 1
 done

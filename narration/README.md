@@ -14,6 +14,19 @@ The casting comes from a listening test of four options (roadmap §5, `voice/cha
 
 Needs the Chatterbox environment (`voice/.venv-chatterbox`) and `ffmpeg`.
 
+Create the environment once if it is missing (Python 3.11):
+
+```bash
+python3.11 -m venv voice/.venv-chatterbox
+voice/.venv-chatterbox/bin/pip install -r narration/requirements.txt
+```
+
+`python3 -m src.server` automatically starts the voice service when this environment exists, reuses an existing service, and stops only the voice process it started. Model files are cached in `voice/.models/` (git-ignored) and loaded on the first preview or narration request. Uploading a recording and choosing its reference clip do not wait for model loading.
+
+The requirements include a compatible `setuptools`: Perth's watermark model still imports `pkg_resources`, which [Setuptools removed in v82](https://github.com/pypa/setuptools/blob/main/docs/deprecated/pkg_resources.rst?plain=true). Without it, Chatterbox construction fails with `'NoneType' object is not callable`.
+
+The setup page checks the service before opening the microphone. After a failed upload or waveform download, **Try this recording again** keeps the recording in page memory and retries it without another recording. Keep the page open until it succeeds; reloading the page discards the pending recording.
+
 ```bash
 scripts/demo.sh            # both servers; voices the book and the fillers for every saved voice ahead
 scripts/demo.sh --wait     # ...and waits until all of it is voiced (before recording a demo)
@@ -47,7 +60,7 @@ Requests are accepted only on `127.0.0.1`/`localhost`, and only from local pages
 `prototype/voice.html` (open it from the agent server: `http://127.0.0.1:8000/prototype/voice.html`) walks a parent through:
 
 1. **Whose voice is this?** My own voice, a family member who agreed (e.g. a parent away for work or service), or a family member who has passed away. A name and a rights checkbox are required; public figures and people who have not agreed are excluded.
-2. **Add a recording or a video.** Any file `ffmpeg` can read, or a 30-second recording in the browser. Only the sound track of the first 10 minutes is used.
+2. **Add a recording or a video.** Any file `ffmpeg` can read, or a 30-second recording in the browser. The read-aloud passage, spoken permission sentence and recording guidance follow the selected page language (English or Korean). Both permission sentences are recognized by the server. Only the sound track of the first 10 minutes is used.
 3. **Choose a clear 10-second part.** The server suggests up to three parts with the most talking and checks length, share of speech, background noise and distortion. The clip is transcribed with **Muse Voice Transcribe** so the parent can see what was said.
 4. **Hear a story line** in that voice.
 5. **Save.** The full recording is deleted; only the clip (`ref.wav`) and `meta.json` with the consent statement are kept in `voice/profiles/<id>/` (git-ignored). The page stores the chosen voice in `localStorage["story-voice"]`, and `narration.js` sends it as `voiceId`.
@@ -67,7 +80,7 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 
 ## Languages
 
-The parent records once, in English, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. The Korean picture book lines are in `prototype/audio/lines.ko.json` (written by `node experiments/narration_lines.mjs`) and are voiced ahead by `narration/warm.py` and on saving a voice. Korean fillers: `FILLERS_KO`.
+The parent records once, using the passage in their selected language, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. The Korean picture book lines are in `prototype/audio/lines.ko.json` (written by `node experiments/narration_lines.mjs`) and are voiced ahead by `narration/warm.py` and on saving a voice. Korean fillers: `FILLERS_KO`.
 
 On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes to play, so live Korean passages pause between lines; the picture book is fine once voiced ahead.
 

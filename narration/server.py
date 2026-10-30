@@ -487,6 +487,19 @@ def chatterbox_synthesizer():
     return synthesize
 
 
+def lazy_synthesizer(factory=chatterbox_synthesizer):
+    """Accept registrations immediately; the narration worker loads models on first use."""
+    synthesize = None
+
+    def generate(text, settings):
+        nonlocal synthesize
+        if synthesize is None:
+            synthesize = factory()
+        return synthesize(text, settings)
+
+    return generate
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8100)
@@ -494,8 +507,9 @@ def main():
     api_key = load_api_key()
     print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
           flush=True)
-    print("Loading Chatterbox…", flush=True)
-    narrator = Narrator(chatterbox_synthesizer())
+    os.environ.setdefault("HF_HOME", str(ROOT / "voice" / ".models"))
+    print("Voice models load on the first preview; voice registration is ready immediately.", flush=True)
+    narrator = Narrator(lazy_synthesizer())
     library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
     with Server(("127.0.0.1", args.port), narrator, library) as server:
         print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)

@@ -212,14 +212,14 @@
       <div class="or" data-t>or</div>
       <button class="btn" type="button" id="record">● Record 30 seconds now</button>
       <div class="script" id="script" hidden>
-        <p class="cue" id="cue" role="status">Read this aloud, slowly, the way you would at bedtime.</p>
-        <p class="story">Once upon a time, in a cozy little house at the edge of the woods, there lived a sleepy bear named Bo.
+        <p class="cue" id="cue" role="status" data-t>Read this aloud, slowly, the way you would at bedtime.</p>
+        <p class="story" data-t>Once upon a time, in a cozy little house at the edge of the woods, there lived a sleepy bear named Bo.
           Every night, Bo looked up at the moon and asked, “Are you awake too?”
           The wind whispered through the tall pine trees, and the stars came out one by one.
           “Goodnight, moon. Goodnight, stars,” said Bo with a great big yawn.
           Then he curled up in his warm blanket and dreamed of honey, rivers, and wide blue skies.</p>
-        <p class="story consent">I'm happy for my voice to read stories to my child.</p>
-        <p class="fine" data-t>Read it in English. One recording is enough: the same voice also reads the Korean stories.</p>
+        <p class="story consent" data-t>I'm happy for my voice to read stories to my child.</p>
+        <p class="fine" data-t>Read the passage in English. One recording lets the same voice read stories in English and Korean.</p>
       </div>
       <ul class="ideas">
         <li data-t>A birthday message or a video call</li>
@@ -228,6 +228,7 @@
       </ul>
       <div class="working" id="working" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="workingText">Listening to the video…</span></div>
       <p class="error" id="findError" role="alert" hidden></p>
+      <button class="btn" type="button" id="retryUpload" data-t hidden>Try this recording again</button>
     </section>
 
     <section data-step="pick" hidden>

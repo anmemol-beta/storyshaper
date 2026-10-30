@@ -10,8 +10,36 @@ from pathlib import Path
 
 import numpy as np
 
-from narration.server import Narrator, Server
-from narration.voices import SR, VoiceLibrary, clip_quality, suggest_clips, write_wav
+from narration.server import Narrator, Server, lazy_synthesizer
+from narration.voices import SR, VoiceLibrary, clip_quality, consent_heard, suggest_clips, write_wav
+
+
+class SpokenConsentTest(unittest.TestCase):
+    def test_model_loading_does_not_block_registration_server_startup(self):
+        calls = []
+
+        def factory():
+            calls.append('load')
+            return lambda text, settings: text.encode()
+
+        synthesize = lazy_synthesizer(factory)
+        self.assertEqual(calls, [])
+        self.assertEqual(synthesize('first', {}), b'first')
+        self.assertEqual(synthesize('second', {}), b'second')
+        self.assertEqual(calls, ['load'])
+
+    def test_consent_in_each_recording_language(self):
+        for transcript in (
+            "I'm happy for my voice to read stories to my child.",
+            "푸른 하늘을 꿈꾸었답니다. 제 목소리로 아이에게 동화를 읽어 주는 것에 동의합니다.",
+            "제목소리로 아이에게 동화를 읽어주는 것에 동의합니다!",
+        ):
+            with self.subTest(transcript=transcript):
+                self.assertTrue(consent_heard(transcript))
+        for transcript in (None, "", "잠꾸러기 곰 보가 살았어요.",
+                           "제 목소리로 아이에게 동화를 읽어 주는 것에 동의하지 않습니다."):
+            with self.subTest(transcript=transcript):
+                self.assertFalse(consent_heard(transcript))
 
 
 class FakeVoice:
