@@ -291,6 +291,25 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.request("GET", clip["url"])[0], 404)
         self.assertEqual(json.loads(self.request("GET", "/api/voices")[2])["voices"], [])
 
+    @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
+    def test_training_sentences_are_stored_with_their_text_and_checked(self):
+        status, _, body = self.request("POST", "/api/voices", raw=self.wav.read_bytes(), headers={"Content-Type": "audio/wav"})
+        vid = json.loads(body)["id"]
+        status, _, body = self.request("POST", f"/api/voices/{vid}/train/1", raw=self.wav.read_bytes(),
+                                       headers={"Content-Type": "audio/wav"})
+        clip = json.loads(body)
+        self.assertEqual((status, clip["n"]), (200, 1))
+        self.assertTrue(clip["text"].startswith("Once upon a time"))
+        self.assertEqual(clip["heard"], "hello")               # the fake transcriber
+        self.assertLess(clip["match"], 0.5)                     # "hello" is not the sentence
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/999", raw=b"x", headers={"Content-Type": "audio/wav"})[0], 404)
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/2", raw=b"x", headers={"Content-Type": "text/plain"})[0], 415)
+        status, _, body = self.request("GET", f"/api/voices/{vid}/train")
+        progress = json.loads(body)
+        self.assertEqual(([c["n"] for c in progress["clips"]], progress["total"]), ([1], 100))
+        self.assertGreater(progress["seconds"], 10)
+        self.assertEqual(self.request("DELETE", f"/api/voices/{vid}")[0], 200)
+
     def test_preflight_allows_local_origin_only(self):
         status, headers, _ = self.request("OPTIONS", "/api/voice/lines", headers={"Origin": "http://localhost:5173"})
         self.assertEqual(status, 204)

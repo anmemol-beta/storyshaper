@@ -33,6 +33,7 @@
     "Off: the wolf has his own voice, so children always know who is talking.": "끄면 늑대는 다른 목소리로 읽어서 아이가 누가 말하는지 알 수 있어요.",
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
     "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
+    "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "Something went wrong ({status}). Try again.": "문제가 생겼어요 ({status}). 다시 해 주세요.",
     "Listening to {label}…": "{label}을(를) 듣고 있어요…", "the recording": "녹음",
@@ -592,6 +593,7 @@
     $("previewLine").textContent = `“${PREVIEW[language]}”`;
     if (!$("record").textContent.startsWith("■")) $("record").textContent = recordLabel();
     document.querySelectorAll("[data-return]").forEach(a => { a.href = RETURN; });
+    $("practice").href = `voice-train.html?lang=${language}`;
     render();
     loadVoices();
   }

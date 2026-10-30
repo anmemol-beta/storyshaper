@@ -34,6 +34,17 @@ CONSENT_SENTENCE = "I'm happy for my voice to read stories to my child."
 CONSENT_WORDS = ("happy", "voice", "read", "stories", "child")
 
 
+def text_error(expected, heard):
+    """Character error rate between what should have been read and what was heard (letters and digits only)."""
+    a, b = (re.sub(r"[^a-z0-9가-힣]", "", s.lower()) for s in (expected, heard or ""))
+    row = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        prev, row[0] = row[0], i
+        for j, cb in enumerate(b, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (ca != cb))
+    return min(1.0, row[-1] / max(1, len(a)))
+
+
 def consent_heard(transcript):
     """True when the transcript contains most of the consent sentence (speech recognition drops or changes words)."""
     words = set(re.findall(r"[a-z]+", (transcript or "").lower()))
@@ -201,6 +212,41 @@ class VoiceLibrary:
             except Exception as exc:
                 print(f"transcribe failed: {exc}", flush=True)
                 return None
+
+    def add_training_clip(self, voice_id, n, text, data):
+        """Store one read-aloud sentence for fine-tuning (train/NNN.wav) with its text, quality and transcript."""
+        folder = self.folder(voice_id) / "train"
+        folder.mkdir(exist_ok=True)
+        path = folder / f"{n:03d}.wav"
+        with tempfile.NamedTemporaryFile() as src:
+            src.write(data)
+            src.flush()
+            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src.name, "-vn", "-t", "30", "-ac", "1",
+                                   "-ar", str(SR), "-c:a", "pcm_s16le", str(path)], capture_output=True)
+        if done.returncode or not path.exists():
+            raise VoiceError(400, "audio_unreadable", "No audio could be read from this recording.")
+        samples, sr = read_wav(path)
+        if len(samples) < sr:
+            path.unlink()
+            raise VoiceError(400, "too_short", "The recording is shorter than one second.")
+        quality = clip_quality(samples, sr, samples)
+        heard = self._transcribe(path)
+        clip = {"n": n, "text": text, "seconds": round(len(samples) / sr, 1), "heard": heard,
+                "match": None if heard is None else round(1 - text_error(text, heard), 2),
+                "snrDb": quality["snrDb"]}
+        clips = self._training_clips(voice_id)
+        clips[str(n)] = clip
+        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1))
+        return clip
+
+    def _training_clips(self, voice_id):
+        path = self.folder(voice_id) / "train" / "clips.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def training_status(self, voice_id):
+        clips = self._training_clips(voice_id)
+        return {"clips": sorted(clips.values(), key=lambda c: c["n"]),
+                "seconds": round(sum(c["seconds"] for c in clips.values()), 1)}
 
     def ref(self, voice_id):
         path = self.folder(voice_id) / "ref.wav"
