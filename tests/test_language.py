@@ -7,6 +7,7 @@ from story_agent.engine import MockProvider, StoryEngine, STORIES
 
 
 class RecordingProvider(MockProvider):
+    story_pipeline = "legacy_three_call"  # Preserve old phase-specific adversarial fixtures.
     def __init__(self, alter=None):
         self.calls = []
         self.alter = alter
@@ -88,6 +89,16 @@ class LanguageTests(unittest.TestCase):
         result = engine.answer(state, '벽돌로 지을래요')
         self.assertEqual(result['decision'], 'accept')
         self.assertEqual(result['storyState']['houses'][-1]['material'], 'brick')
+
+    def test_korean_unusable_material_answer_names_the_usable_materials(self):
+        engine = StoryEngine(MockProvider(), 'ko')
+        failed = engine.answer(engine.start('materials'), '마그네슘')
+        self.assertEqual(failed['lines'][0]['text'],
+                         '이 집을 지을 재료가 필요해요. 예를 들면 종이, 짚, 나무, 과자, 아이스크림 같은 재료가 있어요. '
+                         '어떤 걸로 지어 볼까요?')
+        self.assert_korean(failed)
+        self.assertEqual(engine.answer(engine.start('sticks'), '나뭇가지')['storyState']['houses'][0]['material'],
+                         'wood')
 
     def test_korean_retry_and_service_errors_preserve_failure_counts(self):
         engine = StoryEngine(MockProvider(), 'ko')

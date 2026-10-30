@@ -10,10 +10,11 @@
     "mode", "modeBadge", "configNote", "startButton", "connectionError",
     "connectionErrorText", "reconnectButton", "refreshConfig", "storyCard", "decisionBadge",
     "narrative", "questionTitle", "questionLabel", "questionIntent", "answerForm",
-    "answer", "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
+    "startPanel", "startStoryButton", "questionPanel", "attemptNote",
+    "answer", "micButton", "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
     "requestErrorText", "retryButton", "sceneValue", "versionValue", "attemptsValue",
     "inputModeValue", "reasonValue", "stateJson", "mediaJson", "diagnosticsJson",
-    "history", "historyEmpty", "historyCount"
+    "history", "historyEmpty", "historyCount", "mediaNotice"
   ].map(id => [id, byId(id)]));
 
   const decisions = {
@@ -28,6 +29,48 @@
   let controller = null;
   let retryRequest = null;
   let turnCount = 0;
+  // Push-to-talk (voice-input.js). Absent outside a browser, and hidden until the server can transcribe.
+  const voice = typeof VoiceInput === "undefined" ? null : VoiceInput;
+  let recording = null;
+  const voiceReady = () => Boolean(voice?.supported() && config?.speechAvailable);
+  // The server allows three missed tries on a question before offering three choices (roadmap §4).
+  const MAX_TRIES = 3;
+  const reasonText = {
+    unclear_answer: "the story could not use that answer",
+    material_not_allowed: "that material is not one the pig can use here",
+    unsupported_material: "a safe story branch for that material is not available yet",
+    outside_story_rules: "it does not fit this part of the story",
+    instruction_override: "it tries to change the story's rules",
+    unsafe_request: "it is not safe for this story",
+    private_information: "it contains private information",
+    fixed_story_change: "it would change a fixed event of the story"
+  };
+  // A live turn takes 15-30 s; the button counts the seconds so the page never looks stuck.
+  let clock = null;
+  function startClock() {
+    const started = Date.now();
+    const tick = () => {
+      ui.sendButton.textContent = t("Thinking… {seconds}s", {seconds: Math.round((Date.now() - started) / 1000)});
+      clock = setTimeout(tick, 1000);
+    };
+    tick();
+  }
+  function stopClock() {
+    clearTimeout(clock);
+    clock = null;
+    ui.sendButton.textContent = t("Continue story →");
+  }
+  function showAttemptNote(answer, result) {
+    const used = result.decision !== "clarify" && result.decision !== "redirect";
+    ui.attemptNote.hidden = used;
+    if (used) return;
+    const why = t(reasonText[result.reason] || result.reason);
+    const shown = answer || t("(nothing heard)");
+    ui.attemptNote.textContent = result.choiceMode
+      ? t("“{answer}” was not used: {why}. Pick one of the three choices, or try another answer.", {answer: shown, why})
+      : t("“{answer}” was not used: {why}. {left} more tries, then three choices appear.",
+        {answer: shown, why, left: Math.max(0, MAX_TRIES - result.attempts)});
+  }
   const decisionLabel = decision => t(decisions[decision] || decision);
   const errorMessage = error => AgentLanguage.language === "ko"
     ? (error.code ? t(error.code) : t("Could not connect to the local server. Please check the server and try again."))
@@ -42,8 +85,17 @@
     ui.startButton.disabled = !config;
     ui.startButton.textContent = snapshot ? t("Start over") : t("Start session");
     const canAnswer = Boolean(snapshot?.question) && !value;
+    // Before a session there is nothing to answer, so the answer box is hidden, not shown disabled.
+    ui.startPanel.hidden = Boolean(snapshot);
+    ui.questionPanel.hidden = !snapshot;
+    ui.answerForm.hidden = !snapshot;
+    ui.startStoryButton.disabled = !config || value;
     ui.answer.disabled = !canAnswer;
     ui.sendButton.disabled = !canAnswer || !ui.answer.value.trim();
+    ui.micButton.hidden = !voiceReady();
+    ui.micButton.disabled = !canAnswer && !recording;
+    ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
+    ui.micButton.setAttribute("aria-pressed", String(Boolean(recording)));
     ui.choices.querySelectorAll("button").forEach(button => { button.disabled = !canAnswer; });
     ui.retryButton.disabled = value;
     ui.refreshConfig.disabled = value;
@@ -145,6 +197,10 @@
     ui.stateJson.textContent = JSON.stringify(next.storyState, null, 2);
     ui.mediaJson.textContent = next.mediaPlan ? JSON.stringify(next.mediaPlan, null, 2) : t("No new media handoff for this turn.");
     ui.diagnosticsJson.textContent = JSON.stringify(next.diagnostics, null, 2);
+    const state = next.storyState;
+    const currentHouse = state?.houses?.find(house => house.houseId === `house${state.houseIndex}`);
+    ui.mediaNotice.hidden = !(currentHouse?.material === "custom" && ["predict", "reflect"].includes(state.stage));
+    ui.mediaNotice.textContent = ui.mediaNotice.hidden ? "" : t("A picture for this material is not available yet. Keep reading with the reference picture.");
     ui.choices.replaceChildren();
     const choices = next.question?.choices;
     ui.choicePanel.hidden = !(next.choiceMode && Array.isArray(choices) && choices.length === 3);
@@ -215,7 +271,8 @@
     try {
       const data = await api("/api/config", { signal: configController.signal });
       connectionFailure = null;
-      config = { liveAvailable: data.liveAvailable === true, model: String(data.model || "configured model") };
+      config = { liveAvailable: data.liveAvailable === true, model: String(data.model || "configured model"),
+        speechAvailable: data.speechAvailable === true };
       ui.mode.querySelector('[value="live"]').disabled = !config.liveAvailable;
       ui.mode.value = snapshot?.providerMode || (config.liveAvailable ? "live" : "mock");
       renderConfig();
@@ -254,6 +311,7 @@
       });
       if (token !== epoch) return;
       renderSnapshot(result);
+      ui.attemptNote.hidden = true;
       historyEntries.length = 0;
       turnCount = 0;
       renderHistory();
@@ -270,8 +328,10 @@
     }
   }
 
-  async function sendAnswer(answer, choiceId, retainedRequest = null) {
-    if (busy || !snapshot?.question || !String(answer).trim()) return;
+  // heardNothing: a recording with no words. It is sent as an empty answer so the server counts
+  // a missed try, the same as an unclear answer (development-roadmap.md §4).
+  async function sendAnswer(answer, choiceId, retainedRequest = null, {heardNothing = false} = {}) {
+    if (busy || !snapshot?.question || (!String(answer).trim() && !heardNothing && !retainedRequest)) return;
     const current = snapshot;
     const payload = retainedRequest?.payload || {
       sessionId: current.sessionId, version: current.version, questionId: current.question.id,
@@ -284,7 +344,8 @@
     const activeController = controller;
     clearRequestError();
     setBusy(true, t("Listening to your idea and checking the next part…"));
-    // A live turn performs three sequential model calls, each with a 30s timeout.
+    startClock();
+    // A live turn performs interpretation and composition, each with a 30s timeout.
     const timeout = setTimeout(() => activeController.abort(), 110000);
     try {
       const result = await api("/api/answer", {
@@ -292,7 +353,8 @@
       });
       if (token !== epoch || snapshot.sessionId !== current.sessionId) return;
       renderSnapshot(result);
-      appendHistory(questionText, payload.answer, result);
+      appendHistory(questionText, payload.answer || t("(nothing heard)"), result);
+      showAttemptNote(payload.answer, result);
       if (result.decision === "accept" || result.decision === "complete") ui.answer.value = "";
       const readyMessage = result.decision === "complete"
         ? t("The story is complete. Start over to test another idea.")
@@ -327,6 +389,7 @@
         showRequestError(message, { payload, questionText });
       }
     } finally {
+      stopClock();
       clearTimeout(timeout);
       if (token === epoch) controller = null;
     }
@@ -346,6 +409,7 @@
     renderMode();
     renderHistory();
     ui.retryButton.textContent = t(retryRequest?.fresh ? "Try generation again" : "Retry this request");
+    ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
     if (connectionFailure) {
       ui.connectionErrorText.textContent = connectionFailure.name === "AbortError"
         ? t("The local server did not respond in time. Check that it is running, then reconnect.")
@@ -403,9 +467,62 @@
     }
   }
 
+  // First press records, second press (or 8 s) stops. The text lands in the answer box so the
+  // tester confirms with "Continue" or speaks again. Speech service errors never use up a try.
+  async function toggleRecording() {
+    if (recording) return recording.stop();
+    if (busy || !snapshot?.question || !voiceReady()) return;
+    // Stop the story voice so the microphone hears only the child.
+    if (typeof Narration !== "undefined") Narration.stop();
+    const token = epoch, questionId = snapshot.question.id;
+    // Opening the microphone takes a moment. A second press meanwhile means "stop", not a second recording.
+    const opening = {stopRequested: false, stop() { this.stopRequested = true; }};
+    recording = opening;
+    clearRequestError();
+    setBusy(false, t("Listening… press the button again when you are done (8 seconds at most)."));
+    let active;
+    try {
+      active = await voice.record();
+    } catch (error) {
+      recording = null;
+      setBusy(false);
+      showRequestError(error.name === "NotAllowedError"
+        ? t("Microphone permission was refused. Type the answer or choose an option instead.")
+        : t("The microphone could not start. Type the answer instead."));
+      return;
+    }
+    recording = active;
+    if (opening.stopRequested) active.stop();
+    let transcript;
+    try {
+      const clip = await active.done;
+      recording = null;
+      setBusy(true, t("Turning your voice into text…"));
+      transcript = await voice.transcribe(clip);
+    } catch (error) {
+      recording = null;
+      if (token !== epoch) return;
+      setBusy(false);
+      showRequestError(t("{message} Your retry count is unchanged.", {message: errorMessage(error)}));
+      return;
+    }
+    setBusy(false);
+    if (token !== epoch || snapshot?.question?.id !== questionId) return;
+    if (!transcript.trim()) {
+      await sendAnswer("", null, null, {heardNothing: true});
+      if (ui.requestError.hidden) ui.requestStatus.textContent = t("Nothing was heard. That counts as one try.");
+      return;
+    }
+    ui.answer.value = transcript;
+    setBusy(false, t("Heard: “{text}”. Continue the story, or speak again.", {text: transcript}));
+    ui.sendButton.focus();
+  }
+
   languageButtons.forEach(button => button.addEventListener("click", () => switchLanguage(button.dataset.language)));
+  ui.micButton.addEventListener("click", toggleRecording);
 
   ui.startButton.addEventListener("click", startSession);
+  ui.startStoryButton.addEventListener("click", startSession);
   ui.reconnectButton.addEventListener("click", loadConfig);
   ui.refreshConfig.addEventListener("click", loadConfig);
   // The selector must change the provider actually used, not just its visible label.

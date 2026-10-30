@@ -142,7 +142,9 @@ class MediaJobs:
                 'image': deepcopy(job['image']) if applicable else None,
                 'video': deepcopy(work['video']) if applicable and status == 'ready' else None,
                 'fallback': {'keepCurrentImage': job['image'] is None,
-                             'message': 'Continue with the picture while video is unavailable.'},
+                             'message': ('A picture for this material is not available. Keep reading with the reference picture.'
+                                         if job['image'] is None else
+                                         'Continue with the picture while video is unavailable.')},
                 'source': 'local_assets', 'generated': False, 'spec': asdict(spec)}
 
     def close(self):

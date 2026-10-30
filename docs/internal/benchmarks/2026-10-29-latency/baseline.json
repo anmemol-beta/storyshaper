@@ -1,0 +1,171 @@
+{
+  "label": "baseline",
+  "mode": "live",
+  "composeEffort": "default",
+  "repeats": 1,
+  "modelCalls": 9,
+  "callLimit": 9,
+  "allAccepted": true,
+  "automatedChecksPassed": true,
+  "manualQualityReviewRequired": true,
+  "liveLatencyEvidence": true,
+  "scenarios": [
+    {
+      "scenario": "vinyl_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 33348.035,
+      "calls": [
+        {
+          "requestBytes": 4255,
+          "instructionChars": 1854,
+          "inputChars": 1282,
+          "reasoningEffort": "default",
+          "inputTokens": 903,
+          "outputTokens": 2850,
+          "reasoningTokens": 2804,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 10812.09
+        },
+        {
+          "requestBytes": 6464,
+          "instructionChars": 2148,
+          "inputChars": 2107,
+          "reasoningEffort": "default",
+          "inputTokens": 1322,
+          "outputTokens": 2991,
+          "reasoningTokens": 2796,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 11063.75
+        },
+        {
+          "requestBytes": 5527,
+          "instructionChars": 1604,
+          "inputChars": 1970,
+          "reasoningEffort": "default",
+          "inputTokens": 1111,
+          "outputTokens": 2871,
+          "reasoningTokens": 2852,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 11468.07
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      }
+    },
+    {
+      "scenario": "icecream_choose",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 35050.161,
+      "calls": [
+        {
+          "requestBytes": 4285,
+          "instructionChars": 1854,
+          "inputChars": 1287,
+          "reasoningEffort": "default",
+          "inputTokens": 906,
+          "outputTokens": 3988,
+          "reasoningTokens": 3965,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 14173.16
+        },
+        {
+          "requestBytes": 6330,
+          "instructionChars": 2148,
+          "inputChars": 1852,
+          "reasoningEffort": "default",
+          "inputTokens": 1245,
+          "outputTokens": 3193,
+          "reasoningTokens": 2990,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 10664.18
+        },
+        {
+          "requestBytes": 5387,
+          "instructionChars": 1604,
+          "inputChars": 1714,
+          "reasoningEffort": "default",
+          "inputTokens": 1033,
+          "outputTokens": 3054,
+          "reasoningTokens": 3035,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 10209.07
+        }
+      ],
+      "checks": {
+        "materialIdentityPreserved": true
+      }
+    },
+    {
+      "scenario": "icecream_predict",
+      "repeat": 1,
+      "decision": "accept",
+      "reason": "answer_accepted",
+      "accepted": true,
+      "durationMs": 25782.707,
+      "calls": [
+        {
+          "requestBytes": 4641,
+          "instructionChars": 1854,
+          "inputChars": 1444,
+          "reasoningEffort": "default",
+          "inputTokens": 966,
+          "outputTokens": 2637,
+          "reasoningTokens": 2613,
+          "cachedInputTokens": 0,
+          "phase": "interpret",
+          "ok": true,
+          "durationMs": 10521.74
+        },
+        {
+          "requestBytes": 7087,
+          "instructionChars": 2148,
+          "inputChars": 2074,
+          "reasoningEffort": "default",
+          "inputTokens": 1370,
+          "outputTokens": 2855,
+          "reasoningTokens": 2512,
+          "cachedInputTokens": 0,
+          "phase": "compose",
+          "ok": true,
+          "durationMs": 9279.89
+        },
+        {
+          "requestBytes": 6287,
+          "instructionChars": 1604,
+          "inputChars": 1996,
+          "reasoningEffort": "default",
+          "inputTokens": 1185,
+          "outputTokens": 1690,
+          "reasoningTokens": 1671,
+          "cachedInputTokens": 0,
+          "phase": "review",
+          "ok": true,
+          "durationMs": 5979.56
+        }
+      ],
+      "checks": {
+        "processBeforeResultHint": true,
+        "noExtraTurn": true
+      }
+    }
+  ]
+}
