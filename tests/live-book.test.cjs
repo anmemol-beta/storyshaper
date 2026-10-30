@@ -46,7 +46,7 @@ function imageResult(snapshot, overrides = {}) {
     ...overrides};
 }
 
-async function harness() {
+async function harness(request = null) {
   const elements = new Map(), calls = [], shows = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
@@ -84,6 +84,7 @@ async function harness() {
     fetch:async (url, options = {}) => {
       const body = options.body ? JSON.parse(options.body) : null;
       calls.push({url, body, signal:options.signal});
+      if (request) return request(url, options);
       let data;
       if (url === '/api/config') data = {liveAvailable:true, mediaAvailable:true, imageGenerationAvailable:true,
         speechAvailable:true, visionAvailable:true};
@@ -99,6 +100,11 @@ async function harness() {
   vm.runInContext(read('story-media.js'), context);
   vm.runInContext(read('live-book.js'), context);
   await flush();
+  if (request) {
+    for (let turn = 0; turn < 100 && element('cover').disabled; turn++)
+      await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(element('cover').disabled, false, 'Reader configuration must finish before starting');
+  }
   const start = async (mode = 'live') => {
     element('mode').value = mode;
     await element('mode').onchange();
@@ -172,7 +178,7 @@ test('failed generation, wrong binding and prepared AI fallback never unlock con
     if (variant === 'decode') h.shows.at(-1).onError();
     assert.equal(h.element('send').disabled, true, variant);
     assert.equal(h.element('question').textContent, 'What material?', variant);
-    assert.equal(h.element('retryMedia').hidden, false, variant);
+    assert.equal(h.element('retryMedia').hidden, variant === 'binding', variant);
   }
 });
 
@@ -189,6 +195,80 @@ test('reloading a failed image reattaches its binding and unlocks only after dis
   assert.equal(h.element('send').disabled, false);
 });
 
+test('the retry button recovers a failed generation through the real media server', {timeout:10000}, async () => {
+  const {spawn} = require('node:child_process');
+  const {createInterface} = require('node:readline');
+  const {once} = require('node:events');
+  const fixture = spawn(process.env.STORYSHAPER_TEST_PYTHON || 'python3', ['-u', '-c', `
+from media.image_provider import ImageError
+from media.jobs import MediaJobs
+from tests.test_live_images import JPEG, LiveRules
+from vision.server import VisionPlayground, VisionServer
+
+class FailOnce:
+    calls = 0
+    def generate(self, spec, plan, references, cancelled):
+        self.calls += 1
+        print('ATTEMPT', self.calls, flush=True)
+        if self.calls == 1:
+            raise ImageError('image_http_error')
+        return JPEG
+
+app = VisionPlayground('fixture-key', provider_factory=lambda mode: LiveRules(),
+    media=MediaJobs(image_provider=FailOnce()))
+with VisionServer(('127.0.0.1', 0), app) as server:
+    print('PORT', server.server_port, flush=True)
+    server.serve_forever()
+`], {cwd:path.join(__dirname, '..'), stdio:['ignore', 'pipe', 'pipe']});
+  let attempts = 0, stderr = '';
+  fixture.stderr.on('data', data => {stderr += data;});
+  const lines = createInterface({input:fixture.stdout});
+  try {
+    const port = await new Promise((resolve, reject) => {
+      lines.on('line', line => {
+        if (line.startsWith('PORT ')) resolve(Number(line.slice(5)));
+        if (line.startsWith('ATTEMPT ')) attempts = Number(line.slice(8));
+      });
+      fixture.on('exit', () => reject(new Error(stderr || 'Fixture exited')));
+      fixture.on('error', reject);
+    });
+    const replies = [];
+    const h = await harness(async (url, options) => {
+      const response = await fetch(`http://127.0.0.1:${port}${url}`, options);
+      replies.push({url, body:await response.clone().json()});
+      return response;
+    });
+    let completed = 0;
+    const settlePictures = async () => {
+      for (let turn = 0; turn < 100; turn++) {
+        await new Promise(resolve => setTimeout(resolve, 5));
+        for (const [id, timer] of [...h.timers]) {
+          if (timer.ms !== 750) continue;
+          h.timers.delete(id);
+          await timer.callback();
+        }
+        while (completed < h.shows.length) h.shows[completed++].onComplete();
+        if (h.element('loading').hidden || !h.element('retryMedia').hidden) return;
+      }
+      assert.fail('Media did not settle');
+    };
+    await h.start();
+    await h.submit('paper');
+    await settlePictures();
+    assert.equal(h.element('retryMedia').hidden, false);
+    assert.equal(h.element('send').disabled, true);
+    assert.equal(attempts, 1, JSON.stringify(replies));
+    await h.element('retryMedia').onclick();
+    await settlePictures();
+    assert.equal(h.element('loading').hidden, true, 'Retry must replace the failed job and display the next picture');
+    assert.equal(h.element('send').disabled, false);
+    assert.equal(attempts, 2, 'One deliberate retry starts exactly one replacement generation');
+  } finally {
+    lines.close();
+    if (fixture.exitCode === null) { fixture.kill(); await once(fixture, 'exit'); }
+  }
+});
+
 test('restart ignores stale image decode and late generation responses', async () => {
   for (const afterDecode of [true, false]) {
     const h = await harness(); await h.start();
@@ -202,6 +282,23 @@ test('restart ignores stale image decode and late generation responses', async (
     assert.equal(h.element('question').textContent, 'What material?');
     assert.equal(h.element('loading').hidden, true);
     assert.equal(h.element('send').disabled, false);
+  }
+});
+
+test('exhausted retries or missing generation cannot leave a useless retry button', async () => {
+  for (const unavailable of [false, true]) {
+    const h = await harness(); await h.start();
+    const next = accepted(); h.settings.answer = next;
+    h.settings.media = imageResult(next, {status:'failed', generated:false, generationRequested:!unavailable,
+      generationRetryAvailable:false, retriesRemaining:0, image:null});
+    await h.submit();
+    assert.equal(h.element('retryMedia').hidden, true);
+    assert.equal(h.element('retryMedia').disabled, true);
+    assert.match(h.element('status').textContent, /restart/i);
+    const count = h.calls.length;
+    await h.element('retryMedia').onclick();
+    assert.equal(h.calls.length, count);
+    assert.equal(h.element('send').disabled, true, 'A recovery message cannot skip the picture gate');
   }
 });
 

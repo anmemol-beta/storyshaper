@@ -1,4 +1,4 @@
-"""Bounded media jobs; live images are session-scoped, reviewed and never retried."""
+"""Bounded, reviewed media jobs with idempotent, explicit image retries."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import asdict
@@ -10,6 +10,8 @@ import uuid
 from .assets import AssetRegistry, LocalProvider
 from .contracts import normalize
 from .image_provider import MAX_IMAGE, ImageError, scene_facts
+
+MAX_IMAGE_RETRIES = 2
 
 
 class JobError(ValueError):
@@ -41,7 +43,7 @@ class MediaJobs:
                     # Presentation invalidation does not duplicate shared local work.
                     job['cancelled'] = job['cancelled'] or 'superseded'
 
-    def request(self, snapshot):
+    def request(self, snapshot, *, retry_of=None):
         spec = normalize(snapshot)
         self.activate(snapshot)
         if spec is None:
@@ -51,8 +53,28 @@ class MediaJobs:
                 raise JobError('closed')
             if self.current.get(spec.session_id) != spec.token:
                 raise JobError('stale_snapshot')
-            if spec.token in self.requests:
-                return self._view(self.jobs[self.requests[spec.token]])
+            previous = self.jobs.get(self.requests.get(spec.token))
+            retry_attempt = 0
+            if retry_of is not None:
+                original = self.jobs.get(retry_of)
+                if original is None or original['spec'].session_id != spec.session_id:
+                    raise JobError('job_not_found')
+                if original['spec'].token != spec.token or previous is None:
+                    raise JobError('retry_not_allowed')
+                # A repeated click, lost response or old retry token attaches to
+                # the latest replacement instead of starting another paid call.
+                if previous['id'] != retry_of:
+                    return self._view(previous)
+                work = previous['work']
+                if previous['cancelled'] or work['status'] == 'cancelled':
+                    raise JobError('retry_not_allowed')
+                if work['status'] != 'failed' or not work['live_image']:
+                    return self._view(previous)
+                retry_attempt = work['retry_attempt'] + 1
+                if retry_attempt > MAX_IMAGE_RETRIES:
+                    raise JobError('image_retry_limit')
+            elif previous is not None:
+                return self._view(previous)
             # Keep dedup tombstones rather than evict then resubmit the same turn.
             if len(self.jobs) >= self.capacity:
                 raise JobError('job_limit')
@@ -66,11 +88,19 @@ class MediaJobs:
             job_id = uuid.uuid4().hex
             # Local work may restart for a new binding. Paid image work retains
             # its cancellation tombstone even across language-only versions.
-            reused = key in self.works and (live_image or self.works[key]['status'] != 'cancelled')
+            reused = retry_of is None and key in self.works and (live_image or self.works[key]['status'] != 'cancelled')
             if not reused:
+                if retry_of is not None:
+                    old_work = previous['work']
+                    old_work['event'].set()
+                    old_work['timer'].cancel()
+                    for old_job in self.jobs.values():
+                        if old_job['work'] is old_work:
+                            old_job['cancelled'] = old_job['cancelled'] or 'retried'
                 self.works[key] = {'spec': spec, 'status': 'queued', 'video': None,
                                    'reason': None, 'event': threading.Event(), 'timer': None,
-                                   'live_image': live_image, 'plan': deepcopy(plan), 'image': None}
+                                   'live_image': live_image, 'plan': deepcopy(plan), 'image': None,
+                                   'retry_attempt': retry_attempt}
             work = self.works[key]
             job = {'id': job_id, 'spec': spec, 'key': key,
                    'image': self.registry.image(spec), 'cancelled': None, 'reused': reused,
@@ -216,7 +246,11 @@ class MediaJobs:
                 'video': deepcopy(work['video']) if applicable and status == 'ready' else None,
                 'fallback': {'keepCurrentImage': image is None, 'message': message},
                 'source': 'muse_image' if generated else 'local_assets', 'generated': generated,
-                'generationRequested': work['live_image'], 'spec': asdict(spec)}
+                'generationRequested': work['live_image'],
+                'generationRetryAvailable': applicable and work['live_image'] and status == 'failed'
+                    and work['retry_attempt'] < MAX_IMAGE_RETRIES,
+                'retriesRemaining': max(0, MAX_IMAGE_RETRIES - work['retry_attempt']) if work['live_image'] else 0,
+                'spec': asdict(spec)}
 
     def close(self):
         with self.lock:

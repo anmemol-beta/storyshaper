@@ -153,3 +153,77 @@ test('image load failure keeps the prior picture and reports failure', async () 
   shows[0].onError();
   assert.equal(states.at(-1).state, 'failed');
 });
+
+test('manual retry regenerates a failed job once and ignores repeated taps while pending', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot();
+  const failed = result(state, {status:'failed', generated:false, generationRequested:true,
+    generationRetryAvailable:true, image:null});
+  const first = player.update(state);
+  calls[0].resolve(failed); await first;
+  assert.equal(calls.length, 1, 'A failure never automatically regenerates');
+  const retry = player.retry(state);
+  await player.retry(state);
+  assert.equal(calls.length, 2);
+  calls[1].resolve(failed); await new Promise(setImmediate);
+  assert.deepEqual(JSON.parse(calls[2].options.body), {sessionId:'session', sceneId:'scene-1', version:1, retryOf:'job'});
+  await player.retry(state);
+  assert.equal(calls.length, 3);
+  calls[2].resolve(result(state, {jobId:'replacement'})); await retry;
+  assert.equal(states.at(-1).state, 'generating');
+  shows.at(-1).onComplete();
+  assert.equal(states.at(-1).state, 'generated');
+});
+
+test('reloading a ready bitmap after a decode error never asks for regeneration', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(), first = player.update(state);
+  calls[0].resolve(result(state)); await first;
+  shows[0].onError();
+  const retry = player.retry(state);
+  shows[0].onComplete();
+  assert.notEqual(states.at(-1).state, 'generated', 'Late completion of the failed load cannot unlock its replacement');
+  calls[1].resolve(result(state)); await retry;
+  assert.deepEqual(JSON.parse(calls[1].options.body), {sessionId:'session', sceneId:'scene-1', version:1});
+  assert.equal(calls.length, 2);
+  shows[1].onComplete();
+  assert.equal(states.at(-1).state, 'generated');
+});
+
+test('a retried binding from another client can attach to its replacement without generating again', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(), first = player.update(state);
+  calls[0].resolve(result(state, {status:'cancelled', apply:false, reason:'retried'})); await first;
+  assert.equal(states.at(-1).retryable, true);
+  const retry = player.retry(state);
+  calls[1].resolve(result(state, {jobId:'replacement'})); await retry;
+  assert.equal(calls.length, 2);
+  assert.equal(JSON.parse(calls[1].options.body).retryOf, undefined);
+  shows[0].onComplete();
+  assert.equal(states.at(-1).state, 'generated');
+});
+
+test('retry exhaustion is actionable and cannot silently request another paid image', async () => {
+  const {player, calls, states} = setup();
+  const state = snapshot(), first = player.update(state);
+  const exhausted = result(state, {status:'failed', generated:false, generationRetryAvailable:false,
+    retriesRemaining:0, image:null});
+  calls[0].resolve(exhausted); await first;
+  assert.equal(states.at(-1).retryable, false);
+  const retry = player.retry(state);
+  calls[1].resolve(exhausted); await retry;
+  assert.equal(calls.length, 2);
+  assert.equal(states.at(-1).reason, 'image_retry_limit');
+});
+
+test('restart while reattaching a failed job cannot trigger late paid regeneration', async () => {
+  const {player, calls, shows} = setup();
+  const state = snapshot(), first = player.update(state);
+  const failed = result(state, {status:'failed', generated:false, image:null});
+  calls[0].resolve(failed); await first;
+  const retry = player.retry(state);
+  player.reset();
+  calls[1].resolve(failed); await retry;
+  assert.equal(calls.length, 2);
+  assert.equal(shows.at(-1).url, 'img/intro.jpg');
+});

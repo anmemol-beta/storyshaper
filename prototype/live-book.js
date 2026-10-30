@@ -211,6 +211,14 @@
 
   function mediaState(result) {
     if (!pending) return;
+    if (["generating", "loading"].includes(result.state)) {
+      ui.retryMedia.hidden = true;
+      ui.retryMedia.disabled = true;
+      ui.loadingText.textContent = result.retrying
+        ? t("Drawing the picture again…", "그림을 다시 만들고 있어요…")
+        : t("Loading your picture…", "그림을 불러오고 있어요…");
+      return;
+    }
     const ready = pending.providerMode === "live" ? result.state === "generated" : result.state === "prepared";
     if (ready) {
       const state = pending;
@@ -226,8 +234,11 @@
       }
     } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
       ui.loadingText.textContent = t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
-      ui.retryMedia.hidden = false;
-      say(t("Reload the picture, or restart the story.", "그림을 다시 불러오거나 처음부터 시작해 주세요."));
+      ui.retryMedia.hidden = result.retryable === false;
+      ui.retryMedia.disabled = result.retryable === false;
+      say(result.retryable === false
+        ? t("Couldn't finish the picture. Please restart the story.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
+        : t("Try loading the picture again.", "그림 다시 불러오기를 눌러 주세요."));
       syncControls(); // A failed or prepared AI fallback never unlocks the next turn.
     }
   }
@@ -398,11 +409,11 @@
   };
 
   ui.retryMedia.onclick = () => {
-    if (!pending) return;
+    if (!pending || ui.retryMedia.disabled) return;
     ui.retryMedia.hidden = true;
+    ui.retryMedia.disabled = true;
     ui.loadingText.textContent = t("Loading the picture…", "그림을 다시 불러오고 있어요…");
-    media.cancel({server: false}); // Reattach the existing job; never repeat paid generation.
-    media.update(pending);
+    media.retry(pending);
   };
   ui.restart.onclick = ui.cover.onclick = begin;
   ui.settingsButton.onclick = () => { ui.readerSettings.hidden = !ui.readerSettings.hidden; };
