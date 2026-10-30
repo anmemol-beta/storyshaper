@@ -110,9 +110,14 @@
         "log",
         "logs",
         "timber",
+        "stick",
+        "sticks",
+        "twig",
+        "twigs",
         "나무",
         "목재",
-        "통나무"
+        "통나무",
+        "나뭇가지"
       ],
       "outcome": "collapsed",
       "build": "The pig stacks wooden logs loosely, leaving the joints unfastened.",

@@ -110,9 +110,14 @@
         "log",
         "logs",
         "timber",
+        "stick",
+        "sticks",
+        "twig",
+        "twigs",
         "나무",
         "목재",
-        "통나무"
+        "통나무",
+        "나뭇가지"
       ],
       "outcome": "collapsed",
       "build": "돼지는 나무를 느슨하게 쌓고 연결 부분을 단단히 묶지 않았어요.",

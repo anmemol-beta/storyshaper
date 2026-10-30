@@ -557,27 +557,45 @@ class StoryEngine:
 
     @staticmethod
     def _failure_message(state, decision, reason, attempts):
+        # While choosing a material, an answer the story cannot use (an unknown
+        # material, a mishearing, silence) is answered by naming the usable
+        # materials rather than by claiming the child was not understood.
+        choosing = state["stage"] == "choose"
+        story = STORIES[state["language"]]
+        labels = [story["materials"][key]["label"]
+                  for key in STORY["houses"][state["houseIndex"] - 1]["allowedMaterials"]]
         if state["language"] == "ko":
             if decision == "clarify":
-                message = "생각을 잘 알아듣지 못했어요. 한 번 더 이야기해 줄래요?"
+                message = ("이 집을 지을 재료가 필요해요." if choosing else
+                           "생각을 잘 알아듣지 못했어요. 한 번 더 이야기해 줄래요?")
             elif reason == "material_not_allowed":
-                message = ("마지막 집은 튼튼하게 서 있을 수 있는 재료로 골라 볼까요?" if state["houseIndex"] == 3 else
-                           "그 튼튼한 재료는 마지막 집에 써 봐요. 이번 집에는 다른 어떤 재료를 써 볼까요?")
+                message = ("마지막 집은 튼튼하게 서 있을 수 있는 재료로 골라 봐요." if state["houseIndex"] == 3 else
+                           "그 튼튼한 재료는 마지막 집에 써 봐요.")
             else:
-                message = "돼지들이 안전하게 지내도록 지금 이야기 속에서 도와줘요. 다른 생각을 해 볼까요?"
+                message = "돼지들이 안전하게 지내도록 지금 이야기 속에서 도와줘요."
+                if not choosing:
+                    message += " 다른 생각을 해 볼까요?"
             if attempts >= MAX_ATTEMPTS:
                 message += " 여기 세 가지 생각 중에서 마음에 드는 것을 눌러 골라 봐요."
+            elif choosing:
+                message += f" 여기서는 {', '.join(labels)} 중에서 고를 수 있어요. 어떤 걸로 지어 볼까요?"
             return message
         if decision == "clarify":
-            message = "I didn't quite understand. Could you tell me your idea once more?"
+            message = ("This house needs a building material." if choosing else
+                       "I didn't quite understand. Could you tell me your idea once more?")
         elif reason == "material_not_allowed":
             message = ("For this last house, let's choose something strong that stays standing."
                        if state["houseIndex"] == 3 else
-                       "Let's save those strong materials for the pigs' last house. What else could this pig try?")
+                       "Let's save those strong materials for the pigs' last house.")
         else:
-            message = "Let's keep the pigs safe and help with this part of their story. Could we try another idea?"
+            message = "Let's keep the pigs safe and help with this part of their story."
+            if not choosing:
+                message += " Could we try another idea?"
         if attempts >= MAX_ATTEMPTS:
             message += " Let's choose one of these three ideas. You can tap the one you like."
+        elif choosing:
+            options = ", ".join(labels[:-1]) + (", or " if len(labels) > 2 else " or ") + labels[-1]
+            message += f" We can use {options} here. Which one shall we try?"
         return message
 
     @staticmethod
