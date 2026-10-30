@@ -69,3 +69,15 @@
 이번 커밋은 문서만 변경했다. PR #9의 Python 81개·Node 35개 통과는 과거 기록이며 새 테스트 실행이나 실기기 확인을 뜻하지 않는다.
 
 참고: [미디어 API](../media/API.md), [개발 로드맵](../docs/internal/development-roadmap.md), [이전 구현 보고서](../docs/reports/2026-10-29-media-ui-implementation.md).
+
+## 2026-10-30 P0 implementation update (ChatGPT)
+
+- Merged latest main commit `8810e0f` into `ui_mvp` without replacing branch-specific planning.
+- Added `prototype/live.html`, `live-book.js`, `live-book.css`: browser book view driven by real `/api/sessions`, `/api/answer`, `/api/language` responses; input via text or existing `VoiceInput` public API; narration via existing `Narration.speak/stop` API; images/videos through `/api/media/jobs` and `StoryImageTransition`.
+- Added Reader + Change (opens voice registration in new tab), Read aloud On/Off, and default-reader cover copy. Existing fixed demo remains accessible; `index.html` links to the new live page.
+- Video layer only plays video URL returned with `apply=true, status=ready`. Previous image remains visible on failure. Scene/version guard blocks old media jobs.
+- Changed **no** `narration/`, `voice/`, or `speech/` implementation files. Existing `voice.html` still links back to `agent.html`; new tab preserves the live book's session rather than changing the voice author's screen.
+- Added `tests/live-book.test.cjs`. JavaScript parser validation completed; browser end-to-end playback, recording, iPad/Safari, and connected-model flow were **not** verified here. Do not claim production readiness.
+- Potential integration blockers: Narration defaults to `127.0.0.1:8100`, inaccessible on a separate tablet, and cloned voice for English only. Voice author owns service exposure and voice internals; UI can accept a `?voiceServer=...` parameter via the narration module.
+- Run: `python -m speech.server`, separate narration server if available, then open `http://127.0.0.1:8000/prototype/live.html`. Test `node --test tests/live-book.test.cjs` and existing UI tests before PR.
+
