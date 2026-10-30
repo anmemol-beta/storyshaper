@@ -65,3 +65,17 @@ test('languages without a cloned voice get no filler', async () => {
   assert.equal(played.length, 0);
   assert.equal(posted.length, 0);
 });
+
+test('long lines are voiced sentence by sentence; short ones and tiny pieces stay together', () => {
+  const {Narration} = load();
+  const s = text => Array.from(Narration.sentences(text));
+  assert.deepEqual(s('The wolf blew.'), ['The wolf blew.']);
+  assert.deepEqual(s('The wolf puffs, and the light paper walls blow away. The pigs step safely away.'),
+    ['The wolf puffs, and the light paper walls blow away.', 'The pigs step safely away.']);
+  assert.deepEqual(s('늑대가 후 불자 종이 벽이 팔랑팔랑 흔들렸어요. 가벼운 종이 벽은 바람에 날아갔어요. 돼지들은 안전하게 피했어요.'),
+    ['늑대가 후 불자 종이 벽이 팔랑팔랑 흔들렸어요.', '가벼운 종이 벽은 바람에 날아갔어요.', '돼지들은 안전하게 피했어요.']);
+  assert.deepEqual(s('Oh! The little pig looked up at the sky and saw a big gray cloud.'),
+    ['Oh! The little pig looked up at the sky and saw a big gray cloud.']);
+  assert.deepEqual(s('But the wolf came back. "Whoo… whoo… CRASH!" The wood house tumbled down.'),
+    ['But the wolf came back. "Whoo… whoo… CRASH!"', 'The wood house tumbled down.']);   // the sound effect stays with the sentence before it
+});
