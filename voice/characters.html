@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 목소리 비교</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1d2333; --muted:#5b6378; --line:#dde1ea; --accent:#2f4fb5; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system, "Apple SD Gothic Neo", sans-serif; line-height:1.55; }
+  main { max-width:900px; margin:0 auto; padding:28px 16px 60px; display:flex; flex-direction:column; gap:18px; }
+  h1 { margin:0; font-size:1.5rem; }
+  p { margin:0; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; display:flex; flex-direction:column; gap:10px; }
+  .q { font-weight:600; }
+  .row { display:grid; grid-template-columns:44px minmax(0,1fr) auto auto; gap:12px; align-items:center; }
+  .tag { font-weight:700; color:var(--accent); font-size:1.1rem; }
+  audio { width:100%; height:36px; }
+  select { font-size:.9rem; padding:4px; }
+  label { font-size:.8rem; color:var(--muted); display:flex; flex-direction:column; gap:2px; }
+  .model { font-size:.85rem; color:var(--accent); font-weight:600; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { border-bottom:1px solid var(--line); padding:8px; text-align:left; font-variant-numeric:tabular-nums; }
+  button { font-size:1rem; padding:10px 18px; border-radius:10px; border:none; background:var(--accent); color:#fff; align-self:flex-start; cursor:pointer; }
+  @media (max-width:560px) { .row { grid-template-columns:32px minmax(0,1fr); } .row label { grid-column:2; flex-direction:row; align-items:center; gap:8px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>캐릭터 목소리 비교</h1>
+  <p>늑대와 돼지 대사를 네 가지 방식으로 읽었습니다. A~D는 역할마다 순서가 섞여 있어요. 먼저 내레이터(부모 목소리)를 듣고, 각 클립에 점수를 매긴 뒤 "결과 보기"를 누르세요.</p>
+
+  <div class="card">
+    <div class="q">기준: 내레이터 (부모 목소리)</div>
+    <audio controls preload="none" src="../prototype/audio/fb37de32ff4b.mp3"></audio>
+    <p>"Then along came a hungry wolf. Whoo… whoo…"</p>
+  </div>
+
+  <div id="roles"></div>
+  <button id="reveal" type="button">결과 보기</button>
+  <div id="result" class="card" hidden></div>
+</main>
+<script>
+const WAYS = {
+  A: "부모 목소리 그대로",
+  B: "부모 목소리 + 음높이만 변경 (늑대 −4, 돼지 +4 반음)",
+  C: "부모 목소리 + 연기 (표현 강도·속도 조절)",
+  D: "다른 기본 목소리 (LibriTTS-R, CC BY 4.0)",
+};
+const ROLES = [
+  { id: "wolf", name: "늑대", text: "Little pig, little pig, let me come in! Then I'll huff, and I'll puff, and I'll blow your house in!", order: ["C", "A", "D", "B"] },
+  { id: "pig", name: "돼지", text: "Not by the hair of my chinny chin chin! You can't come in!", order: ["B", "D", "A", "C"] },
+];
+// median pitch (Hz) measured with librosa.pyin; the parent reference is 102 Hz
+const PITCH = { wolf: { A: 126, B: 99, C: 264, D: 127 }, pig: { A: 113, B: 141, C: 113, D: 244 } };
+const opts = '<option value="">-</option>' + [1, 2, 3, 4, 5].map(n => `<option>${n}</option>`).join("");
+let scores = {};
+try { scores = JSON.parse(localStorage.getItem("character-scores") || "{}"); } catch (e) {}
+
+document.getElementById("roles").innerHTML = ROLES.map(r => `
+  <div class="card" style="margin-bottom:14px">
+    <div class="q">${r.name}: "${r.text}"</div>
+    ${r.order.map((w, k) => `
+      <div class="row">
+        <span class="tag">${"ABCD"[k]}</span>
+        <audio controls preload="none" src="out/characters/${r.id}_${w}.mp3"></audio>
+        <label>그 인물 같음<select id="fit-${r.id}-${w}">${opts}</select></label>
+        <label>자연스러움<select id="nat-${r.id}-${w}">${opts}</select></label>
+      </div>`).join("")}
+  </div>`).join("");
+
+document.querySelectorAll("select").forEach(s => {
+  if (scores[s.id]) s.value = scores[s.id];
+  s.onchange = () => { scores[s.id] = s.value; try { localStorage.setItem("character-scores", JSON.stringify(scores)); } catch (e) {} };
+});
+
+document.getElementById("reveal").onclick = () => {
+  const v = (kind, r, w) => document.getElementById(`${kind}-${r}-${w}`).value || "-";
+  const r = document.getElementById("result");
+  r.innerHTML = `<div class="q">결과</div><table><tr><th>방식</th>` +
+    ROLES.map(x => `<th>${x.name} 인물다움</th><th>${x.name} 자연스러움</th>`).join("") + `</tr>` +
+    Object.keys(WAYS).map(w => `<tr><td class="model">${WAYS[w]}</td>` +
+      ROLES.map(x => `<td>${v("fit", x.id, w)}</td><td>${v("nat", x.id, w)}</td>`).join("") + `</tr>`).join("") +
+    `</table><p>순서 정답: ` + ROLES.map(x => `${x.name} ` + x.order.map((w, k) => "ABCD"[k] + "=" + w).join(", ")).join(" / ") +
+    `</p><p>평균 음높이(Hz, 부모 기준 102): ` + ROLES.map(x => `${x.name} ` + Object.entries(PITCH[x.id]).map(([w, hz]) => `${w} ${hz}`).join(", ")).join(" / ") + `</p>`;
+  r.hidden = false;
+};
+</script>
+</body>
+</html>

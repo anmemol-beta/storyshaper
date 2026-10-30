@@ -176,6 +176,15 @@
       paragraph.append(speaker, words);
       ui.narrative.append(paragraph);
     }
+    // Read the passage and question aloud in each character's voice (narration.js); a re-render of the same version is not read again.
+    if (typeof Narration !== "undefined") {
+      const paragraphs = [...ui.narrative.children];
+      const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text}] : next.lines;
+      Narration.speak(spoken, {
+        key: `${next.sessionId}:${next.version}:${AgentLanguage.language}`, language: AgentLanguage.language,
+        onLine: i => paragraphs.forEach((p, k) => p.classList.toggle("speaking", k === i))
+      });
+    }
     ui.questionLabel.textContent = next.question ? t("Current question") : t("The end");
     ui.questionTitle.textContent = next.question?.text || t("The pigs are safe together. Thank you for shaping their story.");
     ui.questionIntent.hidden = !next.question?.intent;
@@ -463,6 +472,8 @@
   async function toggleRecording() {
     if (recording) return recording.stop();
     if (busy || !snapshot?.question || !voiceReady()) return;
+    // Stop the story voice so the microphone hears only the child.
+    if (typeof Narration !== "undefined") Narration.stop();
     const token = epoch, questionId = snapshot.question.id;
     // Opening the microphone takes a moment. A second press meanwhile means "stop", not a second recording.
     const opening = {stopRequested: false, stop() { this.stopRequested = true; }};

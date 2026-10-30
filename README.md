@@ -105,9 +105,18 @@ We blind-tested three models on the same 6.5-second reference clip and the same 
 
 Chatterbox also adds an inaudible watermark to every clip it generates, which helps guard against misuse of a cloned voice.
 
-Fixed story lines are generated once, right after the parent records, and stored.
-Lines that include the child's answer are pre-generated for the answers we expect (paper, straw, wood, bricks, ...).
-Only unexpected answers ("Ice cream!") are voiced on the spot, which finishes while the page is being redrawn.
+Each character has a voice that fits them. We compared four options by ear: the narrator and the three pigs are read in the parent's voice (the pigs a little livelier), and the wolf has a different stock voice (LibriTTS-R, CC BY 4.0), so a child always knows who is speaking. Changing only the pitch of the parent's voice scored lowest.
+
+**A parent who is away can still read.** On `prototype/voice.html` a parent chooses whose voice it is (their own, a family member who agreed, or someone the family misses), then adds a video or a voice message, or reads a short bedtime passage aloud. StoryShaper finds the clearest ten seconds on a waveform, shows what **Muse Voice Transcribe** heard, plays a story line in that voice, and keeps only that ten-second clip. **Delete** removes the clip and every line read with it.
+
+Lines are generated as the story needs them, newest first, and cached, so a line is made once. If a line isn't ready in time the browser voice reads it and the story keeps going.
+
+```bash
+voice/.venv-chatterbox/bin/python -m narration.server   # voices, port 8100 (needs Chatterbox and ffmpeg)
+python3 -m speech.server                                 # story agent, media and speech, port 8000
+```
+
+Then open `http://127.0.0.1:8000/prototype/voice.html` to add a voice and `agent.html` to hear the story. Details: [`narration/README.md`](narration/README.md).
 
 ## Progress
 
@@ -119,11 +128,13 @@ Only unexpected answers ("Ice cream!") are voiced on the spot, which finishes wh
 - Found that the image content filter rejects some wolf scenes inconsistently; the page generator retries with softer wording.
 - Picked Chatterbox for parent-voice narration after a blind test.
 - Narrated the prototype in a parent's cloned voice: 40 pre-generated clips, one per line and answer branch, with a reading speed slider.
+- Gave each character a voice (parent for the narrator and pigs, a stock voice for the wolf) through a local narration server that the story agent page uses, with a browser-voice fallback.
+- Let a parent register a voice from a video, a voice message or a read-aloud passage, with consent, a preview, and deletion of the voice and everything read with it.
 
 **Next**
 - [ ] Wire the real pipeline into the web app: microphone → Muse Voice Transcribe → Muse Spark → Muse Image.
 - [ ] Put the child's own words into the book as dialogue, with their recorded voice.
-- [ ] Safety: guide unexpected or unsafe answers back into the story, and add a consent step and "delete my voice" option for voice cloning.
+- [ ] Safety: guide unexpected or unsafe answers back into the story.
 - [ ] Let a child draw themselves, cut the drawing out with SAM 3.1, and place it in the story.
 - [ ] Test with a real child and adjust questions and timing.
 - [ ] Record the 3-minute demo video and submit by Nov 4, 9:00 PM ET.

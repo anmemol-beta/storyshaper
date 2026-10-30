@@ -7,3 +7,6 @@ experiments/out/
 voice/.venv*/
 __pycache__/
 *.py[cod]
+voice/cache/
+voice/profiles/
+KakaoTalk_Chat_*.csv
