@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // narration.js in a sandbox: fetch answers that every line is ready, Audio records what plays, timers are manual.
-function load({ready = true, autoEnd = true, hang = false, stallAudio = false} = {}) {
+function load({ready = true, autoEnd = true, hang = false, stallAudio = false, autoPlay = true} = {}) {
   const played = [];
   const timers = [];
   const posted = [];
@@ -15,7 +15,7 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false} =
     play() { played.push(this.src); return Promise.resolve(); }   // "ends" only when the test calls finish()
     pause() { pauses.push(this); }
     addEventListener(name, fn) { this.events[name] = fn; }
-    load() { if (ready && !stallAudio) queueMicrotask(() => this.events.canplay?.()); }
+    load() { if (ready && !stallAudio && autoPlay) queueMicrotask(() => this.events.canplay?.()); }
   }
   const sandbox = {
     URLSearchParams, JSON, Math, Promise, Blob, AbortController, queueMicrotask,
@@ -90,13 +90,36 @@ test('long lines are voiced sentence by sentence; short ones and tiny pieces sta
     ['But the wolf came back. "Whoo… whoo… CRASH!"', 'The wood house tumbled down.']);   // the sound effect stays with the sentence before it
 });
 
-test('unready parent clips read immediately with the browser instead of waiting per line', async () => {
+test('unready parent clips wait a few seconds, never 20, then the browser reads them', async () => {
   const h = load({ready:false});
   const reading = h.Narration.speak([{text:'Read this now.'}, {text:'Keep the story moving.'}], {key:'cold', language:'ko'});
   await tick();
-  assert.equal(h.spoken.length, 2, 'Unready clips must never hold the passage on a 20-second HTTP wait');
+  assert.match(h.clips.at(-1).src, /\?wait=6$/, 'the first line waits while fillers talk');
+  assert.equal(h.spoken.length, 0);
+  h.runTimer(6800); await tick();
+  assert.equal(h.spoken.length, 1);
+  assert.match(h.clips.at(-1).src, /\?wait=3$/, 'the next line waits less: it was being voiced during the first');
+  h.runTimer(3800); await tick();
+  assert.equal(h.spoken.length, 2);
   await reading;
   assert.equal(h.played.length, 0);
+});
+
+test('a parent clip voiced during its wait is read in the parent voice, and stops the filler then', async () => {
+  const h = load({autoPlay:false});
+  h.Narration.interject('en'); await tick();
+  const filler = h.clips.at(-1);
+  h.setFetch(async (url, options) => ({ok: true, json: async () => ({clips: JSON.parse(options.body).lines.map((l, i) => ({url: `/audio/default/late-${i}.mp3`, ready: false}))})}));
+  const reading = h.Narration.speak([{text:'Ready a moment later.'}], {key:'late'});
+  await tick();
+  const line = h.clips.at(-1);
+  assert.match(line.src, /\?wait=6$/);
+  assert.ok(!h.pauses.includes(filler), 'the filler keeps talking while the first line is voiced');
+  line.events.canplay(); await tick();               // the server finished the line within the wait
+  assert.ok(h.pauses.includes(filler));
+  assert.equal(h.played.at(-1), line.src);
+  assert.equal(h.spoken.length, 0);
+  line.onended(); await reading;
 });
 
 test('ready parent clips still use the selected parent voice', async () => {
@@ -155,7 +178,7 @@ test('pausing while preparing a passage prevents delayed autoplay', async () => 
 test('browser speech resumes its current sentence and pause suspends its end guard', async () => {
   const h = load({ready:false, autoEnd:false});
   const reading = h.Narration.speak([{text:'Keep this sentence.'}], {key:'browser-pause'});
-  await tick();
+  await tick(); h.runTimer(6800); await tick();
   assert.equal(h.Narration.voiceSource(), 'browser');
   h.Narration.pause();
   assert.equal(h.timers.filter(t => t.fn && t.ms === 30000).length, 0);
@@ -202,11 +225,11 @@ test('saved voices can be fetched without changing pages', async () => {
 test('changing a paused browser reader cannot leave the next passage globally paused', async () => {
   const h = load({ready:false, autoEnd:false});
   const first = h.Narration.speak([{text:'The old voice.'}], {key:'old-pause'});
-  await tick(); h.Narration.pause();
+  await tick(); h.runTimer(6800); await tick(); h.Narration.pause();
   assert.equal(h.nativeSpeech.paused, true);
   h.Narration.selectVoice('mom', 'Mom'); await first;
   const next = h.Narration.speak([{text:'New voice starts.'}], {key:'new-reader'});
-  await tick();
+  await tick(); h.runTimer(6800); await tick();
   assert.equal(h.nativeSpeech.paused, false, 'Native speech must resume when a paused reader is replaced');
   h.spoken.at(-1).onend(); await next;
 });
