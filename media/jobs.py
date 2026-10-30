@@ -78,13 +78,22 @@ class MediaJobs:
             # Keep dedup tombstones rather than evict then resubmit the same turn.
             if len(self.jobs) >= self.capacity:
                 raise JobError('job_limit')
-            live_image = self.image_provider is not None and snapshot.get('providerMode') == 'live'
+            # Touch answers are authored and server-validated. Use the same exact
+            # scene art as offline mode, without waiting for a worker or model.
+            prepared_image = self.registry.image(spec)
+            prepared_choice = spec.selection is not None and prepared_image is not None
+            live_image = (not prepared_choice and self.image_provider is not None
+                          and snapshot.get('providerMode') == 'live')
             plan = snapshot['mediaPlan']
             # No cross-session reuse of generated content. A language-only version
             # change reuses this same accepted scene, including an in-flight request.
             key = (hashlib.sha256(json.dumps([spec.session_id, scene_facts(spec, plan)],
                                             sort_keys=True).encode()).hexdigest() if live_image
                    else self.registry.content_key(spec))
+            if prepared_choice:
+                # A local video fallback for a free answer must not mask a ready
+                # touch image, even when both refer to the same static asset.
+                key = ('prepared_choice', key)
             job_id = uuid.uuid4().hex
             # Local work may restart for a new binding. Paid image work retains
             # its cancellation tombstone even across language-only versions.
@@ -99,15 +108,18 @@ class MediaJobs:
                             old_job['cancelled'] = old_job['cancelled'] or 'retried'
                 self.works[key] = {'spec': spec, 'status': 'queued', 'video': None,
                                    'reason': None, 'event': threading.Event(), 'timer': None,
-                                   'live_image': live_image, 'plan': deepcopy(plan), 'image': None,
+                                   'live_image': live_image, 'prepared_choice': prepared_choice,
+                                   'plan': deepcopy(plan), 'image': None,
                                    'retry_attempt': retry_attempt}
             work = self.works[key]
             job = {'id': job_id, 'spec': spec, 'key': key,
-                   'image': self.registry.image(spec), 'cancelled': None, 'reused': reused,
+                   'image': prepared_image, 'cancelled': None, 'reused': reused,
                    'work': work}
             self.jobs[job_id] = job
             self.requests[spec.token] = job_id
-            if not reused:
+            if prepared_choice:
+                work['status'], work['reason'] = 'ready', 'prepared_choice_image'
+            elif not reused:
                 # Workers and timers hold this exact work instance. A late callback
                 # from a cancelled generation must never resolve the replacement.
                 timer = threading.Timer(self.image_timeout if live_image else self.timeout,
@@ -230,7 +242,7 @@ class MediaJobs:
         reason = job['cancelled'] or work['reason']
         generated = applicable and work['image'] is not None
         image = work['image'] if generated else job['image']
-        if status == 'ready' and job['reused'] and not work['live_image']:
+        if status == 'ready' and job['reused'] and not work['live_image'] and not work['prepared_choice']:
             reason = 'cached_reviewed_clip'
         elif status == 'fallback' and not job['image']:
             reason = 'scene_asset_unavailable'
@@ -239,13 +251,16 @@ class MediaJobs:
         if work['live_image']:
             message = ('Continue with the new picture.' if generated else
                        'The new picture is unavailable. Keep reading with the previous or prepared picture.')
+        elif work['prepared_choice']:
+            message = 'Continue with the prepared picture for this choice.'
         return {'jobId': job['id'], 'sessionId': spec.session_id,
                 'sceneId': spec.scene_id, 'version': spec.version,
                 'status': status, 'reason': reason, 'apply': applicable,
                 'image': deepcopy(image) if applicable else None,
                 'video': deepcopy(work['video']) if applicable and status == 'ready' else None,
                 'fallback': {'keepCurrentImage': image is None, 'message': message},
-                'source': 'muse_image' if generated else 'local_assets', 'generated': generated,
+                'source': 'muse_image' if generated else 'prepared_choice' if work['prepared_choice'] else 'local_assets',
+                'generated': generated,
                 'generationRequested': work['live_image'],
                 'generationRetryAvailable': applicable and work['live_image'] and status == 'failed'
                     and work['retry_attempt'] < MAX_IMAGE_RETRIES,
@@ -259,5 +274,6 @@ class MediaJobs:
                 job['cancelled'] = job['cancelled'] or 'shutdown'
             for work in self.works.values():
                 work['event'].set()
-                work['timer'].cancel()
+                if work['timer'] is not None:
+                    work['timer'].cancel()
         self.pool.shutdown(wait=True, cancel_futures=True)

@@ -10,12 +10,13 @@ python3 -m src.server
 
 ## 새 답마다 실시간 그림
 
-- `/api/config`의 `mediaAvailable`, `imageGenerationAvailable`, `speechAvailable`로 기능을 알린다. 실제 AI 세션의 승인된 새 답은 Muse Image 편집 1회(`muse-image-1.0`)와 독립 이미지 검수 1회(`muse-spark-1.3`, `low`)를 사용한다. mock 세션은 이미지 모델을 호출하지 않는다.
+- `/api/config`의 `mediaAvailable`, `imageGenerationAvailable`, `speechAvailable`로 기능을 알린다. 실제 AI 세션의 승인된 자유 답은 Muse Image 편집 1회(`muse-image-1.0`)와 독립 이미지 검수 1회(`muse-spark-1.3`, `low`)를 사용한다. mock 세션은 이미지 모델을 호출하지 않는다.
+- **객관식은 저장 그림을 즉시 제공한다.** 서버 snapshot의 검증된 `selection`과 진행 후 `spec.asset_key`에 정확히 일치하는 파일이 있으면 AI/mock 모두 작업 큐·모델 호출 없이 `status:ready`, `source:prepared_choice`, `reason:prepared_choice_image`, `generated:false`, `generationRequested:false`를 반환한다. 재료·예상·이유 보기와 다음 집 이동·결말에 같은 규칙을 적용한다. 저장 그림은 기존 `prototype/img/`와 `prototype/img/scenes/`의 Git 추적 파일이며 레지스트리를 공유한다. 새 재료의 그림이 없으면 기존 생성 경로를 유지한다.
 - 승인된 재료·시공·행동·배역·앞선 집 상태만 프롬프트에 넣는다. 자유 답 원문·실패한 발화·오디오·카메라 프레임은 이미지 요청에 넣지 않는다. 기존 장면·배역, 가능하면 같은 집의 직전 생성 그림을 참조한다. JPEG로 디코딩해 2MB 이하로 제한하며 안전·재료·배역·행동 검수 네 항목을 모두 통과해야 제공한다.
 - 성공은 `status:ready`, `source:muse_image`, `generated:true`, `generationRequested:true`, `image.reviewed:true`다. `/api/media/images/<id>?sessionId=<id>`로 JPEG를 제공하며 미만료 세션과 이미지 소유 세션이 같아야 한다. 운영 계정 인증은 별도다.
-- 실패는 `generated:false`, `generationRequested:true`다. 해당 재료의 준비 그림 또는 이전 그림으로 계속하며 캡션으로 생성 성공과 구분한다. 자동 유료 재시도는 없다.
+- 실패는 `generated:false`, `generationRequested:true`다. 해당 재료의 준비 그림 또는 이전 그림을 유지하며 생성 성공과 구분한다. 아이용 독서 화면은 복구 전까지 다음 장면을 잠그며 자동 유료 재시도는 없다.
 - 생성 키는 세션·승인된 장면 사실이다. 중복 요청·언어만 바뀐 버전은 같은 진행 중/완료 작업을 공유하며 취소된 같은 장면도 자동 재제출하지 않는다. 세션 간 생성 그림은 공유하지 않는다. 서버 재시작 이후에는 새 생성이다.
-- 대기 중에도 답변·마이크·첫 실패 터치 선택이 가능하다. 새 답·재시작·페이지 이탈은 이전 표시를 취소하며 언어 전환은 작업을 유지해 새 버전에 연결한다. 늦은 응답·이미지 로딩도 현재 바인딩을 확인한다.
+- 아이용 독서 화면은 그림 로딩·디코딩·전환이 끝날 때까지 다음 본문·질문·입력을 잠근다. 정상 `prepared_choice`는 표시 완료 후 진행하고, 생성 실패의 대체 그림은 잠금을 유지한다. 저장 그림 로딩 실패의 재시도는 같은 파일을 다시 불러오며 유료 생성으로 바꾸지 않는다. 새 답·재시작·페이지 이탈은 이전 표시를 취소하며 언어 전환은 작업을 유지해 새 버전에 연결한다. 늦은 응답·이미지 로딩도 현재 바인딩을 확인한다.
 
 공식 규격: [Meta Image Generation](https://dev.meta.ai/docs/image-generation), [Image Understanding](https://dev.meta.ai/docs/image-understanding). 키·공급자 오류 본문을 클라이언트에 노출하지 않는다.
 
@@ -41,7 +42,7 @@ python3 -m src.server
 
 `retryOf`는 사용자가 명시적으로 다시 불러오기를 누른 경우의 이전 실패 `jobId`다. 생성이 실패한 현재 AI 작업만 새 생성·독립 검수로 대체하며, 같은 `retryOf`의 중복 요청·동시 클릭은 최신 대체 작업을 반환한다. 진행 중·완료된 작업은 재생성 없이 재연결한다. 취소한 작업·다른 장면/버전은 409, 다른 세션/없는 작업은 404다. 한 장면 사실당 수동 재생성은 최대 두 번이며 초과하면 429 `image_retry_limit`이다. `generationRetryAvailable`·`retriesRemaining`으로 복구 가능 여부를 안내한다. 언어 변경으로 한도를 초기화하지 않는다. 이미지 다운로드·디코딩 실패는 `retryOf` 없이 같은 결과를 다시 불러온다.
 
-응답 예시(종이집을 선택한 뒤, 로컬 처리가 완료된 경우):
+응답 예시(종이집 객관식을 선택한 뒤, 즉시 저장 그림을 반환):
 
 ```json
 {
@@ -49,8 +50,8 @@ python3 -m src.server
   "sessionId": "<session-id>",
   "sceneId": "house1_predict",
   "version": 1,
-  "status": "fallback",
-  "reason": "clip_unavailable",
+  "status": "ready",
+  "reason": "prepared_choice_image",
   "apply": true,
   "image": {
     "url": "/prototype/img/paper_house.jpg",
@@ -60,10 +61,13 @@ python3 -m src.server
   "video": null,
   "fallback": {
     "keepCurrentImage": false,
-    "message": "Continue with the picture while video is unavailable."
+    "message": "Continue with the prepared picture for this choice."
   },
-  "source": "local_assets",
+  "source": "prepared_choice",
   "generated": false,
+  "generationRequested": false,
+  "generationRetryAvailable": false,
+  "retriesRemaining": 0,
   "spec": {"action": "build", "outcome": "blown_away"}
 }
 ```
@@ -72,7 +76,7 @@ python3 -m src.server
 
 터치로 고른 답은 동화 응답의 `selection`과 `mediaPlan.selection`에 서버가 확정한 `{choiceId, label, answer, sessionId, sceneId, questionId, version, language}`를 담는다. 장면·질문·버전·언어는 **선택 당시의 원래 질문**을 가리키며, 미디어 계획 자체는 진행 후 장면을 가리킨다. 미디어 작업의 `spec.selection`에도 같은 기록을 전달해 추후 이미지 생성에서 실제 선택과 재료를 대조할 수 있다. 언어 전환은 원래 기록을 보존한다. 클라이언트가 보낸 임의 선택 문구·재료는 사용하지 않으며 미디어 작업 생성 요청에는 계속 바인딩 3개 필드만 받는다. 자유 발화 턴의 `selection`은 `null`이고 이전 터치를 새 발화의 출처로 표시하지 않는다.
 
-상태는 queued/running/ready/fallback/failed/cancelled다. ready는 독립 검수된 생성 이미지 또는 등록된 reviewed=true 로컬 MP4가 있을 때 반환한다. clarify/redirect/service_error 등 새 미디어 계획이 없으면 `{status: "no_new_media", jobId: null, apply: false}`를 반환한다. `generated=false`는 실제 생성 성공을 뜻하지 않는다.
+상태는 queued/running/ready/fallback/failed/cancelled다. ready는 객관식에 정확히 맞는 저장 그림, 독립 검수된 생성 이미지 또는 등록된 reviewed=true 로컬 MP4가 있을 때 반환한다. `prepared_choice` 캐시는 일반 로컬 영상 대체 작업과 분리해 결과가 섞이지 않는다. clarify/redirect/service_error 등 새 미디어 계획이 없으면 `{status: "no_new_media", jobId: null, apply: false}`를 반환한다. `generated=false`는 실제 생성 성공을 뜻하지 않는다.
 
 ## 자산과 캐시
 

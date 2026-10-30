@@ -30,6 +30,11 @@ function result(state, changes = {}) {
     jobId:'job', status:'ready', apply:true, generated:true, generationRequested:true,
     source:'muse_image', image:{url:'/api/media/images/image?sessionId=session', reviewed:true}, ...changes};
 }
+function preparedChoice(state, changes = {}) {
+  return result(state, {source:'prepared_choice', generated:false, generationRequested:false,
+    generationRetryAvailable:false, retriesRemaining:0, reason:'prepared_choice_image',
+    image:{url:'/prototype/img/paper_house.jpg'}, ...changes});
+}
 
 test('one accepted answer posts only the binding and waits for image decode before declaring success', async () => {
   const {player, calls, states, shows} = setup();
@@ -129,6 +134,55 @@ test('offline illustrations are labelled prepared and rejected answers do not ge
   await player.update(snapshot(2, {decision:'redirect', mediaPlan:null}));
   assert.equal(states.at(-1).state, 'kept');
   assert.equal(calls.filter(call => call.url === '/api/media/jobs').length, 1);
+});
+
+test('live touch choices load prepared images and complete only after display', async () => {
+  const {player, calls, states, shows, timers} = setup();
+  const state = snapshot(1, {selection:{choiceId:'paper'}});
+  const pending = player.update(state);
+  assert.equal(states.at(-1).state, 'loading');
+  calls[0].resolve(preparedChoice(state)); await pending;
+  assert.equal(states.at(-1).state, 'loading');
+  assert.equal(shows[0].url, '/prototype/img/paper_house.jpg');
+  shows[0].onComplete();
+  assert.equal(states.at(-1).state, 'prepared');
+  assert.equal(states.at(-1).source, 'prepared_choice');
+  assert.equal(states.at(-1).reason, 'prepared_choice_image');
+  assert.equal(timers.size, 0, 'An immediately ready choice never starts polling');
+  assert.equal(calls.length, 1);
+});
+
+test('a prepared choice decode failure reloads the same binding without requesting generation', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(1, {selection:{choiceId:'paper'}});
+  const first = player.update(state);
+  calls[0].resolve(preparedChoice(state)); await first;
+  shows[0].onError();
+  assert.equal(states.at(-1).state, 'failed');
+  assert.equal(states.at(-1).retryable, true, 'A local bitmap download can be retried');
+  const retry = player.retry(state);
+  shows[0].onComplete();
+  assert.equal(states.at(-1).state, 'loading', 'The old decode callback cannot complete the retry');
+  calls[1].resolve(preparedChoice(state)); await retry;
+  assert.equal(calls.length, 2);
+  assert.deepEqual(JSON.parse(calls[0].options.body), JSON.parse(calls[1].options.body));
+  assert.equal(JSON.parse(calls[1].options.body).retryOf, undefined);
+  shows[1].onComplete();
+  assert.equal(states.at(-1).state, 'prepared');
+});
+
+test('malformed prepared choice records cannot be displayed as successful choice images', async () => {
+  for (const changes of [{status:'failed'}, {status:'fallback'}, {generated:true}, {generated:undefined},
+    {generationRequested:true}, {generationRequested:undefined},
+    {image:{url:'/api/media/images/generated?sessionId=session'}}, {image:null}]) {
+    const {player, calls, states, shows} = setup();
+    const state = snapshot(1, {selection:{choiceId:'paper'}});
+    const pending = player.update(state);
+    calls[0].resolve(preparedChoice(state, changes)); await pending;
+    assert.equal(shows.length, 0, JSON.stringify(changes));
+    assert.equal(states.at(-1).state, 'failed');
+    assert.equal(states.at(-1).reason, 'invalid_prepared_choice');
+  }
 });
 
 test('mismatched bindings, external URLs and unreviewed generated pixels are never displayed', async () => {

@@ -58,7 +58,8 @@
       generating: "Previous picture · a new picture is being generated",
       loading: "Previous picture · loading the next scene",
       generated: "New picture for your answer · Muse Image",
-      prepared: "Prepared illustration · offline mode",
+      prepared: state.source === "prepared_choice" ? "Prepared illustration · your choice"
+        : "Prepared illustration · offline mode",
       fallback: "Prepared illustration · live generation unavailable",
       failed: "Previous picture · picture update unavailable",
       kept: "Previous picture · choose an answer to continue",

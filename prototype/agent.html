@@ -101,7 +101,7 @@
             <label class="input-label" for="answer" data-copy>Your test answer</label>
             <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
             <div class="answer-footer">
-              <p class="field-hint" id="answerHint" data-copy>Type, speak, or show a material. Live mode creates a new picture for each accepted answer.</p>
+              <p class="field-hint" id="answerHint" data-copy>Type, speak, or show a material. Touch choices use saved pictures; other accepted answers generate a new picture.</p>
               <div class="answer-actions">
                 <button class="button" id="cameraButton" type="button" hidden disabled>Show it to the camera</button>
                 <button class="button" id="micButton" type="button" hidden disabled>Speak an answer</button>
@@ -150,7 +150,7 @@
             </details>
             <details class="inspector">
               <summary data-copy>Inspect media handoff</summary>
-              <p class="small" data-copy>Server-approved scene data drives the picture. Live mode generates a new image for every accepted answer.</p>
+              <p class="small" data-copy>Server-approved scene data drives the picture. Touch choices reuse matching offline illustrations.</p>
               <pre id="mediaJson">No media plan yet.</pre>
             </details>
             <details class="inspector">

@@ -71,7 +71,7 @@ class StoryMediaPlayer {
     const active = {key, binding, jobId: null, controller: null, timer: null,
       deadline: Date.now() + this.timeoutMs, live: snapshot.providerMode === 'live', retrying: retry};
     this.active = active;
-    this.onState({state: active.live && this.liveImages ? 'generating' : 'loading'});
+    this.onState({state: active.live && this.liveImages && !snapshot.selection ? 'generating' : 'loading'});
     try {
       let result = await this.request('/api/media/jobs', active, {
         method: 'POST', body: JSON.stringify(binding)});
@@ -149,14 +149,23 @@ class StoryMediaPlayer {
       }, this.pollMs);
       return;
     }
-    const missingAsset = !result.image?.url && result.reason === 'scene_asset_unavailable';
-    const retryable = !missingAsset && !(active.live && !result.generationRequested)
+    const url = result.image?.url;
+    const preparedChoice = result.status === 'ready' && result.source === 'prepared_choice'
+      && result.generated === false && result.generationRequested === false
+      && typeof url === 'string' && url.startsWith('/prototype/img/');
+    // A prepared choice is an intentional image result, separate from the
+    // substitute picture attached to a failed live generation.
+    if (result.source === 'prepared_choice' && !preparedChoice) {
+      this.fail(active, {reason: 'invalid_prepared_choice', retryable: false});
+      return;
+    }
+    const missingAsset = !url && result.reason === 'scene_asset_unavailable';
+    const retryable = !missingAsset && !(active.live && !result.generationRequested && !preparedChoice)
       && !(result.generationRequested && result.status === 'failed' && result.generationRetryAvailable === false);
     const limitReached = result.generationRequested && result.status === 'failed'
       && result.generationRetryAvailable === false && result.retriesRemaining === 0;
-    const reason = limitReached ? 'image_retry_limit' : active.live && !result.generationRequested
+    const reason = limitReached ? 'image_retry_limit' : active.live && !result.generationRequested && !preparedChoice
       ? 'image_generation_unavailable' : result.reason;
-    const url = result.image?.url;
     if (!url || !(url.startsWith('/prototype/img/') || url.startsWith('/api/media/images/'))) {
       this.fail(active, {reason, retryable});
       return;
@@ -170,9 +179,9 @@ class StoryMediaPlayer {
         if (this.active === active) {
           active.retrying = false;
           this.describePicture();
-          this.onState({state: generated ? 'generated' :
+          this.onState({state: generated ? 'generated' : preparedChoice ? 'prepared' :
             result.generationRequested || active.live ? 'fallback' : 'prepared', image: result.image,
-            video: result.video, reason, retryable});
+            source: result.source, video: result.video, reason, retryable});
         }
       },
       onError: () => this.fail(active, {reason: 'image_load_failed', retryable})
