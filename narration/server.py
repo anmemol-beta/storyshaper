@@ -47,7 +47,8 @@ CACHE = ROOT / "voice" / "cache"
 PROFILES = ROOT / "voice" / "profiles"
 PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
 # The preview is the picture book's first line, so the book can start the moment the voice is saved.
-PREVIEW_TEXT = "Once upon a time, a mother pig lived with her three little pigs."
+PREVIEW_TEXT = {"en": "Once upon a time, a mother pig lived with her three little pigs.",
+                "ko": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요."}
 MAX_BODY = 16384
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_LINES = 20
@@ -320,7 +321,11 @@ class Handler(BaseHTTPRequestHandler):
             body = self.json_body()
             return self.reply(200, library.choose(voice_id, body.get("start"), body.get("end")))
         if action == "preview":
-            [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT}], *self.parent_ref(voice_id))
+            language = self.json_body().get("language", "en")
+            if language not in LANGUAGES:
+                raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
+            [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT[language]}], *self.parent_ref(voice_id),
+                                     language=language)
             return self.reply(200, clip)
         if action == "save":
             body = self.json_body()
