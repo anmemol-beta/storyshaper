@@ -40,19 +40,34 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(send.call_count, 1)
         self.assertEqual(request.full_url, 'https://api.meta.ai/v1/responses')
 
-    def test_only_composition_uses_low_reasoning_by_default(self):
+    def test_composition_and_review_use_low_reasoning_by_default(self):
         for phase in ('interpret', 'compose', 'interpret_compose', 'review'):
             with self.subTest(phase=phase):
                 response = io.BytesIO(json.dumps(envelope('{}')).encode())
                 with patch('urllib.request.urlopen', return_value=response) as send:
                     _, metrics = MetaProvider('test-secret').complete_with_metrics('policy', {'phase': phase})
                 body = json.loads(send.call_args.args[0].data)
-                if phase in {'compose', 'interpret_compose'}:
-                    self.assertEqual(body['reasoning'], {'effort': 'low'})
-                else:
+                if phase == 'interpret':
                     self.assertNotIn('reasoning', body)
-                self.assertEqual(metrics['reasoningEffort'], 'low' if phase in {'compose', 'interpret_compose'} else 'default')
+                else:
+                    self.assertEqual(body['reasoning'], {'effort': 'low'})
+                self.assertEqual(metrics['reasoningEffort'], 'default' if phase == 'interpret' else 'low')
                 self.assertEqual(body['max_output_tokens'], 8192)
+
+    def test_review_effort_can_be_omitted_or_changed_without_touching_composition(self):
+        for effort, expected in ((None, None), ('minimal', {'effort': 'minimal'})):
+            with self.subTest(effort=effort):
+                bodies = []
+                for phase in ('review', 'interpret_compose'):
+                    response = io.BytesIO(json.dumps(envelope('{}')).encode())
+                    with patch('urllib.request.urlopen', return_value=response) as send:
+                        MetaProvider('test-secret', review_reasoning_effort=effort).complete_with_metrics(
+                            'policy', {'phase': phase})
+                    bodies.append(json.loads(send.call_args.args[0].data))
+                self.assertEqual(bodies[0].get('reasoning'), expected)
+                self.assertEqual(bodies[1]['reasoning'], {'effort': 'low'})
+        with self.assertRaises(ValueError):
+            MetaProvider('test-secret', review_reasoning_effort='fast')
 
     def test_baseline_can_omit_composition_reasoning_setting(self):
         response = io.BytesIO(json.dumps(envelope('{}')).encode())
@@ -188,8 +203,7 @@ class TwoRequestAdapterTests(unittest.TestCase):
         bodies = [json.loads(call.args[0].data) for call in send.call_args_list]
         payloads = [json.loads(body['input']) for body in bodies]
         self.assertEqual([payload['phase'] for payload in payloads], ['interpret_compose', 'review'])
-        self.assertEqual(bodies[0]['reasoning'], {'effort': 'low'})
-        self.assertNotIn('reasoning', bodies[1])
+        self.assertEqual([body['reasoning'] for body in bodies], [{'effort': 'low'}, {'effort': 'low'}])
         self.assertTrue(all(body['max_output_tokens'] == 8192 and body['store'] is False for body in bodies))
         self.assertTrue(all(call.kwargs['timeout'] == 30 for call in send.call_args_list))
         self.assertEqual(payloads[1]['answer'], 'paper')

@@ -70,7 +70,7 @@ def _process_before_result(result):
     return None if process is None or outcome is None else process < outcome
 
 
-def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="low"):
+def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="low", review_effort="low"):
     if type(repeats) is not int or not 1 <= repeats <= 3:
         raise ValueError("repeats must be 1 to 3")
     recorder = RecordingProvider(provider, limit=6 * repeats)
@@ -118,7 +118,7 @@ def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="lo
     all_accepted = all(row.get("accepted", False) for row in rows)
     checks_passed = all_accepted and all(
         value is True for row in rows for value in row.get("checks", {}).values())
-    return {"label": label, "mode": provider.mode, "composeEffort": compose_effort,
+    return {"label": label, "mode": provider.mode, "composeEffort": compose_effort, "reviewEffort": review_effort,
             "repeats": repeats, "modelCalls": len(recorder.calls), "callLimit": 6 * repeats,
             "allAccepted": all_accepted, "automatedChecksPassed": checks_passed,
             "manualQualityReviewRequired": True, "liveLatencyEvidence": provider.mode == "live",
@@ -130,7 +130,8 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--live", action="store_true", help="Send up to 6 model calls per repeat.")
     mode.add_argument("--mock", action="store_true", help="Offline fixtures (the default).")
-    parser.add_argument("--compose-effort", choices=("default", "low"), default="low")
+    parser.add_argument("--compose-effort", choices=("default", "minimal", "low"), default="low")
+    parser.add_argument("--review-effort", choices=("default", "minimal", "low"), default="low")
     parser.add_argument("--label", default="comparison")
     parser.add_argument("--repeat", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("--output", type=Path)
@@ -143,9 +144,10 @@ def main(argv=None):
             print(json.dumps({"ok": False, "code": "missing_api_key"}))
             return 2
         provider = MetaProvider(key, os.environ.get("STORY_AGENT_MODEL", "muse-spark-1.3"),
-                                compose_reasoning_effort=None if args.compose_effort == "default" else "low")
+                                compose_reasoning_effort=None if args.compose_effort == "default" else args.compose_effort,
+                                review_reasoning_effort=None if args.review_effort == "default" else args.review_effort)
     report = run_benchmark(provider, repeats=args.repeat, label=args.label,
-                           compose_effort=args.compose_effort)
+                           compose_effort=args.compose_effort, review_effort=args.review_effort)
     text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(text, encoding="utf-8")

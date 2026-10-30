@@ -80,6 +80,11 @@ textarea:disabled { background: #f1f2e9; }
 .start-panel .start-story { min-height: 52px; padding: 12px 24px; font-size: .95rem; }
 .attempt-note { margin: 12px 0 0; padding: 10px 14px; border-radius: 8px; background: var(--warning-soft); color: var(--warning); font-size: .8rem; font-weight: 600; line-height: 1.5; }
 #micButton[aria-pressed="true"] { border-color: #b3261e; color: #b3261e; }
+.camera-panel { display: grid; justify-items: center; gap: 12px; margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--green-soft); }
+/* Mirrored like a mirror, so a child moves the object the way they expect. The sent frame is not mirrored. */
+.camera-panel video, .camera-panel img { width: 100%; max-width: 420px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: #1f2a24; }
+.camera-panel video { transform: scaleX(-1); }
+.camera-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
 .request-status { margin-top: 14px; color: var(--green); font-size: .8rem; min-height: 1.6em; }
 .request-status:empty { display: none; }
 .notice { padding: 14px 16px; border: 1px solid #dfc8a7; border-radius: 10px; background: var(--warning-soft); color: #6b4a20; font-size: .82rem; margin: 14px 0; overflow-wrap: anywhere; }
