@@ -11,7 +11,8 @@
     "connectionErrorText", "reconnectButton", "refreshConfig", "storyCard", "decisionBadge",
     "narrative", "questionTitle", "questionLabel", "questionIntent", "answerForm",
     "startPanel", "startStoryButton", "questionPanel", "attemptNote",
-    "answer", "micButton", "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
+    "answer", "micButton", "cameraButton", "cameraPanel", "cameraVideo", "cameraShot", "snapButton", "cameraCancel",
+    "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
     "requestErrorText", "retryButton", "sceneValue", "versionValue", "attemptsValue",
     "inputModeValue", "reasonValue", "stateJson", "mediaJson", "diagnosticsJson",
     "history", "historyEmpty", "historyCount", "mediaNotice"
@@ -33,6 +34,11 @@
   const voice = typeof VoiceInput === "undefined" ? null : VoiceInput;
   let recording = null;
   const voiceReady = () => Boolean(voice?.supported() && config?.speechAvailable);
+  // Show-it answers (camera-input.js): the child holds the material up and the camera names it.
+  const camera = typeof CameraInput === "undefined" ? null : CameraInput;
+  let cameraSession = null;
+  let cameraShotUrl = null;
+  const cameraReady = () => Boolean(camera?.supported() && config?.visionAvailable);
   // The server allows three missed tries on a question before offering three choices (roadmap §4).
   const MAX_TRIES = 3;
   const reasonText = {
@@ -93,7 +99,11 @@
     ui.answer.disabled = !canAnswer;
     ui.sendButton.disabled = !canAnswer || !ui.answer.value.trim();
     ui.micButton.hidden = !voiceReady();
-    ui.micButton.disabled = !canAnswer && !recording;
+    ui.micButton.disabled = (!canAnswer && !recording) || Boolean(cameraSession);
+    ui.cameraButton.hidden = !cameraReady();
+    ui.cameraButton.disabled = !canAnswer || Boolean(recording) || Boolean(cameraSession);
+    ui.snapButton.disabled = value;
+    ui.cameraCancel.disabled = value;
     ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
     ui.micButton.setAttribute("aria-pressed", String(Boolean(recording)));
     ui.choices.querySelectorAll("button").forEach(button => { button.disabled = !canAnswer; });
@@ -272,7 +282,7 @@
       const data = await api("/api/config", { signal: configController.signal });
       connectionFailure = null;
       config = { liveAvailable: data.liveAvailable === true, model: String(data.model || "configured model"),
-        speechAvailable: data.speechAvailable === true };
+        speechAvailable: data.speechAvailable === true, visionAvailable: data.visionAvailable === true };
       ui.mode.querySelector('[value="live"]').disabled = !config.liveAvailable;
       ui.mode.value = snapshot?.providerMode || (config.liveAvailable ? "live" : "mock");
       renderConfig();
@@ -311,6 +321,7 @@
       });
       if (token !== epoch) return;
       renderSnapshot(result);
+      closeCamera();
       ui.attemptNote.hidden = true;
       historyEntries.length = 0;
       turnCount = 0;
@@ -353,6 +364,8 @@
       });
       if (token !== epoch || snapshot.sessionId !== current.sessionId) return;
       renderSnapshot(result);
+      // The picture stays on screen while the story thinks, and goes once the story has answered.
+      closeCamera();
       appendHistory(questionText, payload.answer || t("(nothing heard)"), result);
       showAttemptNote(payload.answer, result);
       if (result.decision === "accept" || result.decision === "complete") ui.answer.value = "";
@@ -410,6 +423,8 @@
     renderHistory();
     ui.retryButton.textContent = t(retryRequest?.fresh ? "Try generation again" : "Retry this request");
     ui.micButton.textContent = recording ? t("Stop and transcribe") : t("Speak an answer");
+    ui.cameraButton.textContent = t("Show it to the camera");
+    ui.snapButton.textContent = t(ui.cameraShot.hidden ? "Take the picture" : "Show something else");
     if (connectionFailure) {
       ui.connectionErrorText.textContent = connectionFailure.name === "AbortError"
         ? t("The local server did not respond in time. Check that it is running, then reconnect.")
@@ -518,7 +533,79 @@
     ui.sendButton.focus();
   }
 
+  function closeCamera() {
+    cameraSession?.close();
+    cameraSession = null;
+    if (cameraShotUrl) URL.revokeObjectURL(cameraShotUrl);
+    cameraShotUrl = null;
+    ui.cameraShot.removeAttribute("src");
+    ui.cameraPanel.hidden = true;
+  }
+
+  // The camera only fills the answer box, like the microphone: the tester sends it with "Continue",
+  // so a camera answer passes the same story checks. A frame with no clear object is not a try.
+  async function openCamera() {
+    if (busy || cameraSession || recording || !snapshot?.question || !cameraReady()) return;
+    clearRequestError();
+    closeCamera();
+    ui.cameraShot.hidden = true;
+    ui.cameraVideo.hidden = false;
+    ui.snapButton.textContent = t("Take the picture");
+    ui.cameraPanel.hidden = false;
+    const opening = {close() {}};
+    cameraSession = opening;
+    setBusy(false, t("Opening the camera…"));
+    try {
+      const session = await camera.open(ui.cameraVideo);
+      if (cameraSession !== opening) return session.close();
+      cameraSession = session;
+    } catch (error) {
+      closeCamera();
+      setBusy(false);
+      showRequestError(error.name === "NotAllowedError"
+        ? t("Camera permission was refused. Type or speak the answer instead.")
+        : t("The camera could not start. Type or speak the answer instead."));
+      return;
+    }
+    setBusy(false, t("Hold it up to the camera, then take the picture."));
+    ui.snapButton.focus();
+  }
+
+  async function snapAndName() {
+    if (!cameraSession?.snap) return openCamera();
+    const token = epoch, questionId = snapshot.question.id;
+    const blob = await cameraSession.snap();
+    cameraSession = null;
+    cameraShotUrl = URL.createObjectURL(blob);
+    ui.cameraShot.src = cameraShotUrl;
+    ui.cameraShot.hidden = false;
+    ui.cameraVideo.hidden = true;
+    ui.snapButton.textContent = t("Show something else");
+    setBusy(true, t("Looking at the picture…"));
+    let name;
+    try {
+      name = await camera.name(blob, AgentLanguage.language);
+    } catch (error) {
+      if (token !== epoch) return;
+      setBusy(false);
+      showRequestError(t("{message} Your retry count is unchanged.", {message: errorMessage(error)}));
+      return;
+    }
+    setBusy(false);
+    if (token !== epoch || snapshot?.question?.id !== questionId) return;
+    if (!name) {
+      ui.requestStatus.textContent = t("The camera could not see one thing clearly. Hold it closer and show it again. This is not counted as a try.");
+      return;
+    }
+    ui.answer.value = name;
+    setBusy(false, t("The camera saw: “{text}”. Continue the story, or show something else.", {text: name}));
+    ui.sendButton.focus();
+  }
+
   languageButtons.forEach(button => button.addEventListener("click", () => switchLanguage(button.dataset.language)));
+  ui.cameraButton.addEventListener("click", openCamera);
+  ui.snapButton.addEventListener("click", snapAndName);
+  ui.cameraCancel.addEventListener("click", () => { closeCamera(); setBusy(false); });
   ui.micButton.addEventListener("click", toggleRecording);
 
   ui.startButton.addEventListener("click", startSession);
