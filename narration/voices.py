@@ -109,6 +109,33 @@ def suggest_clips(samples, sr, count=3):
             for r, s in sorted(picked, key=lambda p: p[1])]
 
 
+def split_utterances(samples, sr, min_s=1.5, max_s=12.0, gap_s=0.35):
+    """(start, end) seconds of stretches of talking separated by pauses of at least gap_s; long ones are cut at max_s."""
+    levels = frame_levels(samples, sr)
+    speech = levels > speech_threshold(levels)
+    spans, start, quiet = [], None, 0
+    for i, talking in enumerate(speech):
+        if talking:
+            start = i if start is None else start
+            quiet = 0
+        elif start is not None:
+            quiet += 1
+            if quiet * FRAME >= gap_s:
+                spans.append((start, i - quiet + 1))
+                start, quiet = None, 0
+    if start is not None:
+        spans.append((start, len(speech)))
+    out = []
+    for a, b in spans:
+        a_s, b_s = a * FRAME, b * FRAME
+        while b_s - a_s > max_s:
+            out.append((a_s, a_s + max_s))
+            a_s += max_s
+        if b_s - a_s >= min_s:
+            out.append((a_s, b_s))
+    return [(round(max(0.0, a - 0.15), 2), round(min(len(samples) / sr, b + 0.2), 2)) for a, b in out]
+
+
 def clip_quality(clip, sr, whole):
     """Length, how much of the clip is speech, and how far speech stands above the background noise.
     Speech and noise levels come from the whole recording: a clip that is all talking has no quiet part of its own."""
@@ -232,13 +259,70 @@ class VoiceLibrary:
             raise VoiceError(400, "too_short", "The recording is shorter than one second.")
         quality = clip_quality(samples, sr, samples)
         heard = self._transcribe(path)
-        clip = {"n": n, "text": text, "seconds": round(len(samples) / sr, 1), "heard": heard,
+        clip = {"n": n, "file": path.name, "source": "read", "text": text, "seconds": round(len(samples) / sr, 1), "heard": heard,
                 "match": None if heard is None else round(1 - text_error(text, heard), 2),
                 "snrDb": quality["snrDb"]}
         clips = self._training_clips(voice_id)
         clips[str(n)] = clip
         (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
         return clip
+
+    def add_training_media(self, voice_id, data, max_seconds=600):
+        """Turn a home video or voice message into training clips: cut at pauses, keep the clear ones, and use
+        Muse Voice Transcribe's transcript as each clip's text (for family who can't read sentences aloud)."""
+        folder = self.folder(voice_id) / "train"
+        folder.mkdir(exist_ok=True)
+        with tempfile.NamedTemporaryFile() as src, tempfile.NamedTemporaryFile(suffix=".wav") as wav:
+            src.write(data)
+            src.flush()
+            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src.name, "-vn", "-t", str(max_seconds),
+                                   "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", wav.name], capture_output=True)
+            if done.returncode:
+                raise VoiceError(400, "audio_unreadable", "No audio could be read from this file.")
+            samples, sr = read_wav(wav.name)
+        clips = self._training_clips(voice_id)
+        next_n = max([int(k) for k in clips if int(k) > 1000] + [1000]) + 1
+        added, skipped = [], 0
+        for start, end in split_utterances(samples, sr):
+            part = samples[int(start * sr): int(end * sr)]
+            if clip_quality(part, sr, samples)["snrDb"] < 12:
+                skipped += 1
+                continue
+            path = folder / f"m{next_n}.wav"
+            write_wav(path, part, sr)
+            heard = (self._transcribe(path) or "").strip()
+            if len(heard) < 3:
+                path.unlink()
+                skipped += 1
+                continue
+            clips[str(next_n)] = {"n": next_n, "file": path.name, "source": "media", "text": heard,
+                                  "seconds": round(len(part) / sr, 1), "heard": heard, "match": None}
+            added.append(clips[str(next_n)])
+            next_n += 1
+        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"added": len(added), "skipped": skipped, "seconds": round(sum(c["seconds"] for c in added), 1),
+                "clips": added}
+
+    def update_training_clip(self, voice_id, n, text=None, excluded=None):
+        """Correct a clip's text (a mistranscribed home-video clip) or leave it out of training."""
+        clips = self._training_clips(voice_id)
+        clip = clips.get(str(n))
+        if not clip:
+            raise VoiceError(404, "not_found", "No training clip with this number.")
+        if text is not None:
+            if not isinstance(text, str) or not 0 < len(text.strip()) <= 300:
+                raise VoiceError(400, "invalid_text", "Give the clip's words, up to 300 characters.")
+            clip["text"], clip["edited"] = text.strip(), True
+        if excluded is not None:
+            clip["excluded"] = bool(excluded)
+        (self.folder(voice_id) / "train" / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
+        return clip
+
+    def training_audio(self, voice_id, n):
+        clip = self._training_clips(voice_id).get(str(n))
+        if not clip:
+            raise VoiceError(404, "not_found", "No training clip with this number.")
+        return (self.folder(voice_id) / "train" / clip.get("file", f"{n:03d}.wav")).read_bytes()
 
     def _training_clips(self, voice_id):
         path = self.folder(voice_id) / "train" / "clips.json"
@@ -272,6 +356,14 @@ class VoiceLibrary:
         (self.folder(voice_id) / "full.wav").unlink(missing_ok=True)
         return meta
 
+    def set_finetune(self, voice_id, enabled):
+        meta = self.meta(voice_id)
+        if not meta.get("finetune") or not (self.folder(voice_id) / meta["finetune"]["file"]).is_file():
+            raise VoiceError(409, "no_finetune", "This voice has no fine-tune yet.")
+        meta["finetune"]["enabled"] = enabled
+        self._write_meta(voice_id, meta)
+        return meta["finetune"]
+
     def saved(self):
         voices = []
         for folder in sorted(self.root.iterdir()):
@@ -279,8 +371,19 @@ class VoiceLibrary:
             if meta_path.exists():
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
                 if meta.get("status") == "saved":
-                    voices.append({k: meta.get(k) for k in ("id", "name", "source", "savedAt", "consent")})
+                    voices.append({k: meta.get(k) for k in ("id", "name", "source", "savedAt", "consent", "finetune")})
         return voices
 
     def delete(self, voice_id):
+        """The profile, and everything trained from it: its fine-tune dataset (finetune-data/<id>) and every
+        run whose training data was this voice (finetune-runs/*/train.json), which live outside the profile."""
         shutil.rmtree(self.folder(voice_id))
+        voice_dir = self.root.parent
+        shutil.rmtree(voice_dir / "finetune-data" / voice_id, ignore_errors=True)
+        for run in (voice_dir / "finetune-runs").glob("*/train.json"):
+            try:
+                data = json.loads(run.read_text(encoding="utf-8")).get("data", "")
+            except ValueError:
+                continue
+            if Path(data).name == voice_id:
+                shutil.rmtree(run.parent, ignore_errors=True)

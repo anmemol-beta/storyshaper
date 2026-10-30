@@ -37,18 +37,18 @@ def dataset_from_voice(voice_id: str) -> Path:
     """LJSpeech folder (wavs/ + metadata.csv) from the sentences recorded on voice-train.html."""
     folder = PROFILES / voice_id / "train"
     clips = json.loads((folder / "clips.json").read_text())
-    usable = [c for c in clips.values() if c.get("match") is None or c["match"] >= MIN_MATCH]
+    usable = [c for c in clips.values() if not c.get("excluded") and (c.get("match") is None or c["match"] >= MIN_MATCH)]
     out = DATA / voice_id
     shutil.rmtree(out, ignore_errors=True)
     (out / "wavs").mkdir(parents=True)
     rows = []
     for c in sorted(usable, key=lambda c: c["n"]):
-        name = f"s{c['n']:03d}"
-        shutil.copy(folder / f"{c['n']:03d}.wav", out / "wavs" / f"{name}.wav")
+        name = f"s{c['n']:04d}"
+        shutil.copy(folder / c.get("file", f"{c['n']:03d}.wav"), out / "wavs" / f"{name}.wav")
         text = c["text"].replace("|", " ").replace("\n", " ")
         rows.append(f"{name}|{text}|{text}")
     (out / "metadata.csv").write_text("\n".join(rows) + "\n")
-    print(f"{len(usable)} of {len(clips)} recorded sentences used "
+    print(f"{len(usable)} of {len(clips)} clips used ({sum(c.get('source') == 'media' for c in usable)} from videos) "
           f"({sum(c['seconds'] for c in usable) / 60:.1f} min)", flush=True)
     return out
 

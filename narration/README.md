@@ -19,10 +19,10 @@ scripts/demo.sh            # both servers; voices the book and the fillers for e
 scripts/demo.sh --wait     # ...and waits until all of it is voiced (before recording a demo)
 ```
 
-Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m speech.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
+Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m src.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
 
 The agent page reads every new passage and question aloud and highlights the line being read.
-If the narration server is not running, the page uses the browser voice. Another server address: `agent.html?voiceServer=http://127.0.0.1:8101`.
+If the narration server is not running, the page uses the browser voice. The app is at `http://127.0.0.1:8000/`; a custom narration address can be set with `index.html?voiceServer=http://127.0.0.1:8101`.
 
 ## API
 
@@ -71,10 +71,23 @@ The parent records once, in English, and the same voice reads **English and Kore
 
 On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes to play, so live Korean passages pause between lines; the picture book is fine once voiced ahead.
 
+## Making a voice closer (fine-tuning, beta)
+
+Chatterbox imitates a voice from at most 10 s of its reference clip, so recording more does not make the zero-shot voice closer. A parent can optionally teach it their way of speaking:
+
+1. **Collect speech** on `prototype/voice-train.html` (linked from the voice setup's done page): read up to 100 short storybook sentences (each checked with Muse Voice Transcribe), and/or upload home videos and voice messages. Videos are cut at pauses into 1.5–12 s clips whose transcript becomes their text; the parent listens to each clip, corrects the words, or marks it "Don't use".
+2. **Train** a LoRA on Chatterbox's T3 (rhythm, accent, phrasing; timbre still comes from the reference clip):
+   `voice/.venv-ft/bin/python -m narration.finetune --voice <id>` — uses [gokhaneraslan/chatterbox-finetuning](https://github.com/gokhaneraslan/chatterbox-finetuning) (Apache-2.0, `voice/finetune-kit`, set up with its `setup.py`; English tokenizer folder `pretrained_models_en`), runs on Apple MPS. 48 sentences: ~2.6 min for 10 epochs.
+3. **Compare** held-out lines before/after (and today's voice with `--current <id>`): `python -m narration.finetune_eval --run <name> --ref … --real …` writes a listening page.
+4. **Use it**: `python -m narration.finetune_merge --run <name> --voice <id>` bakes the adapter into a T3 file in the voice's folder; the "Trained voice (beta)" switch on `voice.html` (`POST /api/voices/<id>/finetune`) makes the server read that voice's **English** parent lines with it. Korean keeps the multilingual model.
+
+Deleting the voice deletes its clip, recordings, fine-tune dataset, runs trained from it and the merged model.
+
+First results (현준's 48 sentences, 4.2 min): held-out speaker similarity and transcription match stayed within noise of the zero-shot voice (0.83 / 0.95–0.98; real recordings score 0.90 against each other), so the switch stays off until it is judged by ear.
+
 ## Where the voices are used
 
-- **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after the first missed answer is read the same way; the cards can be tapped before the invitation finishes.
-- **Story agent lab (`agent.html`)**: passages and questions are read in character. The first unaccepted answer or speech failure opens three active touch choices, with an invitation and option labels read through the same narration service. This replaces passage narration for that failure so voices do not overlap. Free-text or confirmed voice answers trigger a short "let's see…" line while the next part is written; immediate authored touch choices need no waiting interjection.
+- **Integrated storybook (`index.html`, port 8000)**: passages and questions are read in character. The first unaccepted answer or speech failure opens active touch choices with narration that does not block tapping. Free answers can play a prepared interjection while waiting. The previous `agent.html` page was moved here and removed.
 - **Voice setup (`voice.html`)**: saving a voice voices the whole picture book (`audio/lines.json`) and the "let's see…" lines in the background, and has a switch to read every character, the wolf too, in that voice (`localStorage["story-voice-all"]`, sent as `allRoles`).
 
 ## Page module
@@ -83,7 +96,7 @@ On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes t
 
 - `speak(lines, {key, language, onLine})`: queues the lines and plays them in order. `onLine(i)` is called as line `i` starts and with `-1` at the end. Calling `speak` with the same `key` again does nothing, so a re-render does not repeat the passage.
 - `prepare(lines)`: queues the lines and returns their clip URLs (or `null`), for pages that play audio themselves.
-- `interject()`: says one of five short lines ("Hmm, let me think about that…") right away; skipped if it is not generated yet. `warm()` generates them ahead. A following `speak` waits for it to finish.
+- `interject()`: says one of five short lines ("Hmm, let me think about that…") right away, and another every 8 s (at most three) until the next passage's first line is ready to play; skipped if not generated yet. `warm()` generates them ahead. The story never talks over a filler.
 - `usesParentVoice()`: a voice is registered on this device.
 - `stop()`: cuts the reading at once. Call it when the child starts talking (so the mic does not hear the narration), and on page changes or restart.
 
@@ -98,3 +111,7 @@ On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes t
 - Picture book with a registered voice: the cover page was read with that voice's clips. Right after saving, the first line waited about 10 s because the whole book was still being voiced; once voiced, lines play at once.
 - Agent lab after saving a voice: a "let's see…" line played within 0.2 s of each of three answers; after three missed tries the choices "1. Paper. 2. Straw. 3. Cookie." were read.
 - Not checked: Safari/iPad autoplay (Chrome allowed playback after the first tap), a full story with wolf lines in the agent flow, a cloud GPU.
+
+## Speed (2026-10-31, Mac MPS)
+
+The server prepares each voice's reference analysis once per clip instead of on every line: English 3.1 → 2.5 s per line, Korean 6.3 → 4.7 s (interleaved, same seeds; `experiments/narration_speed.py`). Korean passages written live can still pause between long lines; a faster GPU is the remaining fix. T3 in float16 fails on MPS.

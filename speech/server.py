@@ -13,7 +13,7 @@ from media.server import MediaHandler, MediaPlayground
 from media.jobs import MediaJobs
 from media.image_provider import MuseImageProvider
 from story_agent.provider import load_env
-from story_agent.server import ROOT, APIError
+from story_agent.server import ROOT, APIError, runtime_options
 from .transcribe import AUDIO_TYPES, MIN_SPEECH_MS, MuseTranscriber, SpeechError, duration_ms, to_wav
 
 # One answer is at most 8 s (the page stops recording there); 2 MB holds even uncompressed WAV.
@@ -82,11 +82,13 @@ def main():
     load_env(ROOT / ".env")
     key = os.environ.get("MODEL_API_KEY", "")
     app = SpeechPlayground(key, os.environ.get("STORY_AGENT_MODEL", "muse-spark-1.3"),
+                           **runtime_options(),
                            transcriber=MuseTranscriber(key) if key else None,
-                           media=MediaJobs(image_provider=MuseImageProvider(key) if key else None))
+                           media=MediaJobs(image_provider=MuseImageProvider(
+                               key, reasoning_strength=os.environ.get("STORY_IMAGE_REASONING_STRENGTH", "low")) if key else None))
     try:
         with SpeechServer(("127.0.0.1", args.port), app) as server:
-            print(f"Story + media + speech: http://127.0.0.1:{server.server_port}/prototype/agent.html", flush=True)
+            print(f"Story + media + speech: http://127.0.0.1:{server.server_port}/", flush=True)
             print("Speech and live story: " + ("configured" if key else "not configured; set MODEL_API_KEY in .env"), flush=True)
             server.serve_forever()
     except KeyboardInterrupt:

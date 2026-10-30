@@ -1,6 +1,7 @@
 """Before / after a fine-tune: the same held-out sentences, the same reference clip, with and without the adapter.
 
     voice/.venv-ft/bin/python -m narration.finetune_eval --run smoke --ref voice/ref_clip.wav --real voice/finetune-data/smoke/wavs
+    ... --current <voice id>     also score what the narration server reads today for that voice (needs it running)
 
 Scores (higher is better):
 - similarity: cosine between Chatterbox's speaker embedding of the generated line and of the real recordings
@@ -38,6 +39,7 @@ def main():
     parser.add_argument("--run", required=True, help="folder name in voice/finetune-runs")
     parser.add_argument("--ref", required=True, help="reference clip both versions imitate")
     parser.add_argument("--real", required=True, help="folder of the parent's real recordings (wav) to compare with")
+    parser.add_argument("--current", help="voice id (or 'default') to fetch from the running narration server as a third column")
     args = parser.parse_args()
     run = ROOT / "voice" / "finetune-runs" / args.run
     ref, real = Path(args.ref).resolve(), Path(args.real).resolve()
@@ -79,6 +81,17 @@ def main():
     transcribe = muse_transcriber(load_api_key())
     results = {"before": [], "after": []}
     target = None
+
+    def score(label, n, text, path, model):
+        wav, sr = librosa.load(str(path), sr=None)
+        e = embed(model, wav, sr)
+        sim = float(np.dot(e, target) / (np.linalg.norm(e) * np.linalg.norm(target)))
+        with tempfile.NamedTemporaryFile(suffix=".wav") as t:
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(path), "-ar", "16000", "-ac", "1", t.name], check=True)
+            heard = transcribe(Path(t.name).read_bytes())
+        results[label].append({"n": n, "text": text, "file": path.name, "similarity": round(sim, 3),
+                               "heard": heard, "match": round(1 - text_error(text, heard), 2)})
+        print(f"{label} {n}: similarity {sim:.3f}  match {results[label][-1]['match']:.2f}", flush=True)
     for label, adapter in (("before", None), ("after", run / "new_lang_adapter")):
         model = engine(adapter)
         if target is None:
@@ -89,31 +102,51 @@ def main():
             wav = model.generate(text, audio_prompt_path=str(ref), exaggeration=0.5, cfg_weight=0.5).squeeze(0).cpu().numpy()
             path = out / f"{label}_{n}.wav"
             sf.write(path, wav, model.sr)
-            e = embed(model, wav, model.sr)
-            sim = float(np.dot(e, target) / (np.linalg.norm(e) * np.linalg.norm(target)))
-            with tempfile.NamedTemporaryFile(suffix=".wav") as t:
-                subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(path), "-ar", "16000", "-ac", "1", t.name], check=True)
-                heard = transcribe(Path(t.name).read_bytes())
-            results[label].append({"n": n, "text": text, "file": path.name, "similarity": round(sim, 3),
-                                   "heard": heard, "match": round(1 - text_error(text, heard), 2)})
-            print(f"{label} {n}: similarity {sim:.3f}  match {results[label][-1]['match']:.2f}", flush=True)
+            score(label, n, text, path, model)
+        if args.current and label == "after":
+            # What the narration server reads today for this voice (English model, the voice's clip).
+            import urllib.error
+            import urllib.request
+            results["current"] = []
+            body = {"lines": [{"text": t} for t in HELD_OUT], **({} if args.current == "default" else {"voiceId": args.current})}
+            req = urllib.request.Request("http://127.0.0.1:8100/api/voice/lines", data=json.dumps(body).encode(),
+                                         headers={"Host": "127.0.0.1:8100", "Content-Type": "application/json"})
+            for n, clip in enumerate(json.load(urllib.request.urlopen(req))["clips"], 1):
+                audio = None
+                for _ in range(20):                 # the server may be busy voicing books ahead: keep asking (~10 min)
+                    try:
+                        audio = urllib.request.urlopen(urllib.request.Request(f"http://127.0.0.1:8100{clip['url']}?wait=30",
+                                                       headers={"Host": "127.0.0.1:8100"}), timeout=90).read()
+                        break
+                    except urllib.error.HTTPError as exc:
+                        if exc.code != 504:
+                            raise
+                if audio is None:
+                    print(f"current {n}: not ready, skipped", flush=True)
+                    continue
+                path = out / f"current_{n}.mp3"
+                path.write_bytes(audio)
+                score("current", n, HELD_OUT[n - 1], path, model)
         del model
     summary = {k: {"similarity": round(float(np.mean([r["similarity"] for r in v])), 3),
                    "match": round(float(np.mean([r["match"] for r in v])), 2)} for k, v in results.items()}
     (out / "eval.json").write_text(json.dumps({"summary": summary, **results}, ensure_ascii=False, indent=2))
+    columns = [c for c in ("current", "before", "after") if c in results]
+    names = {"current": "Today (narration server)", "before": "Before (same base)", "after": "After fine-tune"}
     rows = "".join(
-        f"<tr><td>{html.escape(b['text'])}</td>"
-        f"<td><audio controls preload=none src='{b['file']}'></audio><br>{b['similarity']:.3f} · {b['match']:.2f}</td>"
-        f"<td><audio controls preload=none src='{a['file']}'></audio><br>{a['similarity']:.3f} · {a['match']:.2f}</td></tr>"
-        for b, a in zip(results["before"], results["after"]))
+        f"<tr><td>{html.escape(results['before'][i]['text'])}</td>" + "".join(
+            f"<td><audio controls preload=none src='{results[c][i]['file']}'></audio><br>"
+            f"{results[c][i]['similarity']:.3f} · {results[c][i]['match']:.2f}</td>" if i < len(results[c]) else "<td>—</td>"
+            for c in columns) + "</tr>"
+        for i in range(len(HELD_OUT)))
     (out / "index.html").write_text(f"""<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>Fine-tune: {html.escape(args.run)}</title>
 <style>body{{font-family:system-ui;max-width:980px;margin:24px auto;padding:0 16px;color:#222}}td,th{{border-bottom:1px solid #ddd;padding:8px;vertical-align:top}}
 table{{border-collapse:collapse;width:100%}}audio{{width:260px}}</style>
 <h1>Fine-tune “{html.escape(args.run)}”: before / after</h1>
 <p>Same reference clip and settings. Scores: speaker similarity to the real recordings · transcription match.
-Before {summary['before']['similarity']:.3f} · {summary['before']['match']:.2f} — After {summary['after']['similarity']:.3f} · {summary['after']['match']:.2f}</p>
-<table><tr><th>Sentence</th><th>Before</th><th>After</th></tr>{rows}</table>""")
+{" — ".join(f"{names[c]} {summary[c]['similarity']:.3f} · {summary[c]['match']:.2f}" for c in columns)}</p>
+<table><tr><th>Sentence</th>{"".join(f"<th>{names[c]}</th>" for c in columns)}</tr>{rows}</table>""")
     print(json.dumps(summary), flush=True)
 
 

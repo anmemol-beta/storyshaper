@@ -101,6 +101,20 @@ class NarratorTest(unittest.TestCase):
             self.assertEqual(n.wait("abcdef123456", clip["key"], 5), "ready")
             self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", clip["key"]).read_bytes())
 
+    def test_fine_tuned_t3_only_reads_the_parent_roles_in_english(self):
+        n = Narrator(FakeVoice(), self.tmp.name)
+        lines = [{"speakerId": "narrator", "text": "Hi."}, {"speakerId": "wolf", "text": "Hi."}]
+        plain = n.submit(lines, "abcdef123456", "/profiles/dad.wav")
+        tuned = n.submit(lines, "abcdef123456", "/profiles/dad.wav", t3="/profiles/t3.safetensors#1")
+        korean = n.submit(lines, "abcdef123456", "/profiles/dad.wav", language="ko", t3="/profiles/t3.safetensors#1")
+        self.assertNotEqual(plain[0]["key"], tuned[0]["key"])      # narrator: new key with the fine-tune
+        self.assertEqual(plain[1]["key"], tuned[1]["key"])         # wolf: stock voice, unchanged
+        korean_plain = n.submit(lines, "abcdef123456", "/profiles/dad.wav", language="ko")
+        self.assertEqual(korean[0]["key"], korean_plain[0]["key"])  # Korean is not fine-tuned
+        for clip in plain + tuned + korean:          # let every queued line finish before the folder is removed
+            self.assertEqual(n.wait("abcdef123456", clip["key"], 5), "ready")
+        self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", tuned[0]["key"]).read_bytes())
+
     def test_newest_request_is_voiced_first_in_line_order(self):
         voice = FakeVoice(hold=True)
         n = Narrator(voice, self.tmp.name)
@@ -154,6 +168,29 @@ class FillerListTest(unittest.TestCase):
             self.assertEqual(re.findall(r'"([^"]+)"', block), expected)
 
 
+class FinetuneDatasetTest(unittest.TestCase):
+    def test_dataset_uses_corrected_text_and_skips_excluded_and_misread_clips(self):
+        import narration.finetune as ft
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            train = root / "profiles" / "abcdef123456" / "train"
+            train.mkdir(parents=True)
+            clips = {
+                "1": {"n": 1, "file": "001.wav", "text": "Read well.", "seconds": 2.0, "match": 0.95},
+                "2": {"n": 2, "file": "002.wav", "text": "Misread.", "seconds": 2.0, "match": 0.4},
+                "1001": {"n": 1001, "file": "m1001.wav", "text": "Fixed words.", "seconds": 3.0, "match": None, "edited": True},
+                "1002": {"n": 1002, "file": "m1002.wav", "text": "Left out.", "seconds": 3.0, "match": None, "excluded": True},
+            }
+            for c in clips.values():
+                (train / c["file"]).write_bytes(b"RIFF")
+            (train / "clips.json").write_text(json.dumps(clips))
+            ft.PROFILES, ft.DATA = root / "profiles", root / "data"
+            out = ft.dataset_from_voice("abcdef123456")
+            self.assertEqual((out / "metadata.csv").read_text().splitlines(),
+                             ["s0001|Read well.|Read well.", "s1001|Fixed words.|Fixed words."])
+            self.assertEqual(sorted(p.name for p in (out / "wavs").iterdir()), ["s0001.wav", "s1001.wav"])
+
+
 class ClipAnalysisTest(unittest.TestCase):
     def test_suggests_the_part_with_the_most_talking(self):
         audio = speech_like([(0, 4), (1, 1), (0, 6), (1, 12), (0, 4)])
@@ -161,6 +198,15 @@ class ClipAnalysisTest(unittest.TestCase):
         self.assertAlmostEqual(first["start"], 11, delta=0.3)
         self.assertAlmostEqual(first["end"] - first["start"], 10, delta=0.1)
         self.assertGreater(first["speech"], 0.95)
+
+    def test_split_utterances_cuts_at_pauses_and_caps_length(self):
+        from narration.voices import split_utterances
+        audio = speech_like([(0, 1), (1, 3), (0, 0.6), (1, 2), (0, 0.2), (1, 1), (0, 1), (1, 0.8), (0, 1), (1, 30), (0, 1)])
+        spans = split_utterances(audio, SR)
+        lengths = [round(b - a) for a, b in spans]
+        self.assertEqual(len(spans), 5)            # 3 s | 2 s + 1 s joined over a short gap | (0.8 s dropped) | 30 s cut in 12+12+6
+        self.assertTrue(all(b - a <= 12.4 for a, b in spans))
+        self.assertAlmostEqual(spans[0][0], 0.85, delta=0.1)
 
     def test_quality_flags_short_quiet_and_noisy_clips(self):
         good = speech_like([(1, 10)] + [(0, 0.5), (1, 2)])
@@ -213,6 +259,21 @@ class VoiceLibraryTest(unittest.TestCase):
         quiet = VoiceLibrary(self.root / "p3", lambda wav: "once upon a time")
         self.assertFalse(quiet.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True)["consentHeard"])
         self.assertNotIn("consentHeard", quiet.create((self.root / "talk.wav").read_bytes(), "video/mp4"))
+
+    def test_deleting_a_voice_also_deletes_what_was_trained_from_it(self):
+        draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
+        vid = draft["id"]
+        data = self.root / "finetune-data" / vid
+        (data / "wavs").mkdir(parents=True)
+        mine, other = self.root / "finetune-runs" / "dad-run", self.root / "finetune-runs" / "someone-else"
+        for run, source in ((mine, data), (other, self.root / "finetune-data" / "aaaaaaaaaaaa")):
+            run.mkdir(parents=True)
+            (run / "train.json").write_text(json.dumps({"data": str(source)}))
+        self.library.delete(vid)
+        self.assertFalse((self.root / "profiles" / vid).exists())
+        self.assertFalse(data.exists())
+        self.assertFalse(mine.exists())
+        self.assertTrue(other.exists())
 
     def test_consent_and_bad_files_are_refused(self):
         draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
@@ -308,7 +369,45 @@ class HttpTest(unittest.TestCase):
         progress = json.loads(body)
         self.assertEqual(([c["n"] for c in progress["clips"]], progress["total"]), ([1], 100))
         self.assertGreater(progress["seconds"], 10)
+        # No fine-tune yet: it cannot be switched on. With a merged file, switching it on changes the English keys.
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/finetune", {"enabled": True})[0], 409)
+        self.request("POST", f"/api/voices/{vid}/clip", {"start": 1, "end": 11})
+        self.request("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me", "attested": True})
+        before = json.loads(self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "voiceId": vid, "peek": True})[2])
+        folder = self.server.library.folder(vid)
+        (folder / "t3_finetuned.safetensors").write_bytes(b"weights")
+        meta = json.loads((folder / "meta.json").read_text())
+        meta["finetune"] = {"run": "test", "file": "t3_finetuned.safetensors", "enabled": False}
+        (folder / "meta.json").write_text(json.dumps(meta))
+        status, _, body = self.request("POST", f"/api/voices/{vid}/finetune", {"enabled": True})
+        self.assertEqual((status, json.loads(body)["enabled"]), (200, True))
+        after = json.loads(self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "voiceId": vid, "peek": True})[2])
+        self.assertNotEqual(before["clips"][0]["key"], after["clips"][0]["key"])
+        self.assertTrue(json.loads(self.request("GET", "/api/voices")[2])["voices"][0]["finetune"]["enabled"])
         self.assertEqual(self.request("DELETE", f"/api/voices/{vid}")[0], 200)
+        self.assertFalse(folder.exists())
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
+    def test_home_video_becomes_transcribed_training_clips(self):
+        status, _, body = self.request("POST", "/api/voices", raw=self.wav.read_bytes(), headers={"Content-Type": "audio/wav"})
+        vid = json.loads(body)["id"]
+        long = Path(self.wav).with_name("home.wav")
+        write_wav(long, speech_like([(0, 1), (1, 4), (0, 1), (1, 5), (0, 1)]))
+        status, _, body = self.request("POST", f"/api/voices/{vid}/train", raw=long.read_bytes(), headers={"Content-Type": "audio/wav"})
+        result = json.loads(body)
+        self.assertEqual((status, result["added"]), (200, 2))
+        self.assertEqual({c["source"] for c in result["clips"]}, {"media"})
+        self.assertEqual([c["text"] for c in result["clips"]], ["hello", "hello"])   # the transcript is the text
+        progress = json.loads(self.request("GET", f"/api/voices/{vid}/train")[2])
+        self.assertEqual([c["n"] for c in progress["clips"]], [1001, 1002])
+        # The parent listens, corrects a mistranscribed clip and leaves another one out.
+        status, headers, audio = self.request("GET", f"/api/voices/{vid}/train/1001.wav")
+        self.assertEqual((status, headers["Content-Type"], audio[:4]), (200, "audio/wav", b"RIFF"))
+        fixed = json.loads(self.request("POST", f"/api/voices/{vid}/train/1001", {"text": "Once upon a time."})[2])
+        self.assertEqual((fixed["text"], fixed["edited"]), ("Once upon a time.", True))
+        self.assertTrue(json.loads(self.request("POST", f"/api/voices/{vid}/train/1002", {"excluded": True})[2])["excluded"])
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1003", {"excluded": True})[0], 404)
+        self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1001", {"text": ""})[0], 400)
 
     def test_preflight_allows_local_origin_only(self):
         status, headers, _ = self.request("OPTIONS", "/api/voice/lines", headers={"Origin": "http://localhost:5173"})

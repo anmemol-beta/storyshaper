@@ -34,6 +34,7 @@
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
     "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
     "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
+    "Trained voice (beta)": "학습한 목소리 사용 (베타)",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "Something went wrong ({status}). Try again.": "문제가 생겼어요 ({status}). 다시 해 주세요.",
     "Listening to {label}…": "{label}을(를) 듣고 있어요…", "the recording": "녹음",
@@ -563,6 +564,18 @@
           voice.consent?.relation === "me" ? "My own voice" : "A parent who is away")}));
       pick.append(radio, text);
       row.append(pick);
+      // A fine-tuned voice (narration/finetune_merge.py) can be switched on and off to compare by ear.
+      if (voice.finetune) {
+        const tune = document.createElement("label");
+        tune.className = "tuned";
+        const box = Object.assign(document.createElement("input"), {type: "checkbox", checked: Boolean(voice.finetune.enabled)});
+        box.onchange = async () => {
+          try { await api(`/api/voices/${voice.id}/finetune`, post({enabled: box.checked})); }
+          catch (error) { box.checked = !box.checked; alert(error.message); }
+        };
+        tune.append(box, tr("Trained voice (beta)"));
+        row.append(tune);                         // beside the name, not inside its label (no nested labels)
+      }
       if (voice.id) {
         const remove = Object.assign(document.createElement("button"), {type: "button", className: "btn small", textContent: tr("Delete")});
         remove.onclick = async () => {

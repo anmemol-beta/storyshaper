@@ -27,6 +27,12 @@
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "The microphone is blocked. Allow it in the browser.": "마이크가 막혀 있어요. 브라우저에서 허용해 주세요.",
     "Record": "녹음", "Stop": "멈추기",
+    "Can't read these sentences? Add videos or voice messages of them instead.": "문장을 읽어 줄 수 없나요? 그 사람의 영상이나 음성 메시지를 대신 올려 주세요.",
+    "Add videos or voice messages": "영상·음성 메시지 올리기",
+    "Listening to {name}…": "{name} 듣는 중…",
+    "Added {added} clips ({seconds} s) from {name}.": "{name}에서 {added}개 구간({seconds}초)을 더했어요.",
+    "Listen to each part and fix any words we heard wrong. Wrong words teach the voice wrong sounds.": "구간을 하나씩 들어 보고 잘못 받아쓴 말을 고쳐 주세요. 틀린 문장은 목소리에 틀린 발음을 가르쳐요.",
+    "Don't use": "쓰지 않기", "Play part {n}": "{n}번 구간 듣기",
   };
   let language = (() => {
     const asked = new URLSearchParams(location.search).get("lang");
@@ -58,10 +64,11 @@
 
   function showProgress() {
     const clips = Object.values(done);
-    const secs = Math.round(clips.reduce((s, c) => s + c.seconds, 0));
-    $("meter").style.width = `${(clips.length / Math.max(1, sentences.length)) * 100}%`;
+    const read = clips.filter(c => c.source !== "media").length;
+    const secs = Math.round(clips.filter(c => !c.excluded).reduce((s, c) => s + c.seconds, 0));
+    $("meter").style.width = `${Math.min(1, secs / 600) * 100}%`;          // ten minutes of speech fills the bar
     $("count").textContent = tr("{done} of {total} sentences · {minutes} min {seconds} s recorded",
-      {done: clips.length, total: sentences.length, minutes: Math.floor(secs / 60), seconds: secs % 60});
+      {done: read, total: sentences.length, minutes: Math.floor(secs / 60), seconds: secs % 60});
   }
 
   function show() {
@@ -135,6 +142,48 @@
     show();
   }
 
+  // Clips cut from videos: listen, correct the words, or leave a clip out (POST /train/<n> with JSON).
+  function renderMedia() {
+    const clips = Object.values(done).filter(c => c.source === "media").sort((a, b) => a.n - b.n);
+    $("mediaHelp").hidden = !clips.length;
+    $("mediaClips").replaceChildren(...clips.map(c => {
+      const li = document.createElement("li");
+      li.classList.toggle("off", Boolean(c.excluded));
+      const play = Object.assign(document.createElement("button"), {type: "button", textContent: "▶"});
+      play.setAttribute("aria-label", tr("Play part {n}", {n: c.n - 1000}));
+      play.onclick = () => new Audio(`${server}/api/voices/${voiceId}/train/${c.n}.wav`).play();
+      const text = Object.assign(document.createElement("textarea"), {rows: 2, value: c.text});
+      const save = async body => {
+        try { done[c.n] = await call(`/api/voices/${voiceId}/train/${c.n}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}); }
+        catch (e) { error(e.message); }
+        renderMedia();
+        showProgress();
+      };
+      text.onchange = () => save({text: text.value});
+      const off = document.createElement("label");
+      const box = Object.assign(document.createElement("input"), {type: "checkbox", checked: Boolean(c.excluded)});
+      box.onchange = () => save({excluded: box.checked});
+      off.append(box, " " + tr("Don't use"));
+      li.append(play, text, off);
+      return li;
+    }));
+  }
+
+  // Home videos and voice messages: the server cuts them at pauses and uses the transcript as each clip's text.
+  $("media").onchange = async () => {
+    const files = [...$("media").files];
+    $("media").value = "";
+    for (const file of files) {
+      $("mediaStatus").textContent = tr("Listening to {name}…", {name: file.name});
+      try {
+        const result = await call(`/api/voices/${voiceId}/train`, {method: "POST", headers: {"Content-Type": file.type || "audio/mpeg"}, body: file});
+        for (const c of result.clips) done[c.n] = c;
+        renderMedia();
+        $("mediaStatus").textContent = tr("Added {added} clips ({seconds} s) from {name}.", {added: result.added, seconds: result.seconds, name: file.name});
+        showProgress();
+      } catch (e) { error(e.message); }
+    }
+  };
   $("rec").onclick = toggle;
   $("skip").onclick = () => { index = Math.min(index + 1, sentences.length - 1); lastUrl = null; show(); };
   $("prev").onclick = () => { index = Math.max(0, index - 1); lastUrl = null; show(); };
@@ -149,5 +198,6 @@
     catch (e) { error(e.message); }
     index = Math.max(0, sentences.findIndex(s => !done[s.n]));
     applyCopy();
+    renderMedia();
   })();
 })();

@@ -36,7 +36,12 @@ const Narration = (() => {
   let speechFinish = null;  // resolves browser speech immediately when a scene is cancelled
   let filler = null;        // {audio, done, end} while an interjection plays
   let lastFiller = -1;
-  let interjectEpoch = 0;
+  // After an answer the next passage takes ~10 s to write and a few more to voice. Until its first line
+  // starts, another short line is said every FILLER_GAP ms, at most FILLER_MAX times, so the wait isn't silent.
+  const FILLER_GAP = 8000, FILLER_MAX = 3;
+  let waiting = false;
+  let fillerTimer = null;
+  function stopWaiting() { waiting = false; clearTimeout(fillerTimer); }
 
   const stored = key => { try { return localStorage.getItem(key); } catch { return null; } };
   const voiceId = () => stored("story-voice");
@@ -51,20 +56,30 @@ const Narration = (() => {
   }
 
   function stop() {
+    stopWaiting();
     stopReading();
-    interjectEpoch += 1;
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  function playClip(url) {
+  // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
+  function playClip(url, beforePlay = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
       audio = clip;
       finish = resolve;
       clip.onended = () => resolve(true);
       clip.onerror = () => resolve(false);
-      clip.play().catch(() => resolve(false));
+      const go = () => { if (audio === clip) clip.play().catch(() => resolve(false)); };
+      if (!beforePlay) return go();
+      clip.addEventListener("canplay", async () => { await beforePlay(); go(); }, {once: true});
+      clip.load();
     });
+  }
+
+  // Fillers continue until the first story line is actually ready; then let the one talking finish.
+  async function firstLineReady() {
+    stopWaiting();
+    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
   }
 
   function browserSay(text, language) {
@@ -129,16 +144,22 @@ const Narration = (() => {
 
   // A short line in the parent's voice, said at once. Skipped if it is not generated yet: a robot voice
   // saying "let me think" would be worse than a moment of quiet.
-  async function interject(language = "en") {
+  function interject(language = "en") {
     if (!LANGUAGES.includes(language)) return;
-    const epoch = ++interjectEpoch;
+    stopWaiting();
+    waiting = true;
+    sayFiller(language, FILLER_MAX - 1);
+  }
+
+  async function sayFiller(language, more) {
+    if (!waiting) return;
+    if (more > 0) fillerTimer = setTimeout(() => sayFiller(language, more - 1), FILLER_GAP);
+    if (filler) return;                         // the previous one is still talking
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
-    if (!voiceId()) { await browserSay(list[lastFiller], language); return; }
     let clip;
     try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language}); } catch { return; }
-    if (epoch !== interjectEpoch) return;
-    if (!clip.ready) return;
+    if (!clip.ready || !waiting) return;
     if (filler) filler.end();
     const sound = new Audio(`${server}${clip.url}`);
     let resolve;
@@ -151,38 +172,49 @@ const Narration = (() => {
   // Generate the fillers now, so interject() can play them instantly later.
   // Every language unless one is given.
   function warm(language = null) {
-    if (!voiceId()) return;
     for (const lang of language ? [language] : LANGUAGES) {
       queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang}).catch(() => {});
     }
   }
 
   // key: skip re-reading the same passage (e.g. a re-render after an error). Only English has cloned voices.
+  // A long line is voiced sentence by sentence, so its first sentence can play while the rest is made
+  // (a Korean line takes ~5 s per sentence on a Mac). Short lines and single sentences stay whole.
+  const LONG_LINE = 40;
+  function sentences(text) {
+    if (text.length <= LONG_LINE) return [text];
+    const parts = text.match(/[^.!?…]+(?:[.!?…]+["”’']?|$)\s*/g)?.map(p => p.trim()).filter(Boolean) || [text];
+    const merged = [];
+    for (const part of parts) {                 // keep tiny pieces ("Oh!") with their neighbour
+      if (merged.length && (part.length < 12 || merged[merged.length - 1].length < 12)) merged[merged.length - 1] += " " + part;
+      else merged.push(part);
+    }
+    return merged;
+  }
+
   async function speak(lines, {key = null, language = "en", onLine = () => {}} = {}) {
     if (key !== null && key === lastKey) return;
     lastKey = key;
-    interjectEpoch += 1;
-    if (filler) { filler.audio.pause(); filler.end(); }
     stopReading();
     const my = token;
     const usable = lines.filter(line => String(line.text || "").trim());
-    let urls = null;
-    if (voiceId() && LANGUAGES.includes(language)) {
-      try {
-        const clips = await queue(asLines(usable), {language});
-        urls = clips.map(clip => clip.ready ? `${server}${clip.url}` : null);
-      } catch { /* The browser voice starts immediately when the saved voice is unavailable. */ }
-    }
-    for (let i = 0; i < usable.length; i += 1) {
+    const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({speakerId: line.speakerId, text, line: i})));
+    const urls = await prepare(parts, {language});
+    // Let an interjection finish its sentence before the story goes on.
+    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
+    for (let k = 0; k < parts.length; k += 1) {
       if (my !== token) return;
-      onLine(i);
-      const played = urls?.[i] ? await playClip(urls[i]) : false;
+      if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
+      const played = urls ? await playClip(urls[k], k === 0 ? firstLineReady : null) : false;
       if (my !== token) return;
-      if (!played) await browserSay(usable[i].text, language);
+      if (!played) {
+        if (k === 0) await firstLineReady();
+        await browserSay(parts[k].text, language);
+      }
     }
     if (my === token) onLine(-1);
   }
 
-  return {speak, stop, prepare, voiceAhead, readyCount, interject, warm, fillers,
+  return {speak, stop, prepare, voiceAhead, readyCount, interject, warm, fillers, sentences,
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
 })();

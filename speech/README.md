@@ -11,12 +11,12 @@ MediaRecorder (webm / ogg / mp4) → POST /api/transcribe → ffmpeg → 16 kHz 
 Needs Python 3.10+, `ffmpeg` on the PATH and `MODEL_API_KEY` in the repository's `.env`.
 
 ```bash
-python3 -m speech.server            # story agent + media + speech on http://127.0.0.1:8000
+python3 -m src.server            # integrated app, including camera, on http://127.0.0.1:8000
 ```
 
-Open `http://127.0.0.1:8000/prototype/agent.html`. The **Speak an answer** button appears when the server reports `speechAvailable`. The recognized text goes into the answer box: press **Continue story** to use it, or **That's not what I said** to immediately open touch choices. Silence, a short tap, microphone refusal, and recognition errors also open the choices immediately. The child can tap before the spoken invitation finishes; another recording is optional.
+Open `http://127.0.0.1:8000/`. The **Speak an answer** button appears when the server reports `speechAvailable`. The recognized text goes into the answer box: press **Continue story** to use it, or **That's not what I said** to immediately open touch choices. Silence, a short tap, microphone refusal, and recognition errors also open the choices immediately. The child can tap before the spoken invitation finishes; another recording is optional.
 
-This server adds transcription and configures live image generation on top of `media.server`. It reads `.env`, so the key enables live story text and **a newly generated picture for every accepted answer**, followed by an independent image review. Mock mode uses prepared pictures without image calls. See [the media contract](../media/API.md). Use `python3 -m vision.server` for the same features plus the existing camera input.
+The speech module adds transcription and configures live image generation on top of `media.server`; `src.server` includes it together with the camera module. It reads `.env`, so the key enables live story text and **a newly generated picture for every accepted answer**, followed by an independent image review. Mock mode uses prepared pictures without image calls. See [the media contract](../media/API.md). Run the app through `python3 -m src.server`.
 
 ## API
 

@@ -289,7 +289,7 @@ class CreativeMaterialTests(unittest.TestCase):
 
     def test_session_replay_and_localization_keep_custom_material_without_model_reexecution(self):
         provider = DescriptorProvider([VINYL])
-        app = Playground(provider_factory=lambda _: provider)
+        app = Playground(provider_factory=lambda _: provider, pipeline="legacy_three_call")
         start = app.create("mock")
         body = answer_body(start, "비닐", "creative-1")
         chosen = app.answer(body)
@@ -464,6 +464,10 @@ class CreativeMaterialTests(unittest.TestCase):
                         question = snapshot["question"]
                         self.assertEqual(len(question["choices"]), 3)
                         self.assertIn(descriptor["labels"][language], question["text"])
+                        for choice in question["choices"]:
+                            self.assertLessEqual(len(choice["label"].split()), 3)
+                            self.assertNotRegex(choice["label"], r"[.!?。！？]")
+                            self.assertNotEqual(choice["label"], choice["answer"])
                         choice_text = " ".join(choice["label"] + " " + choice["answer"] for choice in question["choices"])
                         self.assertIn(descriptor["labels"][language], choice_text)
                         self.assertNotRegex(choice_text.lower(), legacy_names)
