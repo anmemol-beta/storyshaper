@@ -547,8 +547,14 @@ def main():
     print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
           flush=True)
     os.environ.setdefault("HF_HOME", str(ROOT / "voice" / ".models"))
-    print("Voice models load on the first preview; voice registration is ready immediately.", flush=True)
+    print("Voice models load in the background; voice registration is ready immediately.", flush=True)
     narrator = Narrator(lazy_synthesizer())
+    # Load the models now, not when the child first answers: cached lines never load them, and the Korean model
+    # alone takes ~20 s. "_preload" is cleared so these lines are always generated; real requests are newer, so
+    # they still go first.
+    shutil.rmtree(narrator.cache / "_preload", ignore_errors=True)
+    for language in LANGUAGES:
+        narrator.submit([{"text": "Hello."}], "_preload", language=language)
     library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
     with Server(("127.0.0.1", args.port), narrator, library) as server:
         print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)
