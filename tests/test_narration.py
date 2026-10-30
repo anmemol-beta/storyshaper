@@ -111,7 +111,7 @@ class NarratorTest(unittest.TestCase):
         self.assertEqual(plain[1]["key"], tuned[1]["key"])         # wolf: stock voice, unchanged
         korean_plain = n.submit(lines, "abcdef123456", "/profiles/dad.wav", language="ko")
         self.assertEqual(korean[0]["key"], korean_plain[0]["key"])  # Korean is not fine-tuned
-        for clip in tuned:
+        for clip in plain + tuned + korean:          # let every queued line finish before the folder is removed
             self.assertEqual(n.wait("abcdef123456", clip["key"], 5), "ready")
         self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", tuned[0]["key"]).read_bytes())
 
