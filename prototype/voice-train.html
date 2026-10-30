@@ -87,6 +87,11 @@
       <button class="btn" id="skip" type="button" data-t>Skip ›</button>
     </div>
   </section>
+  <section class="card media" id="sampleCard" hidden>
+    <p class="num" data-t>Sound more like your bedtime reading: build the story voice from the practice sentences you read in your usual voice. You can go back any time.</p>
+    <div class="row"><button class="btn main" id="useSample" type="button" data-t>Use my practice reading</button><button class="btn" id="undoSample" type="button" hidden data-t>Go back to the first recording</button></div>
+    <p class="hint" id="sampleStatus" role="status"></p>
+  </section>
   <section class="card media">
     <p class="num" data-t>Can't read these sentences? Add videos or voice messages of them instead.</p>
     <label class="btn"><span data-t>Add videos or voice messages</span><input type="file" id="media" accept="audio/*,video/*" multiple hidden></label>

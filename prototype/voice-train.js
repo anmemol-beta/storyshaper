@@ -33,6 +33,12 @@
     "Added {added} clips ({seconds} s) from {name}.": "{name}에서 {added}개 구간({seconds}초)을 더했어요.",
     "Listen to each part and fix any words we heard wrong. Wrong words teach the voice wrong sounds.": "구간을 하나씩 들어 보고 잘못 받아쓴 말을 고쳐 주세요. 틀린 문장은 목소리에 틀린 발음을 가르쳐요.",
     "Don't use": "쓰지 않기", "Play part {n}": "{n}번 구간 듣기",
+    "Sound more like your bedtime reading: build the story voice from the practice sentences you read in your usual voice. You can go back any time.":
+      "잠자리에서 읽어 주는 목소리에 더 가깝게: 평소 목소리로 읽은 연습 문장으로 동화 목소리를 다시 만들어요. 언제든 되돌릴 수 있어요.",
+    "Use my practice reading": "연습한 목소리 쓰기", "Go back to the first recording": "처음 녹음으로 되돌리기",
+    "Making the voice…": "목소리를 만드는 중…",
+    "Done. Stories now use sentences {list}. New pages will be read in this voice.": "완료! 이제 {list}번 문장으로 읽어요. 새로 읽는 페이지부터 이 목소리예요.",
+    "Back to the first recording.": "처음 녹음으로 되돌렸어요.",
   };
   let language = (() => {
     const asked = new URLSearchParams(location.search).get("lang");
@@ -113,6 +119,7 @@
       try {
         const clip = await call(`/api/voices/${voiceId}/train/${s.n}`, {method: "POST", headers: {"Content-Type": blob.type.split(";")[0]}, body: blob});
         done[s.n] = clip;
+        showSample();
         const good = clip.match === null || clip.match >= 0.8;
         if (good) { show(); $("result").textContent = tr("Saved. Next sentence."); setTimeout(next, 700); }
         else {
@@ -169,6 +176,28 @@
     }));
   }
 
+  // The voice sample (ref.wav) from practice sentences read in the parent's usual voice; off until asked for.
+  let sample = null;
+  function showSample() {
+    const clear = Object.values(done).filter(c => c.source !== "media" && !c.excluded && c.match >= 0.9).length;
+    $("sampleCard").hidden = clear < 3 && !sample;
+    $("undoSample").hidden = !sample;
+  }
+  async function setSample(from) {
+    error("");
+    $("useSample").disabled = $("undoSample").disabled = true;
+    $("sampleStatus").textContent = tr("Making the voice…");
+    try {
+      const result = await call(`/api/voices/${voiceId}/sample`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({from})});
+      sample = from === "practice" ? result : null;
+      $("sampleStatus").textContent = sample ? tr("Done. Stories now use sentences {list}. New pages will be read in this voice.", {list: sample.sentences.join(", ")}) : tr("Back to the first recording.");
+    } catch (e) { $("sampleStatus").textContent = ""; error(e.message); }
+    $("useSample").disabled = $("undoSample").disabled = false;
+    showSample();
+  }
+  $("useSample").onclick = () => setSample("practice");
+  $("undoSample").onclick = () => setSample("original");
+
   // Home videos and voice messages: the server cuts them at pauses and uses the transcript as each clip's text.
   $("media").onchange = async () => {
     const files = [...$("media").files];
@@ -194,10 +223,11 @@
   (async () => {
     try { sentences = await (await fetch("audio/training-sentences.json")).json(); } catch { sentences = []; }
     if (!voiceId) { applyCopy(); $("card").hidden = true; return error(tr("Save a parent's voice first, then come back here.")); }
-    try { for (const c of (await call(`/api/voices/${voiceId}/train`)).clips) done[c.n] = c; }
+    try { const status = await call(`/api/voices/${voiceId}/train`); for (const c of status.clips) done[c.n] = c; sample = status.sample; }
     catch (e) { error(e.message); }
     index = Math.max(0, sentences.findIndex(s => !done[s.n]));
     applyCopy();
     renderMedia();
+    showSample();
   })();
 })();
