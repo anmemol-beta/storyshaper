@@ -48,12 +48,14 @@ class MediaPlayground(Playground):
             return deepcopy(session.snapshot)
 
     def media_request(self, body):
-        if set(body) != {'sessionId', 'sceneId', 'version'} or type(body['version']) is not int:
-            raise APIError(400, 'invalid_request', 'Send only sessionId, sceneId and version.')
+        required = {'sessionId', 'sceneId', 'version'}
+        if (set(body) not in (required, required | {'retryOf'}) or type(body.get('version')) is not int
+                or ('retryOf' in body and (not isinstance(body['retryOf'], str) or not body['retryOf']))):
+            raise APIError(400, 'invalid_request', 'Send sessionId, sceneId, version and an optional retryOf job ID.')
         snapshot = self.media_snapshot(body['sessionId'])
         if (body['version'], body['sceneId']) != (snapshot['version'], snapshot['sceneId']):
             raise APIError(409, 'stale_snapshot', 'Use the current story snapshot.')
-        return self.media.request(snapshot)
+        return self.media.request(snapshot, retry_of=body.get('retryOf'))
 
     def media_status(self, job_id, session_id, cancel=False):
         self.media.activate(self.media_snapshot(session_id))
@@ -134,7 +136,8 @@ class MediaHandler(Handler):
         if isinstance(exc, APIError):
             return self.error(exc)
         code = str(exc)
-        status = 404 if code in {'job_not_found', 'image_not_found'} else 429 if code == 'job_limit' else 409
+        status = (404 if code in {'job_not_found', 'image_not_found'}
+                  else 429 if code in {'job_limit', 'image_retry_limit'} else 409)
         self.error(APIError(status, code, 'Media unavailable; keep the current picture.'))
 
 
@@ -154,7 +157,7 @@ def main():
     app = MediaPlayground()
     try:
         with MediaServer(('127.0.0.1', args.port), app) as server:
-            print(f'Offline story + media: http://127.0.0.1:{server.server_port}/prototype/agent.html', flush=True)
+            print(f'Offline story + media: http://127.0.0.1:{server.server_port}/', flush=True)
             server.serve_forever()
     except KeyboardInterrupt:
         pass

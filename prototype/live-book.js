@@ -1,37 +1,497 @@
-/* Live book UI orchestrator. Story/audio/media engines are owned by their respective teams. */
+/* Child reader: server-owned story state, shared input, narration and image modules. */
 (() => {
-"use strict";
-const $ = id => document.getElementById(id);
-const ui = Object.fromEntries(["book","cover","storyTitle","readBy","language","mode","settingsButton","readerSettings","readerName","changeVoice","readAloud","imgCur","imgNext","storyVideo","narrative","question","answer","send","mic","status","choices","progress","restart","loading","loadingText","addVoice"].map(id=>[id,$(id)]));
-const picture=new StoryImageTransition(ui.imgCur,ui.imgNext);
-let snapshot=null,busy=false,epoch=0,controller=null,recording=null,mediaJob=null,mediaTimer=null,retryPayload=null,shownNarration=null;
-let voiceName="Default reader",config=null,replayCounter=0;
-const say=s=>{ui.status.textContent=s;};
-const t=(en,ko)=>ui.language.value==="ko"?ko:en;
-const setBusy=(flag,message)=>{busy=flag;ui.send.disabled=flag||!snapshot?.question;ui.mic.disabled=flag||!snapshot?.question||!VoiceInput.supported();ui.answer.disabled=flag||!snapshot?.question;ui.restart.disabled=false;if(message)say(message);};
-function stopVideo(){ui.storyVideo.pause();ui.storyVideo.removeAttribute("src");ui.storyVideo.load();ui.storyVideo.hidden=true;}
-function stopNarration(){if(typeof Narration!=="undefined") Narration.stop();}
-function abortOld(){epoch++;controller?.abort();controller=null;stopNarration();stopVideo();if(recording){recording.stop();recording=null;}clearTimeout(mediaTimer);mediaTimer=null;if(mediaJob?.jobId)fetch("/api/media/cancel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:mediaJob.sessionId,jobId:mediaJob.jobId})}).catch(()=>{});mediaJob=null;picture.cancel();ui.loading.hidden=true;}
-async function api(path,options={}){const response=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})},cache:"no-store"});let data;try{data=await response.json()}catch{throw new Error("Invalid server response")}if(!response.ok){const error=new Error(data.error?.message||"Server error");error.code=data.error?.code;error.status=response.status;error.snapshot=data.snapshot;throw error}return data}
-function valid(s){return s&&typeof s.sessionId==="string"&&Number.isInteger(s.version)&&Array.isArray(s.lines)&&(s.question===null||typeof s.question?.id==="string")}
-// Who reads: the parent voice saved on voice.html (narration.js), or the storybook voice. Without one, offer to add it.
-async function reader(){const saved=typeof Narration!=="undefined"&&typeof Narration.voiceName==="function"?Narration.voiceName():null;voiceName=saved||t("Storybook voice","기본 목소리");ui.readerName.textContent=t("Reader: ","읽어주는 목소리: ")+voiceName;ui.readBy.textContent=saved?t("Read by "+saved,saved+" 목소리로 읽어요"):t("Read by the storybook voice","기본 목소리로 읽어요");ui.changeVoice.textContent=saved?t("Change","바꾸기"):t("Add a parent's voice","부모 목소리 추가하기");ui.addVoice.hidden=Boolean(saved);for(const link of [ui.changeVoice,ui.addVoice])link.href="voice.html?return=live.html&lang="+ui.language.value;ui.addVoice.textContent="🎙 "+t("Add a parent's voice","부모 목소리 추가");}
-function highlight(index){[...ui.narrative.children].forEach((p,i)=>p.classList.toggle("speaking",i===index));ui.question.classList.toggle("speaking",index===ui.narrative.children.length);}
-function display(s){if(!valid(s))throw new Error("Invalid story state");snapshot=s;const paragraphs=s.lines.map(item=>{const p=document.createElement("p");p.textContent=item.text||"";return p});ui.narrative.replaceChildren(...paragraphs);ui.question.textContent=s.question?.text||t("The End","이야기 끝");ui.answer.value="";ui.choices.replaceChildren();const choices=s.question?.choices||[];if(s.choiceMode&&Array.isArray(choices)){choices.forEach(choice=>{const button=document.createElement("button");button.type="button";button.textContent=choice.label;button.onclick=()=>answer(choice.answer,choice.id);ui.choices.append(button)})}ui.choices.hidden=!s.choiceMode||!choices.length;ui.progress.textContent="Scene: "+s.sceneId+" · "+s.version;setBusy(false,s.decision==="service_error"?t("Voice or AI unavailable. Choose an option to continue.","서비스 오류입니다. 선택지로 진행할 수 있어요."):s.decision==="complete"?t("Story complete","이야기 끝"):t("Your turn","이제 네 차례야"));if(!s.question){ui.mic.disabled=true;ui.send.disabled=true}const spoken=s.question?[...s.lines,{speakerId:"narrator",text:s.question.text}]:[...s.lines];if(s.choiceMode&&choices.length)spoken.push({speakerId:"narrator",text:choices.map((c,i)=>(i+1)+". "+String(c.label).replace(/[.!?]+$/,"")+".").join(" ")});const key=s.sessionId+":"+s.version+":"+ui.language.value+":"+replayCounter;if(ui.readAloud.checked&&typeof Narration!=="undefined"&&shownNarration!==key){shownNarration=key;Narration.speak(spoken,{key,language:ui.language.value,onLine:highlight})}else highlight(-1);if((s.decision==="accept"||s.decision==="complete")&&s.mediaPlan)startMedia(s);}
-async function startMedia(s){clearTimeout(mediaTimer);const token=epoch;const bind={sessionId:s.sessionId,sceneId:s.sceneId,version:s.version};try{const data=await api("/api/media/jobs",{method:"POST",body:JSON.stringify(bind)});if(token!==epoch||!snapshot||snapshot.version!==bind.version)return;mediaJob={...bind,jobId:data.jobId};consumeMedia(data,bind,token)}catch{say(t("The story continues with the last picture.","기존 그림으로 이야기를 계속해요."))}}
-function consumeMedia(data,bind,token){if(token!==epoch||!snapshot||snapshot.sessionId!==bind.sessionId||snapshot.sceneId!==bind.sceneId||snapshot.version!==bind.version)return;if(data.apply===true&&data.image?.url){stopVideo();picture.show(data.image.url,{onError:()=>say(t("Picture unavailable; keeping previous picture.","그림을 불러오지 못해 이전 그림을 보여줘요."))})}if(data.apply===true&&data.status==="ready"&&data.video?.url){const clip=ui.storyVideo;clip.onerror=()=>stopVideo();clip.onended=()=>stopVideo();clip.src=data.video.url;clip.hidden=false;clip.play().catch(()=>stopVideo());}if(["queued","running"].includes(data.status)&&mediaJob?.jobId){mediaTimer=setTimeout(async()=>{try{const next=await api("/api/media/jobs/"+encodeURIComponent(mediaJob.jobId)+"?sessionId="+encodeURIComponent(bind.sessionId));consumeMedia(next,bind,token)}catch{}},750)}}
-async function begin(){abortOld();shownNarration=null;ui.cover.hidden=true;ui.narrative.replaceChildren();ui.question.textContent="";ui.choices.hidden=true;setBusy(true,t("Starting story…","동화를 시작합니다…"));const token=epoch;try{const data=await api("/api/sessions",{method:"POST",body:JSON.stringify({mode:ui.mode.value,language:ui.language.value})});if(token===epoch)display(data)}catch(e){if(token===epoch){setBusy(false,e.message);ui.cover.hidden=false}}}
-async function answer(value,choiceId,retained=null){if(busy||!snapshot?.question)return;const text=String(value??"").trim();if(!text&&!choiceId)return;stopNarration();clearTimeout(mediaTimer);stopVideo();const old=snapshot;const token=epoch;const payload=retained||{sessionId:old.sessionId,version:old.version,questionId:old.question.id,requestId:crypto.randomUUID(),answer:text,...(choiceId?{choiceId}:{})};retryPayload=payload;setBusy(true,t("Thinking…","생각하고 있어요…"));if(!choiceId&&ui.readAloud.checked&&typeof Narration!=="undefined"&&typeof Narration.interject==="function")Narration.interject(ui.language.value);controller=new AbortController();try{const data=await api("/api/answer",{method:"POST",body:JSON.stringify(payload),signal:controller.signal});if(token!==epoch||snapshot?.sessionId!==old.sessionId)return;retryPayload=null;clearTimeout(mediaTimer);if(mediaJob?.jobId){fetch("/api/media/cancel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:mediaJob.sessionId,jobId:mediaJob.jobId})}).catch(()=>{});mediaJob=null}display(data)}catch(e){if(token!==epoch)return;if(valid(e.snapshot))display(e.snapshot);setBusy(false,t("Try again: ","다시 시도: ")+e.message);ui.answer.value=text;ui.send.disabled=false}finally{if(token===epoch)controller=null}}
-ui.send.onclick=()=>{if(retryPayload)answer(retryPayload.answer,retryPayload.choiceId,retryPayload);else answer(ui.answer.value)};
-ui.answer.onkeydown=e=>{if(e.key==="Enter")ui.send.click()};
-ui.mic.onclick=async()=>{if(recording){recording.stop();return}if(busy||!snapshot?.question||!VoiceInput.supported())return;stopNarration();const token=epoch;try{const item=await VoiceInput.record();if(token!==epoch){item.stop();return}recording=item;ui.book.dataset.state="LISTENING";say(t("Listening… Tap again to finish.","듣고 있어요. 다시 누르면 완료합니다."));const result=await item.done;recording=null;if(token!==epoch)return;ui.book.dataset.state="ASKING";setBusy(true,t("Recognizing…","음성을 인식하는 중…"));const transcript=await VoiceInput.transcribe(result);if(token!==epoch)return;setBusy(false);ui.answer.value=transcript;if(transcript){say(t("Check the recognized text and press Send.","인식된 내용을 확인하고 전송하세요."))}else say(t("No speech detected. You can type an answer.","음성이 인식되지 않았어요. 글로 답할 수 있어요."))}catch(e){recording=null;ui.book.dataset.state="ASKING";if(token===epoch){setBusy(false,t("Microphone unavailable; type an answer.","마이크를 사용할 수 없습니다. 글로 답해 주세요."))}}};
-ui.restart.onclick=begin;ui.cover.onclick=begin;
-ui.settingsButton.onclick=()=>ui.readerSettings.hidden=!ui.readerSettings.hidden;
-ui.readAloud.checked=localStorage.getItem("story-read-aloud")!=="0";
-ui.readAloud.onchange=()=>{localStorage.setItem("story-read-aloud",ui.readAloud.checked?"1":"0");if(!ui.readAloud.checked)stopNarration();else if(snapshot){replayCounter++;shownNarration=null;display({...snapshot})}};
-ui.language.onchange=async()=>{try{localStorage.setItem("story-language",ui.language.value)}catch{}reader();if(!snapshot)return;abortOld();shownNarration=null;setBusy(true,t("Changing language…","언어 변경 중…"));const token=epoch;try{const data=await api("/api/language",{method:"POST",body:JSON.stringify({sessionId:snapshot.sessionId,version:snapshot.version,language:ui.language.value})});if(token===epoch)display(data)}catch(e){if(token===epoch)setBusy(false,e.message)}};
-ui.mode.onchange=()=>{if(snapshot)begin()};
-document.addEventListener("visibilitychange",()=>{if(document.hidden)stopNarration()});
-window.addEventListener("pagehide",abortOld);
-ui.language.value=localStorage.getItem("story-language")==="en"?"en":"ko";reader();window.addEventListener("focus",reader);if(typeof Narration!=="undefined"&&typeof Narration.warm==="function")Narration.warm();
+  "use strict";
+  const ids = ["book", "cover", "startLabel", "storyTitle", "readBy", "language", "mode",
+    "languageLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "changeVoice",
+    "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
+    "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
+    "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
+    "loading", "loadingText", "retryMedia", "addVoice"];
+  const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+  const t = (en, ko) => ui.language.value === "ko" ? ko : en;
+  const say = message => { ui.status.textContent = message; };
+  const questionKey = state => state?.question ? `${state.sessionId}:${state.question.id}` : null;
+  const choiceLocks = new Set();
+  let snapshot = null, displayed = null, pending = null, activity = "idle", epoch = 0;
+  let requestController = null, inputController = null, inputToken = 0, recording = null, camera = null;
+  let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
+  let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
+  ui.language.value = selectedLanguage;
+  ui.mode.value = selectedMode;
+
+  const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState});
+  const choiceOnly = (state = snapshot) => Boolean(state?.question &&
+    (state.choiceMode || choiceLocks.has(questionKey(state))));
+  const canAnswer = () => configured && activity === "idle" && !pending && Boolean(snapshot?.question);
+  const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
+  const cameraSupported = () => typeof CameraInput !== "undefined" && CameraInput.supported();
+
+  function syncControls() {
+    const locked = !canAnswer();
+    const visible = pending ? displayed : snapshot;
+    const choices = choiceOnly(visible);
+    ui.freeInput.hidden = !visible?.question || choices;
+    ui.inputActions.hidden = !visible?.question || choices;
+    ui.answer.disabled = locked || choices;
+    ui.send.disabled = locked || choices;
+    ui.mic.disabled = choices || (activity === "recording" ? false : locked);
+    ui.mic.textContent = activity === "recording" ? "■" : selectedMode === "mock"
+      ? t("Choose", "고르기") : "🎙";
+    ui.mic.setAttribute("aria-label", activity === "recording" ? t("Finish recording", "녹음 끝내기")
+      : selectedMode === "mock" ? t("Choose an answer", "선택지로 답하기") : t("Record answer", "말로 답하기"));
+    ui.cameraButton.hidden = selectedMode !== "live" || !config.visionAvailable || !cameraSupported();
+    ui.cameraButton.disabled = locked || choices;
+    ui.choices.hidden = !choices;
+    for (const button of ui.choices.children) button.disabled = locked;
+    ui.language.disabled = ui.mode.disabled = !configured || activity !== "idle" || Boolean(pending);
+    ui.cover.disabled = !configured || activity !== "idle" || Boolean(pending);
+    ui.restart.disabled = !configured;
+    ui.book.setAttribute("aria-busy", String(Boolean(pending) || activity === "request"));
+    ui.book.dataset.state = !snapshot ? "COVER" : pending ? "DRAWING"
+      : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
+  }
+
+  function stopNarration() {
+    spokenKey = null;
+    if (typeof Narration !== "undefined") Narration.stop();
+    highlight(-1);
+  }
+
+  function stopVideo() {
+    ui.storyVideo.pause();
+    ui.storyVideo.removeAttribute("src");
+    ui.storyVideo.load();
+    ui.storyVideo.hidden = true;
+  }
+
+  function closeCamera() {
+    camera?.close();
+    camera = null;
+    ui.cameraPanel.hidden = true;
+  }
+
+  function cancelInput() {
+    inputToken++;
+    inputController?.abort();
+    inputController = null;
+    recording?.stop();
+    recording = null;
+    closeCamera();
+  }
+
+  function cancelWork({server = true} = {}) {
+    epoch++;
+    requestController?.abort();
+    requestController = null;
+    cancelInput();
+    stopNarration();
+    stopVideo();
+    media.cancel({server});
+    pending = null;
+    ui.loading.hidden = true;
+    ui.retryMedia.hidden = true;
+  }
+
+  async function api(path, body, signal) {
+    const response = await fetch(path, {method: body ? "POST" : "GET", cache: "no-store", signal,
+      headers: {"Content-Type": "application/json"}, ...(body ? {body: JSON.stringify(body)} : {})});
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error?.message || "Server unavailable");
+      error.snapshot = data.snapshot;
+      throw error;
+    }
+    return data;
+  }
+
+  function valid(state) {
+    return state && typeof state.sessionId === "string" && Number.isInteger(state.version)
+      && Array.isArray(state.lines) && (state.question === null ||
+        (typeof state.question?.id === "string" && Array.isArray(state.question.choices)
+          && state.question.choices.length === 3 && state.question.choices.every(choice =>
+            typeof choice.id === "string" && typeof choice.label === "string" && typeof choice.answer === "string")));
+  }
+
+  function labels() {
+    document.documentElement.lang = ui.language.value;
+    ui.storyTitle.textContent = t("The Three Little Pigs", "아기돼지 삼형제");
+    ui.startLabel.textContent = t("▶ Start", "▶ 동화 시작");
+    ui.languageLabel.textContent = t("Language", "언어");
+    ui.modeLabel.textContent = t("Version", "버전");
+    ui.mode.options[0].textContent = t("Offline version", "오프라인 버전");
+    ui.mode.options[1].textContent = t("AI version", "AI 버전");
+    ui.send.textContent = t("Send", "답하기");
+    ui.answer.placeholder = t("Your answer or idea", "답이나 생각을 적어 줘");
+    ui.answer.setAttribute("aria-label", t("Your answer", "답변"));
+    ui.restart.textContent = t("↻ Restart", "↻ 처음부터");
+    ui.changeVoice.textContent = t("Change voice", "목소리 바꾸기");
+    ui.readAloudLabel.textContent = t("Read aloud", "소리 내어 읽기");
+    ui.cameraButton.textContent = t("📷 Show an object", "📷 물건 보여주기");
+    ui.cameraSnap.textContent = t("Take picture", "사진 찍기");
+    ui.cameraCancel.textContent = t("Cancel", "닫기");
+    ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
+    ui.settingsButton.setAttribute("aria-label", t("Reader settings", "낭독 설정"));
+    reader();
+  }
+
+  function reader() {
+    const saved = typeof Narration !== "undefined" && Narration.voiceName?.();
+    const name = saved || t("Storybook voice", "기본 목소리");
+    ui.readerName.textContent = t("Reader: ", "읽어주는 목소리: ") + name;
+    ui.readBy.textContent = t("Read by ", "읽어주는 목소리: ") + name;
+    ui.changeVoice.textContent = saved ? t("Change voice", "목소리 바꾸기") : t("Add a parent's voice", "부모 목소리 추가하기");
+    ui.addVoice.hidden = Boolean(saved);
+    ui.addVoice.textContent = t("🎙 Add a parent's voice", "🎙 부모 목소리 추가");
+    for (const link of [ui.changeVoice, ui.addVoice])
+      link.href = "voice.html?return=index.html&lang=" + ui.language.value;
+  }
+
+  function highlight(index) {
+    [...ui.narrative.children].forEach((paragraph, i) => paragraph.classList.toggle("speaking", i === index));
+    ui.question.classList.toggle("speaking", index === ui.narrative.children.length);
+  }
+
+  function narrate() {
+    if (!displayed || pending || !ui.readAloud.checked || typeof Narration === "undefined") return;
+    const state = displayed;
+    const choices = choiceOnly();
+    const key = `${choices ? 'choices:' : ''}${state.sessionId}:${state.version}:${state.language}:${replay}`;
+    if (spokenKey === key) return;
+    spokenKey = key;
+    const lines = choices ? [
+      {speakerId: "narrator", text: t("Tap one of these three words.", "세 가지 중 하나를 톡 골라 줘!")},
+      ...state.question.choices.map(choice => ({speakerId: "narrator", text: choice.label}))
+    ] : state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text}] : state.lines;
+    Promise.resolve(Narration.speak(lines, {key, language: state.language,
+      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {});
+  }
+
+  function render(state) {
+    displayed = snapshot = state;
+    if (state.choiceMode) choiceLocks.add(questionKey(state));
+    ui.cover.hidden = true;
+    ui.narrative.replaceChildren(...state.lines.map(line => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = line.text;
+      return paragraph;
+    }));
+    ui.question.textContent = state.question?.text || t("The End", "이야기 끝");
+    ui.answer.value = "";
+    ui.choices.replaceChildren(...(state.question?.choices || []).map(choice => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = choice.label;
+      const binding = questionKey(state);
+      button.onclick = () => {
+        if (binding === questionKey(snapshot) && state.version === snapshot.version) return answer(choice.answer, choice.id);
+      };
+      return button;
+    }));
+    ui.progress.textContent = state.question
+      ? t("House ", "집 ") + (state.storyState?.houseIndex || 1) + " / 3"
+      : t("Story complete", "동화를 다 읽었어요");
+    activity = "idle";
+    say(choiceOnly() ? t("Tap one of the three words.", "세 가지 중 하나를 톡 골라 줘!")
+      : state.question ? t("Your turn!", "이제 네 차례야!") : t("Story complete", "이야기 끝"));
+    syncControls();
+    narrate();
+  }
+
+  function receive(state) {
+    if (!valid(state)) throw new Error("Invalid story state");
+    const translationOnly = state.diagnostics?.languageChanged === true
+      && displayed?.sessionId === state.sessionId && displayed?.sceneId === state.sceneId;
+    snapshot = state;
+    activity = "idle";
+    if (!translationOnly && state.mediaPlan && ["accept", "complete"].includes(state.decision)) {
+      pending = state;
+      ui.loading.hidden = false;
+      ui.retryMedia.hidden = true;
+      ui.loadingText.textContent = t("Drawing your next page…", "다음 그림을 그리고 있어요…");
+      say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
+      syncControls();
+      media.update(state);
+    } else render(state);
+  }
+
+  function mediaState(result) {
+    if (!pending) return;
+    if (["generating", "loading"].includes(result.state)) {
+      ui.retryMedia.hidden = true;
+      ui.retryMedia.disabled = true;
+      ui.loadingText.textContent = result.retrying
+        ? t("Drawing the picture again…", "그림을 다시 만들고 있어요…")
+        : t("Loading your picture…", "그림을 불러오고 있어요…");
+      return;
+    }
+    const ready = pending.providerMode === "live" ? result.state === "generated" : result.state === "prepared";
+    if (ready) {
+      const state = pending;
+      pending = null;
+      ui.loading.hidden = true;
+      ui.retryMedia.hidden = true;
+      render(state);
+      if (result.video?.url?.startsWith("/prototype/video/")) {
+        ui.storyVideo.src = result.video.url;
+        ui.storyVideo.hidden = false;
+        ui.storyVideo.onended = ui.storyVideo.onerror = stopVideo;
+        ui.storyVideo.play().catch(stopVideo);
+      }
+    } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
+      ui.loadingText.textContent = t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
+      ui.retryMedia.hidden = result.retryable === false;
+      ui.retryMedia.disabled = result.retryable === false;
+      say(result.retryable === false
+        ? t("Couldn't finish the picture. Please restart the story.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
+        : t("Try loading the picture again.", "그림 다시 불러오기를 눌러 주세요."));
+      syncControls(); // A failed or prepared AI fallback never unlocks the next turn.
+    }
+  }
+
+  function openChoices() {
+    if (!snapshot?.question || pending) return;
+    cancelInput();
+    stopNarration();
+    choiceLocks.add(questionKey(snapshot));
+    activity = "idle";
+    ui.answer.value = "";
+    retryPayload = null;
+    say(t("Tap one of the three words.", "세 가지 중 하나를 톡 골라 줘!"));
+    syncControls();
+    narrate(); // Reading the keywords never delays their touch handlers.
+  }
+
+  async function begin() {
+    if (!configured) return;
+    cancelWork();
+    choiceLocks.clear();
+    snapshot = displayed = null;
+    retryPayload = null;
+    ui.narrative.replaceChildren();
+    ui.question.textContent = "";
+    ui.choices.replaceChildren();
+    ui.cover.hidden = true;
+    media.reset();
+    activity = "request";
+    say(t("Starting story…", "동화를 시작해요…"));
+    syncControls();
+    const token = epoch;
+    requestController = new AbortController();
+    try {
+      const state = await api("/api/sessions", {mode: selectedMode, language: selectedLanguage}, requestController.signal);
+      if (token === epoch) receive(state);
+    } catch {
+      if (token === epoch) {
+        activity = "idle";
+        ui.cover.hidden = false;
+        say(t("Couldn't start. Please try again.", "동화를 열지 못했어요. 다시 시작해 주세요."));
+        syncControls();
+      }
+    } finally { if (token === epoch) requestController = null; }
+  }
+
+  async function answer(value, choiceId) {
+    if (!canAnswer() || (choiceOnly() && !choiceId)) return;
+    if (choiceId && !snapshot.question.choices.some(choice => choice.id === choiceId)) return;
+    const text = String(value ?? "").trim();
+    if (!text && !choiceId) return;
+    cancelInput();
+    stopNarration();
+    stopVideo();
+    const state = snapshot, token = epoch;
+    const payload = retryPayload && retryPayload.answer === text && retryPayload.choiceId === choiceId
+      ? retryPayload : {sessionId: state.sessionId, version: state.version, questionId: state.question.id,
+        requestId: crypto.randomUUID(), answer: text, ...(choiceId ? {choiceId} : {})};
+    retryPayload = payload; // A lost response can be replayed without advancing twice.
+    activity = "request";
+    say(t("Thinking…", "생각하고 있어요…"));
+    if (!choiceId && ui.readAloud.checked && typeof Narration !== "undefined")
+      Narration.interject?.(selectedLanguage);
+    syncControls();
+    requestController = new AbortController();
+    try {
+      const next = await api("/api/answer", payload, requestController.signal);
+      if (token !== epoch) return;
+      receive(next);
+      retryPayload = null;
+    } catch (error) {
+      if (token !== epoch) return;
+      activity = "idle";
+      if (valid(error.snapshot)) {
+        retryPayload = null;
+        receive(error.snapshot);
+      } else {
+        ui.answer.value = text;
+        say(t("Couldn't send. Tap the same answer to retry.", "답을 보내지 못했어요. 같은 답을 다시 눌러 주세요."));
+        syncControls();
+      }
+    } finally { if (token === epoch) requestController = null; }
+  }
+
+  ui.send.onclick = () => answer(ui.answer.value);
+  ui.answer.onkeydown = event => {
+    if (event.key === "Enter") { event.preventDefault(); return answer(ui.answer.value); }
+  };
+  ui.mic.onclick = async () => {
+    if (choiceOnly() || pending) return;
+    if (activity === "recording" && recording) { recording.stop(); return; }
+    if (!canAnswer()) return;
+    if (selectedMode === "mock" || !config.speechAvailable || !voiceSupported()) { openChoices(); return; }
+    stopNarration();
+    stopVideo();
+    const token = ++inputToken, generation = epoch;
+    const current = () => token === inputToken && generation === epoch && !choiceOnly() && !pending;
+    activity = "opening_mic";
+    syncControls();
+    try {
+      const item = await VoiceInput.record();
+      if (!current()) { item.stop(); return; }
+      recording = item;
+      activity = "recording";
+      say(t("Listening… Tap again to finish.", "듣고 있어요. 다 말하면 한 번 더 눌러 줘."));
+      syncControls();
+      const clip = await item.done;
+      if (!current()) return;
+      recording = null;
+      activity = "recognizing";
+      say(t("Listening to your answer…", "네 말을 알아듣고 있어요…"));
+      syncControls();
+      inputController = new AbortController();
+      const text = await VoiceInput.transcribe(clip, {signal: inputController.signal});
+      if (!current()) return;
+      inputController = null;
+      activity = "idle";
+      if (!text.trim()) { openChoices(); return; }
+      ui.answer.value = text;
+      say(t("Check your words and tap Send.", "네 말을 확인하고 답하기를 눌러 줘."));
+      syncControls();
+    } catch { if (current()) openChoices(); }
+  };
+
+  ui.cameraButton.onclick = async () => {
+    if (!canAnswer() || choiceOnly() || selectedMode !== "live" || !config.visionAvailable || !cameraSupported()) return;
+    stopNarration();
+    stopVideo();
+    const token = ++inputToken, generation = epoch;
+    activity = "camera";
+    ui.cameraPanel.hidden = false;
+    ui.cameraSnap.disabled = true;
+    say(t("Show one object to the camera.", "카메라에 물건 하나를 보여 줘."));
+    syncControls();
+    try {
+      const item = await CameraInput.open(ui.cameraPreview);
+      if (token !== inputToken || generation !== epoch) { item.close(); return; }
+      camera = item;
+      ui.cameraSnap.disabled = false;
+    } catch { if (token === inputToken && generation === epoch) openChoices(); }
+  };
+  ui.cameraCancel.onclick = () => {
+    if (activity !== "camera") return;
+    cancelInput();
+    activity = "idle";
+    say(t("Your turn!", "이제 네 차례야!"));
+    syncControls();
+  };
+  ui.cameraSnap.onclick = async () => {
+    if (!camera || activity !== "camera" || choiceOnly() || pending) return;
+    const item = camera, token = inputToken, generation = epoch;
+    const current = () => token === inputToken && generation === epoch && !choiceOnly() && !pending;
+    activity = "recognizing";
+    ui.cameraSnap.disabled = true;
+    syncControls();
+    try {
+      const photo = await item.snap();
+      if (!current()) return;
+      closeCamera();
+      inputController = new AbortController();
+      const name = await CameraInput.name(photo, selectedLanguage, {signal: inputController.signal});
+      if (!current()) return;
+      inputController = null;
+      activity = "idle";
+      if (!name.trim()) { openChoices(); return; }
+      ui.answer.value = name;
+      say(t("Check the object and tap Send.", "물건 이름을 확인하고 답하기를 눌러 줘."));
+      syncControls();
+    } catch { if (current()) openChoices(); }
+  };
+
+  ui.retryMedia.onclick = () => {
+    if (!pending || ui.retryMedia.disabled) return;
+    ui.retryMedia.hidden = true;
+    ui.retryMedia.disabled = true;
+    ui.loadingText.textContent = t("Loading the picture…", "그림을 다시 불러오고 있어요…");
+    media.retry(pending);
+  };
+  ui.restart.onclick = ui.cover.onclick = begin;
+  ui.settingsButton.onclick = () => { ui.readerSettings.hidden = !ui.readerSettings.hidden; };
+  ui.readAloud.checked = localStorage.getItem("story-read-aloud") !== "0";
+  ui.readAloud.onchange = () => {
+    localStorage.setItem("story-read-aloud", ui.readAloud.checked ? "1" : "0");
+    if (!ui.readAloud.checked) stopNarration();
+    else { replay++; narrate(); }
+  };
+  ui.language.onchange = async () => {
+    if (!configured || activity !== "idle" || pending) { ui.language.value = selectedLanguage; return; }
+    const language = ui.language.value;
+    if (!snapshot) {
+      selectedLanguage = language;
+      localStorage.setItem("story-language", language);
+      labels();
+      syncControls();
+      return;
+    }
+    cancelWork({server: false});
+    const state = snapshot, token = epoch;
+    activity = "request";
+    syncControls();
+    requestController = new AbortController();
+    try {
+      const next = await api("/api/language", {sessionId: state.sessionId, version: state.version, language}, requestController.signal);
+      if (token !== epoch) return;
+      selectedLanguage = language;
+      localStorage.setItem("story-language", language);
+      labels();
+      receive(next);
+    } catch {
+      if (token !== epoch) return;
+      ui.language.value = selectedLanguage;
+      activity = "idle";
+      say(t("Couldn't change language. Try again.", "언어를 바꾸지 못했어요. 다시 시도해 주세요."));
+      syncControls();
+    } finally { if (token === epoch) requestController = null; }
+  };
+  ui.mode.onchange = () => {
+    if (!configured || activity !== "idle" || pending) { ui.mode.value = selectedMode; return; }
+    if (ui.mode.value === "live" && !config.liveAvailable) {
+      ui.mode.value = selectedMode;
+      say(t("AI version is unavailable. Choose the offline version.", "AI 연결을 확인해 주세요. 오프라인 버전으로 읽을 수 있어요."));
+      return;
+    }
+    selectedMode = ui.mode.value;
+    if (snapshot) return begin();
+    syncControls();
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) return;
+    stopNarration();
+    if (["opening_mic", "recording", "recognizing", "camera"].includes(activity)) {
+      cancelInput();
+      activity = "idle";
+      syncControls();
+    }
+  });
+  window.addEventListener("pagehide", () => cancelWork());
+  window.addEventListener("focus", reader);
+  labels();
+  syncControls();
+  if (typeof Narration !== "undefined") Narration.warm?.();
+  api("/api/config").then(data => {
+    config = data;
+    media.configure(data);
+  }).catch(() => {
+    say(t("Check the story server connection.", "동화 서버 연결을 확인해 주세요."));
+  }).finally(() => {
+    configured = true;
+    syncControls();
+  });
 })();

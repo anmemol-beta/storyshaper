@@ -70,7 +70,8 @@ def _process_before_result(result):
     return None if process is None or outcome is None else process < outcome
 
 
-def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="low", review_effort="low"):
+def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="low", review_effort="low",
+                  pipeline="adaptive"):
     if type(repeats) is not int or not 1 <= repeats <= 3:
         raise ValueError("repeats must be 1 to 3")
     recorder = RecordingProvider(provider, limit=6 * repeats)
@@ -83,7 +84,9 @@ def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="lo
         row = {"scenario": name, "repeat": repeat, "decision": result["decision"],
                "reason": result["reason"], "accepted": _accepted(result),
                "durationMs": round((time.perf_counter() - started) * 1000, 3),
-               "calls": deepcopy(recorder.calls[offset:]), "checks": {}}
+               "calls": deepcopy(recorder.calls[offset:]), "checks": {},
+               "reviewReason": result.get("diagnostics", {}).get("reviewReason"),
+               "independentReview": result.get("diagnostics", {}).get("independentReview", False)}
         failure = result.get("diagnostics", {}).get("failureCode")
         if failure:
             row["failureCode"] = failure
@@ -91,7 +94,7 @@ def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="lo
         return result, row
 
     for repeat in range(1, repeats + 1):
-        engine = StoryEngine(recorder, "ko")
+        engine = StoryEngine(recorder, "ko", pipeline=pipeline)
         result, row = turn(engine, engine.start("benchmark-vinyl"),
                            "비닐로 짓고 싶어!", "vinyl_choose", repeat)
         house = next(iter(result["storyState"]["houses"]), {})
@@ -100,7 +103,7 @@ def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="lo
             row["accepted"] and house.get("material") == "custom"
             and spec.get("source") == "비닐" and spec.get("labels", {}).get("ko") == "비닐"
             and (result.get("mediaPlan") or {}).get("materialLabel") == "비닐")
-        engine = StoryEngine(recorder, "ko")
+        engine = StoryEngine(recorder, "ko", pipeline=pipeline)
         result, row = turn(engine, engine.start("benchmark-icecream"),
                            "아이스크림으로 집을 지을래!", "icecream_choose", repeat)
         houses = result["storyState"]["houses"]
@@ -118,7 +121,8 @@ def run_benchmark(provider, *, repeats=1, label="comparison", compose_effort="lo
     all_accepted = all(row.get("accepted", False) for row in rows)
     checks_passed = all_accepted and all(
         value is True for row in rows for value in row.get("checks", {}).values())
-    return {"label": label, "mode": provider.mode, "composeEffort": compose_effort, "reviewEffort": review_effort,
+    return {"label": label, "mode": provider.mode, "pipeline": pipeline,
+            "composeEffort": compose_effort, "reviewEffort": review_effort,
             "repeats": repeats, "modelCalls": len(recorder.calls), "callLimit": 6 * repeats,
             "allAccepted": all_accepted, "automatedChecksPassed": checks_passed,
             "manualQualityReviewRequired": True, "liveLatencyEvidence": provider.mode == "live",
@@ -132,6 +136,7 @@ def main(argv=None):
     mode.add_argument("--mock", action="store_true", help="Offline fixtures (the default).")
     parser.add_argument("--compose-effort", choices=("default", "minimal", "low"), default="low")
     parser.add_argument("--review-effort", choices=("default", "minimal", "low"), default="low")
+    parser.add_argument("--pipeline", choices=("adaptive", "two_call"), default="adaptive")
     parser.add_argument("--label", default="comparison")
     parser.add_argument("--repeat", type=int, choices=(1, 2, 3), default=1)
     parser.add_argument("--output", type=Path)
@@ -147,7 +152,8 @@ def main(argv=None):
                                 compose_reasoning_effort=None if args.compose_effort == "default" else args.compose_effort,
                                 review_reasoning_effort=None if args.review_effort == "default" else args.review_effort)
     report = run_benchmark(provider, repeats=args.repeat, label=args.label,
-                           compose_effort=args.compose_effort, review_effort=args.review_effort)
+                           compose_effort=args.compose_effort, review_effort=args.review_effort,
+                           pipeline=args.pipeline)
     text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(text, encoding="utf-8")

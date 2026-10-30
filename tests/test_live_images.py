@@ -75,6 +75,7 @@ class ImageProviderTests(unittest.TestCase):
         self.assertTrue(edit_request.full_url.endswith('/images/edits'))
         self.assertEqual((body['model'], body['n'], body['response_format']), ('muse-image-1.0', 1, 'b64_json'))
         self.assertEqual(body['output_format'], 'jpeg')
+        self.assertEqual(body['reasoning_strength'], 'low')
         self.assertEqual(body['images'][0]['image_url'], 'data:image/jpeg;base64,' + base64.b64encode(JPEG).decode())
         self.assertTrue(all(value is False for value in body['tool_enablement'].values()))
         self.assertIn('paper', body['prompt'])
@@ -86,6 +87,17 @@ class ImageProviderTests(unittest.TestCase):
         self.assertIs(check['store'], False)
         self.assertEqual(check['reasoning'], {'effort': 'low'})
         self.assertEqual(check['input'][0]['content'][1]['type'], 'input_image')
+
+    def test_image_refinement_can_be_restored_without_disabling_independent_review(self):
+        responses = [io.BytesIO(json.dumps(reply).encode()) for reply in (self.edit, review())]
+        with patch('urllib.request.urlopen', side_effect=responses) as send, \
+                patch('media.image_provider.checked_jpeg', return_value=JPEG):
+            MuseImageProvider('fixture-secret', reasoning_strength='high').generate(
+                self.spec, self.build['mediaPlan'], [JPEG], threading.Event())
+        self.assertEqual(json.loads(send.call_args_list[0].args[0].data)['reasoning_strength'], 'high')
+        self.assertEqual(send.call_count, 2)
+        with self.assertRaises(ValueError):
+            MuseImageProvider('fixture-secret', reasoning_strength='minimal')
 
     def test_failed_or_uncertain_independent_review_never_publishes(self):
         for verdict in (review(safe=False), review(materialMatches=False), review(castMatches=False),
@@ -221,6 +233,80 @@ class ImageJobTests(unittest.TestCase):
         self.assertNotIn('private', json.dumps(ready))
         manager.request(self.build)
         self.assertEqual(len(provider.calls), 1)
+
+    def test_explicit_retry_replaces_failed_work_once_even_for_simultaneous_clicks(self):
+        manager, provider = self.manager(fail=True)
+        first = finish(manager, manager.request(self.build))
+        provider.fail = False
+        with ThreadPoolExecutor(8) as pool:
+            retried = list(pool.map(lambda _: manager.request(self.build, retry_of=first['jobId']), range(8)))
+        self.assertEqual(len({job['jobId'] for job in retried}), 1)
+        ready = finish(manager, retried[0])
+        self.assertNotEqual(ready['jobId'], first['jobId'])
+        self.assertTrue(ready['generated'])
+        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(manager.request(self.build)['jobId'], ready['jobId'])
+        self.assertEqual(manager.request(self.build, retry_of=first['jobId'])['jobId'], ready['jobId'])
+        self.assertFalse(manager.get(first['jobId'], first['sessionId'])['apply'])
+
+    def test_ready_or_running_picture_reattaches_without_generating_again(self):
+        manager, provider = self.manager(gated=True)
+        first = manager.request(self.build)
+        self.assertTrue(provider.started.wait(1))
+        self.assertEqual(manager.request(self.build, retry_of=first['jobId'])['jobId'], first['jobId'])
+        provider.release.set()
+        ready = finish(manager, first)
+        self.assertEqual(manager.request(self.build, retry_of=first['jobId'])['image'], ready['image'])
+        self.assertEqual(len(provider.calls), 1)
+
+    def test_generation_retries_are_bounded_and_translation_does_not_reset_the_limit(self):
+        manager, provider = self.manager(fail=True)
+        job = finish(manager, manager.request(self.build))
+        for remaining in (1, 0):
+            job = finish(manager, manager.request(self.build, retry_of=job['jobId']))
+            self.assertEqual(job['retriesRemaining'], remaining)
+        self.assertFalse(job['generationRetryAvailable'])
+        with self.assertRaisesRegex(JobError, 'image_retry_limit'):
+            manager.request(self.build, retry_of=job['jobId'])
+        translated = self.engine.change_language(self.build, 'ko')
+        translated_job = finish(manager, manager.request(translated))
+        self.assertEqual(translated_job['retriesRemaining'], 0)
+        with self.assertRaisesRegex(JobError, 'image_retry_limit'):
+            manager.request(translated, retry_of=translated_job['jobId'])
+        self.assertEqual(len(provider.calls), 3)
+
+    def test_cancelled_foreign_and_stale_jobs_cannot_be_retried(self):
+        manager, provider = self.manager(fail=True)
+        first = finish(manager, manager.request(self.build))
+        manager.cancel(first['jobId'], first['sessionId'])
+        with self.assertRaisesRegex(JobError, 'retry_not_allowed'):
+            manager.request(self.build, retry_of=first['jobId'])
+        with self.assertRaisesRegex(JobError, 'job_not_found'):
+            manager.request(scenes(session='other-child')[2], retry_of=first['jobId'])
+        current = manager.request(self.event)
+        with self.assertRaisesRegex(JobError, 'stale_snapshot'):
+            manager.request(self.build, retry_of=first['jobId'])
+        with self.assertRaisesRegex(JobError, 'retry_not_allowed'):
+            manager.request(self.event, retry_of=first['jobId'])
+        finish(manager, current)
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_timeout_and_late_old_completion_cannot_overwrite_a_manual_retry(self):
+        manager, provider = self.manager(gated=True)
+        first = manager.request(self.build)
+        self.assertTrue(provider.started.wait(1))
+        old_work = manager.jobs[first['jobId']]['work']
+        manager._expire(old_work)
+        replacement = manager.request(self.build, retry_of=first['jobId'])
+        provider.release.set()
+        ready = finish(manager, replacement)
+        image = ready['image']
+        manager.pool.submit(lambda: None).result(timeout=1)
+        manager._expire(old_work)
+        manager.cancel(first['jobId'], first['sessionId'])
+        self.assertEqual(manager.get(ready['jobId'], ready['sessionId'])['image'], image)
+        self.assertEqual(len(manager.images), 1)
+        self.assertEqual(len(provider.calls), 2)
 
     def test_custom_material_and_canonical_touch_selection_reach_the_image_provider(self):
         manager, provider = self.manager()

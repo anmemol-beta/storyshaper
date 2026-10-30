@@ -8,6 +8,8 @@ import time
 import urllib.error
 import urllib.request
 
+from .output_schema import response_format
+
 
 class ProviderError(RuntimeError):
     """Safe error code, deliberately excluding provider bodies and credentials."""
@@ -81,7 +83,7 @@ class MetaProvider:
 
     def __init__(self, api_key: str, model: str = "muse-spark-1.3", timeout: float = 30,
                  compose_reasoning_effort: str | None = "low",
-                 review_reasoning_effort: str | None = "low"):
+                 review_reasoning_effort: str | None = "low", *, structured_output: bool = True):
         if not api_key:
             raise ProviderError("missing_api_key")
         self._api_key = api_key
@@ -93,6 +95,7 @@ class MetaProvider:
             raise ValueError("Unsupported review reasoning effort")
         self.compose_reasoning_effort = compose_reasoning_effort
         self.review_reasoning_effort = review_reasoning_effort
+        self.structured_output = structured_output
 
     def complete(self, instructions: str, payload: dict) -> dict:
         result, _ = self.complete_with_metrics(instructions, payload)
@@ -115,6 +118,9 @@ class MetaProvider:
         }
         if effort is not None:
             request_body["reasoning"] = {"effort": effort}
+        output_format = response_format(payload.get("phase")) if self.structured_output else None
+        if output_format is not None:
+            request_body["text"] = {"format": output_format}
         body = json.dumps(request_body).encode("utf-8")
         metrics = {"durationMs": None, "requestBytes": len(body),
                    "instructionChars": len(policy), "inputChars": len(input_text),

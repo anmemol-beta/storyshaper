@@ -46,6 +46,26 @@ class LanguageTests(unittest.TestCase):
         for material, english in STORIES['en']['materials'].items():
             self.assertEqual(english['outcome'], STORIES['ko']['materials'][material]['outcome'])
 
+    def test_choices_use_three_short_keywords_and_keep_executable_full_answers(self):
+        for language, material in product(('en', 'ko'), ('paper', 'straw', 'wood', 'cookie', 'icecream')):
+            with self.subTest(language=language, material=material):
+                engine = StoryEngine(MockProvider(), language)
+                state = engine.start('keyword-choices')
+                for turn in range(9):
+                    choices = state['question']['choices']
+                    self.assertEqual(len(choices), 3)
+                    self.assertEqual(len({choice['label'] for choice in choices}), 3)
+                    for choice in choices:
+                        self.assertLessEqual(len(choice['label'].split()), 3)
+                        self.assertNotRegex(choice['label'], r'[.!?。！？]')
+                        self.assertNotEqual(choice['label'], choice['answer'])
+                    if turn == 0:
+                        state = engine.answer(state, material)
+                    else:
+                        state = engine.answer(state, '', choice_id=choices[0]['id'])
+                    self.assertIn(state['decision'], ('accept', 'complete'), state)
+                self.assertEqual(state['decision'], 'complete')
+
     def test_all_fifty_korean_paths_have_localized_narrative_questions_choices_and_ending(self):
         engine = StoryEngine(MockProvider(), 'ko')
         early = ('종이', '짚', '나무', '과자', '아이스크림')

@@ -19,10 +19,10 @@ scripts/demo.sh            # both servers; voices the book and the fillers for e
 scripts/demo.sh --wait     # ...and waits until all of it is voiced (before recording a demo)
 ```
 
-Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m speech.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
+Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m src.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
 
 The agent page reads every new passage and question aloud and highlights the line being read.
-If the narration server is not running, the page uses the browser voice. Another server address: `agent.html?voiceServer=http://127.0.0.1:8101`.
+If the narration server is not running, the page uses the browser voice. The app is at `http://127.0.0.1:8000/`; a custom narration address can be set with `index.html?voiceServer=http://127.0.0.1:8101`.
 
 ## API
 
@@ -87,8 +87,7 @@ First results (현준's 48 sentences, 4.2 min): held-out speaker similarity and 
 
 ## Where the voices are used
 
-- **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after the first missed answer is read the same way; the cards can be tapped before the invitation finishes.
-- **Story agent lab (`agent.html`)**: passages and questions are read in character. The first unaccepted answer or speech failure opens three active touch choices, with an invitation and option labels read through the same narration service. This replaces passage narration for that failure so voices do not overlap. Free-text or confirmed voice answers trigger a short "let's see…" line while the next part is written; immediate authored touch choices need no waiting interjection.
+- **Integrated storybook (`index.html`, port 8000)**: passages and questions are read in character. The first unaccepted answer or speech failure opens active touch choices with narration that does not block tapping. Free answers can play a prepared interjection while waiting. The previous `agent.html` page was moved here and removed.
 - **Voice setup (`voice.html`)**: saving a voice voices the whole picture book (`audio/lines.json`) and the "let's see…" lines in the background, and has a switch to read every character, the wolf too, in that voice (`localStorage["story-voice-all"]`, sent as `allRoles`).
 
 ## Page module

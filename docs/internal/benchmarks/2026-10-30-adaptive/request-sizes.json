@@ -1,0 +1,78 @@
+[
+  {
+    "pipeline": "two_call",
+    "language": "en",
+    "decision": "accept",
+    "modelCalls": 2,
+    "requests": [
+      {
+        "phase": "interpret_compose",
+        "requestBytes": 12651,
+        "inputChars": 6554,
+        "instructionChars": 3414
+      },
+      {
+        "phase": "review",
+        "requestBytes": 3440,
+        "inputChars": 1421,
+        "instructionChars": 1416
+      }
+    ],
+    "requestBytesTotal": 16091,
+    "liveLatencyEvidence": false
+  },
+  {
+    "pipeline": "adaptive",
+    "language": "en",
+    "decision": "accept",
+    "modelCalls": 1,
+    "requests": [
+      {
+        "phase": "interpret_compose",
+        "requestBytes": 9920,
+        "inputChars": 3787,
+        "instructionChars": 3914
+      }
+    ],
+    "requestBytesTotal": 9920,
+    "liveLatencyEvidence": false
+  },
+  {
+    "pipeline": "two_call",
+    "language": "ko",
+    "decision": "accept",
+    "modelCalls": 2,
+    "requests": [
+      {
+        "phase": "interpret_compose",
+        "requestBytes": 14950,
+        "inputChars": 5558,
+        "instructionChars": 3414
+      },
+      {
+        "phase": "review",
+        "requestBytes": 4216,
+        "inputChars": 1157,
+        "instructionChars": 1416
+      }
+    ],
+    "requestBytesTotal": 19166,
+    "liveLatencyEvidence": false
+  },
+  {
+    "pipeline": "adaptive",
+    "language": "ko",
+    "decision": "accept",
+    "modelCalls": 1,
+    "requests": [
+      {
+        "phase": "interpret_compose",
+        "requestBytes": 11725,
+        "inputChars": 2937,
+        "instructionChars": 3914
+      }
+    ],
+    "requestBytesTotal": 11725,
+    "liveLatencyEvidence": false
+  }
+]

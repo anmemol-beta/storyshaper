@@ -1,3 +1,125 @@
-.live-home{font-size:1.5rem;text-decoration:none}.live-select{display:flex;gap:5px;align-items:center;font-size:.75rem}.live-select select{max-width:110px;background:var(--bg-story);color:var(--text-main);border:1px solid var(--border-soft);border-radius:8px;padding:6px}.logo small{font:600 .67rem system-ui;opacity:.6}.reader-settings{padding:12px 16px;background:var(--bg-story);border:1px solid var(--border-soft);border-radius:16px}.setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 0;color:var(--text-main)}.reader-help{font-size:.75rem;color:var(--text-subtle);margin:8px 0 0}.live-narrative{display:grid;gap:9px;min-height:60px;max-height:32vh;overflow:auto;font-family:var(--font-story);color:var(--text-main)}.live-narrative p{margin:0;font-size:clamp(16px,3cqi,24px);line-height:1.55}.live-narrative .speaking{background:var(--hl);border-radius:7px}.live-question{font-family:var(--font-story);font-weight:700;font-size:clamp(17px,3cqi,25px);padding:8px 0;color:var(--text-main)}.live-controls{display:flex;min-width:0;gap:6px;grid-column:1}.live-controls input{min-width:0;width:100%;border-radius:10px;border:1px solid var(--border-soft);background:var(--bg-app);color:var(--text-main);padding:10px}.live-controls button,.live-choices button{border:0;border-radius:12px;padding:10px 14px;background:var(--action-primary);color:var(--on-action-primary);cursor:pointer}.live-choices{display:flex;gap:8px;flex-wrap:wrap}.live-choices button{background:var(--bg-app);color:var(--text-main);border:1px solid var(--border-soft)}.live-overlay{position:absolute;inset:0;display:grid;place-content:center;text-align:center;background:#28282170;color:white;font-weight:700;z-index:3}.live-overlay[hidden],.reader-settings[hidden],.live-choices[hidden]{display:none}.foot #progress{font-size:.78rem;color:var(--text-subtle);padding:6px}.cover small{font-size:clamp(12px,2.5cqi,20px);color:var(--text-subtle)}.mic{font-size:1.7rem}.mic-col .status{grid-column:1}.text-panel{overflow:auto}@media(max-width:520px){.tools{gap:2px}.live-select select{max-width:73px}.live-narrative{max-height:29vh}}
-.live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}.live-video[hidden]{display:none}.live-question.speaking{background:var(--hl);border-radius:7px}
-.tool.add-voice{width:auto;padding:0 12px;font-size:.78rem;font-weight:700;color:var(--action-primary);border-color:var(--border-soft);text-decoration:none;white-space:nowrap}@media(max-width:520px){.tool.add-voice{padding:0 8px;font-size:.7rem}}
+.tool.add-voice { width: auto; padding: 0 12px; font-size: .78rem; font-weight: 700; color: var(--action-primary); border-color: var(--border-soft); text-decoration: none; }
+.reader-app .tools .add-voice { grid-column: 1 / -1; justify-self: start; }
+.live-select { display: flex; gap: 5px; align-items: center; font-size: .75rem; }
+.live-select select { max-width: 150px; background: var(--bg-story); color: var(--text-main); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px; min-height: 44px; }
+.reader-settings { flex: none; max-height: 25dvh; overflow: auto; padding: 12px 16px; background: var(--bg-story); border: 1px solid var(--border-soft); border-radius: 16px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0; color: var(--text-main); }
+.live-narrative { display: grid; align-content: start; flex: 1; gap: 9px; min-height: 0; overflow: auto; font-family: var(--font-story); color: var(--text-main); }
+.live-narrative p { margin: 0; font-size: clamp(16px, 3cqi, 24px); line-height: 1.55; }
+.live-narrative .speaking, .live-question.speaking { background: var(--hl); border-radius: 7px; }
+.live-question { font-family: var(--font-story); font-weight: 700; font-size: clamp(17px, 3cqi, 25px); padding: 8px 0; color: var(--text-main); }
+.live-controls { display: flex; min-width: 0; gap: 6px; }
+.live-controls input { min-width: 0; width: 100%; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--bg-app); color: var(--text-main); padding: 10px; font-size: 1rem; }
+.live-controls button, .live-choices button, .camera-panel button, .camera-button, .live-overlay button { min-height: 48px; border: 0; border-radius: 12px; padding: 10px 14px; background: var(--action-primary); color: var(--on-action-primary); cursor: pointer; font: inherit; }
+.live-controls button:disabled, .live-choices button:disabled, .camera-button:disabled { opacity: .5; cursor: default; }
+.live-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.live-choices button { min-height: 80px; background: var(--bg-app); color: var(--text-main); border: 2px solid var(--border-soft); font: 700 clamp(17px, 3cqi, 24px) var(--font-story); overflow-wrap: anywhere; }
+.live-choices button:focus-visible, .live-choices button:hover:not(:disabled) { border-color: var(--action-primary); }
+.live-overlay { position: absolute; inset: 0; display: grid; gap: 14px; place-content: center; padding: 20px; text-align: center; background: #28282190; color: white; font-weight: 700; z-index: 3; }
+.foot #progress { font-size: .85rem; color: var(--text-subtle); padding: 6px; }
+.cover small { font-size: clamp(12px, 2.5cqi, 20px); color: var(--text-subtle); }
+.mic { font-size: 1.25rem; }
+.camera-button { grid-column: 1; justify-self: start; background: var(--bg-app); color: var(--text-main); border: 1px solid var(--border-soft); }
+.camera-panel video { display: block; max-height: 180px; width: 100%; border-radius: 12px; object-fit: contain; background: #232a24; }
+.camera-panel > div { display: flex; justify-content: center; gap: 8px; margin-top: 6px; }
+.text-panel { overflow: auto; }
+.text-panel > .status { margin: 0; padding: 4px 0; }
+.live-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 2; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Keep reader geometry independent of the legacy demo's landscape/fold rules.
+   In a flex column, align-self:center + inline-size containment collapses width.
+   Natural document scrolling also keeps controls reachable with a keyboard open. */
+.reader-app {
+  --gutter: clamp(12px, 2vw, 24px);
+  --mic: 72px;
+  height: auto;
+  min-height: 100svh;
+  overflow: visible;
+  padding: max(8px, var(--safe-t)) max(var(--gutter), var(--safe-r))
+    max(12px, var(--safe-b)) max(var(--gutter), var(--safe-l));
+}
+.reader-app .shell {
+  display: flex; flex: 1 0 auto; flex-direction: column; width: 100%;
+  max-width: 1440px; min-width: 0; min-height: 0; gap: 12px;
+}
+.reader-app .bar, .reader-app .foot {
+  display: flex; flex: none; grid-area: auto; align-self: stretch;
+  flex-wrap: wrap; gap: 8px 16px; min-width: 0; padding: 0;
+  pointer-events: auto;
+}
+.reader-app .bar > * { pointer-events: auto; }
+.reader-app .logo { grid-area: auto; padding: 0; font-size: clamp(20px, 2.5vw, 28px); }
+.reader-app .tools { grid-area: auto; justify-self: auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.reader-app .live-select { min-width: 0; font-size: 14px; }
+.reader-app .live-select select { min-width: 0; max-width: 180px; font-size: 16px; }
+.reader-app .tool { flex: none; }
+.reader-app .reader-settings { max-height: none; overflow: visible; }
+.reader-app .setting-row { flex-wrap: wrap; min-height: 44px; overflow-wrap: anywhere; }
+.reader-app .setting-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--action-primary); }
+.reader-app .setting-row a { display: inline-flex; align-items: center; min-height: 44px; color: var(--action-primary); }
+.reader-app .book {
+  display: grid; grid-area: auto; align-self: stretch; flex: 1 0 auto;
+  width: 100%; min-width: 0; min-height: 0; overflow: clip;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto;
+}
+.reader-app .art {
+  grid-area: 1 / 1; position: relative; align-self: stretch; width: 100%;
+  aspect-ratio: 3 / 2; min-width: 0; min-height: 160px; max-height: 55svh;
+  border-radius: 0;
+}
+.reader-app .art img { object-fit: contain; object-position: center; }
+.reader-app .text-panel {
+  grid-area: 2 / 1; flex: none; min-width: 0; min-height: 0;
+  flex-direction: column; justify-content: flex-start; align-items: stretch;
+  padding: clamp(16px, 2.4vw, 28px); gap: 14px;
+  border: 0; border-top: 1px solid var(--border-soft); overflow: visible;
+  background: var(--bg-story); overflow-wrap: anywhere;
+}
+.reader-app .text-panel > * { min-width: 0; flex-shrink: 0; }
+.reader-app .live-narrative { flex: none; overflow: visible; }
+.reader-app .live-narrative p { font-size: clamp(18px, 2.1vw, 24px); line-height: 1.65; }
+.reader-app .live-question { font-size: clamp(19px, 2.2vw, 26px); line-height: 1.5; padding: 0; }
+.reader-app .live-narrative:empty, .reader-app .live-question:empty, .reader-app .status:empty { display: none; }
+.reader-app .cover {
+  position: static; width: 100%; min-height: 200px; flex: 1 0 auto;
+  flex-direction: column; justify-content: center; gap: 16px;
+  padding: 20px 12px;
+}
+.reader-app .cover span { text-align: center; font-size: clamp(28px, 4vw, 48px); }
+.reader-app .cover small { font-size: clamp(14px, 1.5vw, 18px); }
+.reader-app .cover b { font-size: clamp(19px, 2vw, 24px); }
+.reader-app .live-controls { align-items: stretch; flex-wrap: wrap; gap: 8px; }
+.reader-app .live-controls input { flex: 1 1 160px; width: auto; min-height: 48px; }
+.reader-app .live-controls button { flex: 0 0 auto; }
+.reader-app .mic-col { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.reader-app .mic { grid-column: 2; grid-row: 1; min-width: 64px; min-height: 64px; touch-action: manipulation; }
+.reader-app .camera-button { max-width: 100%; overflow-wrap: anywhere; }
+.reader-app .live-choices { gap: 10px; }
+.reader-app .live-choices button { min-width: 0; min-height: 80px; font-size: clamp(17px, 1.8vw, 22px); line-height: 1.4; }
+.reader-app .camera-panel > div { flex-wrap: wrap; }
+.reader-app .status { font-size: 16px; line-height: 1.5; }
+.reader-app .foot #progress { min-width: 0; overflow-wrap: anywhere; }
+.reader-app .foot .btn { flex-shrink: 0; }
+.reader-app .live-overlay { overflow-wrap: anywhere; }
+.reader-app .live-overlay button { max-width: 100%; }
+.reader-app :is(button, select, input, a):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+
+/* A two-page spread when both columns have room; short windows scroll as one page. */
+@media (min-width: 600px) and (min-aspect-ratio: 4/3), (min-width: 1180px) {
+  .reader-app .book { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto; }
+  .reader-app .art {
+    grid-area: 1 / 1; position: sticky; top: max(8px, var(--safe-t)); align-self: start;
+    aspect-ratio: auto; height: clamp(200px, calc(100svh - 112px), 900px); max-height: none;
+  }
+  .reader-app .text-panel { grid-area: 1 / 2; border-top: 0; border-left: 1px solid var(--border-soft); }
+}
+@media (min-width: 900px) and (min-height: 700px) { .reader-app { --mic: 88px; } }
+@media (max-width: 600px) {
+  .reader-app .bar { gap: 8px; }
+  .reader-app .tools { width: 100%; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 44px; }
+  .reader-app .live-select { display: grid; gap: 4px; font-size: 12px; }
+  .reader-app .live-select select { width: 100%; max-width: none; padding: 8px 4px; }
+  .reader-app .live-choices { gap: 6px; }
+  .reader-app .live-choices button { padding: 10px 6px; }
+}
+@media (max-width: 360px) { .reader-app .live-choices { grid-template-columns: minmax(0, 1fr); } }

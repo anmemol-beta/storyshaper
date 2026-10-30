@@ -476,6 +476,22 @@ class APITests(unittest.TestCase):
         status, _ = self.http('POST', '/api/media/jobs', self.binding() | {'version': 0})
         self.assertEqual(status, 409)
 
+    def test_http_retry_validates_the_job_and_never_resurrects_cancelled_work(self):
+        _, first = self.http('POST', '/api/media/jobs', self.binding())
+        for value in (None, '', 123, [], {}):
+            with self.subTest(value=value):
+                status, body = self.http('POST', '/api/media/jobs', self.binding() | {'retryOf': value})
+                self.assertEqual(status, 400)
+                self.assertEqual(body['error']['code'], 'invalid_request')
+        status, body = self.http('POST', '/api/media/jobs', self.binding() | {'retryOf': 'unknown-job'})
+        self.assertEqual(status, 404)
+        self.assertEqual(body['error']['code'], 'job_not_found')
+        self.http('POST', '/api/media/cancel', {'sessionId': first['sessionId'], 'jobId': first['jobId']})
+        status, body = self.http('POST', '/api/media/jobs', self.binding() | {'retryOf': first['jobId']})
+        self.assertEqual(status, 409)
+        self.assertEqual(body['error']['code'], 'retry_not_allowed')
+        self.assertEqual(self.app.sessions[self.state['sessionId']].snapshot, self.state)
+
     def test_http_language_change_cancels_previous_binding_and_guards_hosts(self):
         _, first = self.http('POST', '/api/media/jobs', self.binding())
         status, translated = self.http('POST', '/api/language', {
