@@ -115,3 +115,17 @@ test('reduced motion and a repeated current picture complete without a fade dela
   assert.equal(done, 2);
   assert.equal(h.timers.size, 0);
 });
+
+test('old complete bitmap is not decoded as the newly requested picture', () => {
+  const h = harness();
+  h.next.currentSrc = 'old.jpg';
+  h.next.complete = true;
+  h.next.naturalWidth = 1024;
+  let decoded = 0;
+  h.next.decode = () => { decoded++; return Promise.resolve(); };
+  h.controller.prepare('new.jpg');
+  assert.equal(decoded, 0, 'the previous image must not start the new decode');
+  h.next.currentSrc = 'new.jpg';
+  h.next.onload();
+  assert.equal(decoded, 1);
+});

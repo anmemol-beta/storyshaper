@@ -173,10 +173,10 @@ class VoiceLibrary:
         return self.root / voice_id
 
     def meta(self, voice_id):
-        return json.loads((self.folder(voice_id) / "meta.json").read_text())
+        return json.loads((self.folder(voice_id) / "meta.json").read_text(encoding="utf-8"))
 
     def _write_meta(self, voice_id, meta):
-        (self.folder(voice_id) / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+        (self.folder(voice_id) / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def create(self, data, content_type, check_consent=False):
         """Turn an uploaded recording or video into a draft profile and suggest clips.
@@ -187,10 +187,10 @@ class VoiceLibrary:
         folder = self.root / voice_id
         folder.mkdir()
         try:
-            with tempfile.NamedTemporaryFile() as src:
-                src.write(data)
-                src.flush()
-                done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src.name, "-vn", "-t",
+            with tempfile.TemporaryDirectory() as temporary:
+                source = Path(temporary) / "upload"
+                source.write_bytes(data)
+                done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-t",
                                        str(MAX_SOURCE_SECONDS), "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le",
                                        str(folder / "full.wav")], capture_output=True)
             if done.returncode or not (folder / "full.wav").exists():
@@ -203,7 +203,7 @@ class VoiceLibrary:
                     "sourceSeconds": round(len(samples) / sr, 1)}
             if check_consent:
                 meta["consentHeard"] = consent_heard(self._transcribe(folder / "full.wav", seconds=60))
-            (folder / "meta.json").write_text(json.dumps(meta, indent=2))
+            (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)
             raise
@@ -231,11 +231,12 @@ class VoiceLibrary:
 
     def _transcribe(self, wav, seconds=None):
         """Muse Voice Transcribe on (the first `seconds` of) a file; None if it fails."""
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "transcript.wav"
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), *(["-t", str(seconds)] if seconds else []),
-                            "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", tmp.name], check=True)
+                            "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(target)], check=True)
             try:
-                return self.transcribe(Path(tmp.name).read_bytes())
+                return self.transcribe(target.read_bytes())
             except Exception as exc:
                 print(f"transcribe failed: {exc}", flush=True)
                 return None
@@ -245,10 +246,10 @@ class VoiceLibrary:
         folder = self.folder(voice_id) / "train"
         folder.mkdir(exist_ok=True)
         path = folder / f"{n:03d}.wav"
-        with tempfile.NamedTemporaryFile() as src:
-            src.write(data)
-            src.flush()
-            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src.name, "-vn", "-t", "30", "-ac", "1",
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "upload"
+            source.write_bytes(data)
+            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-t", "30", "-ac", "1",
                                    "-ar", str(SR), "-c:a", "pcm_s16le", str(path)], capture_output=True)
         if done.returncode or not path.exists():
             raise VoiceError(400, "audio_unreadable", "No audio could be read from this recording.")
@@ -263,7 +264,7 @@ class VoiceLibrary:
                 "snrDb": quality["snrDb"]}
         clips = self._training_clips(voice_id)
         clips[str(n)] = clip
-        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1))
+        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
         return clip
 
     def add_training_media(self, voice_id, data, max_seconds=600):
@@ -298,7 +299,7 @@ class VoiceLibrary:
                                   "seconds": round(len(part) / sr, 1), "heard": heard, "match": None}
             added.append(clips[str(next_n)])
             next_n += 1
-        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1))
+        (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
         return {"added": len(added), "skipped": skipped, "seconds": round(sum(c["seconds"] for c in added), 1),
                 "clips": added}
 
@@ -314,7 +315,7 @@ class VoiceLibrary:
             clip["text"], clip["edited"] = text.strip(), True
         if excluded is not None:
             clip["excluded"] = bool(excluded)
-        (self.folder(voice_id) / "train" / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1))
+        (self.folder(voice_id) / "train" / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
         return clip
 
     def training_audio(self, voice_id, n):
@@ -325,7 +326,7 @@ class VoiceLibrary:
 
     def _training_clips(self, voice_id):
         path = self.folder(voice_id) / "train" / "clips.json"
-        return json.loads(path.read_text()) if path.exists() else {}
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
     def training_status(self, voice_id):
         clips = self._training_clips(voice_id)
@@ -368,7 +369,7 @@ class VoiceLibrary:
         for folder in sorted(self.root.iterdir()):
             meta_path = folder / "meta.json"
             if meta_path.exists():
-                meta = json.loads(meta_path.read_text())
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
                 if meta.get("status") == "saved":
                     voices.append({k: meta.get(k) for k in ("id", "name", "source", "savedAt", "consent", "finetune")})
         return voices
@@ -381,7 +382,7 @@ class VoiceLibrary:
         shutil.rmtree(voice_dir / "finetune-data" / voice_id, ignore_errors=True)
         for run in (voice_dir / "finetune-runs").glob("*/train.json"):
             try:
-                data = json.loads(run.read_text()).get("data", "")
+                data = json.loads(run.read_text(encoding="utf-8")).get("data", "")
             except ValueError:
                 continue
             if Path(data).name == voice_id:

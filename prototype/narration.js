@@ -33,6 +33,7 @@ const Narration = (() => {
   let audio = null;
   let lastKey = null;
   let finish = null;        // resolves the clip that is playing, so stop() can end it early
+  let speechFinish = null;  // resolves browser speech immediately when a scene is cancelled
   let filler = null;        // {audio, done, end} while an interjection plays
   let lastFiller = -1;
   // After an answer the next passage takes ~10 s to write and a few more to voice. Until its first line
@@ -50,6 +51,7 @@ const Narration = (() => {
     token += 1;
     if (audio) { audio.pause(); audio = null; }
     if (finish) finish(true);
+    if (speechFinish) speechFinish();
     if ("speechSynthesis" in window) speechSynthesis.cancel();
   }
 
@@ -85,8 +87,10 @@ const Narration = (() => {
       if (!("speechSynthesis" in window)) return setTimeout(resolve, 1500);
       const say = new SpeechSynthesisUtterance(text);
       say.lang = language === "ko" ? "ko-KR" : "en-US";
-      const done = () => { clearTimeout(guard); resolve(); };
-      const guard = setTimeout(resolve, 30000);
+      let settled = false;
+      const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (speechFinish === done) speechFinish = null; resolve(); };
+      const guard = setTimeout(() => { speechSynthesis.cancel(); done(); }, 30000);
+      speechFinish = done;
       say.onend = done;
       say.onerror = done;
       speechSynthesis.speak(say);
