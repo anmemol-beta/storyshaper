@@ -1,12 +1,12 @@
 # 미디어 API — 준비 그림과 실시간 생성
 
-`MediaPlayground`/`MediaHandler`로 동화 서버를 확장한다. `prototype/agent.html`의 플레이어가 승인된 새 답마다 미디어 작업을 요청한다. 아래 오프라인 서버는 키 없이 준비된 그림을 제공한다.
+`MediaPlayground`/`MediaHandler`로 동화 서버를 확장한다. `prototype/index.html`의 플레이어가 승인된 새 답마다 미디어 작업을 요청한다. 앱 실행은 `src.server`로 통일하며 mock 모드는 키 없이 준비된 그림을 제공한다.
 
 ```powershell
-python -m media.server --port 8000
+python3 -m src.server
 ```
 
-같은 서버의 `http://127.0.0.1:8000/prototype/agent.html`에서 mock 동화를 진행할 수 있다. `media.server`는 `.env`를 읽지 않는다. 실제 이미지·마이크는 `ffmpeg` 설치와 `.env`의 `MODEL_API_KEY` 설정 후 `python3 -m vision.server` 또는 `python3 -m speech.server`로 실행한다. 카메라는 `vision.server`에서 제공한다. 실시간 영상 생성은 포함하지 않는다.
+같은 서버의 `http://127.0.0.1:8000/`에서 mock 동화를 진행할 수 있다. 통합 앱은 `.env`를 읽는다. 실제 이미지·마이크·카메라는 `ffmpeg` 설치와 `.env`의 `MODEL_API_KEY` 설정 후 같은 `python3 -m src.server`로 실행한다. 실시간 영상 생성은 포함하지 않는다.
 
 ## 새 답마다 실시간 그림
 

@@ -98,10 +98,13 @@ def checked_jpeg(raw):
 class MuseImageProvider:
     model = "muse-image-1.0"
 
-    def __init__(self, api_key, *, review_model="muse-spark-1.3", timeout=75):
+    def __init__(self, api_key, *, review_model="muse-spark-1.3", timeout=75, reasoning_strength="low"):
         if not api_key:
             raise ImageError("missing_api_key")
+        if reasoning_strength not in {"low", "high"}:
+            raise ValueError("Unsupported image reasoning strength")
         self._api_key, self.review_model, self.timeout = api_key, review_model, timeout
+        self.reasoning_strength = reasoning_strength
 
     def _request(self, endpoint, payload, *, timeout, limit):
         request = urllib.request.Request("https://api.meta.ai/v1/" + endpoint,
@@ -132,6 +135,7 @@ class MuseImageProvider:
             "images": [{"image_url": "data:image/jpeg;base64," + base64.b64encode(image).decode()}
                        for image in reference],
             "n": 1, "size": "1536x1024", "output_format": "jpeg", "response_format": "b64_json",
+            "reasoning_strength": self.reasoning_strength,
             "tool_enablement": {"enable_image_search": False, "enable_web_search": False, "enable_shell": False},
         }, timeout=self.timeout, limit=MAX_RESPONSE)
         try:

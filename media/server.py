@@ -154,7 +154,7 @@ def main():
     app = MediaPlayground()
     try:
         with MediaServer(('127.0.0.1', args.port), app) as server:
-            print(f'Offline story + media: http://127.0.0.1:{server.server_port}/prototype/agent.html', flush=True)
+            print(f'Offline story + media: http://127.0.0.1:{server.server_port}/', flush=True)
             server.serve_forever()
     except KeyboardInterrupt:
         pass

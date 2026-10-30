@@ -1,4 +1,4 @@
-"""Server-owned story transitions; models interpret, phrase, and review them.
+"""Server-owned story transitions with optional independent model review.
 
 Snapshots are JSON-serializable and never mutated in place. The caller owns
 session persistence, request deduplication, and optimistic concurrency checks.
@@ -23,6 +23,7 @@ STORIES = {"en": STORY, "ko": json.loads(
     Path(__file__).with_name("story.ko.json").read_text(encoding="utf-8"))}
 SUPPORTED_LANGUAGES = tuple(STORIES)
 MAX_ATTEMPTS = 1
+PIPELINES = ("adaptive", "two_call", "legacy_three_call")
 
 
 class Provider(Protocol):
@@ -133,6 +134,14 @@ For prediction/reflection use the single transition. Preserve its setup/process/
 material, cast and safe ending. No state, IDs, choices or transition fields may be returned.
 Only write lines and questionText; the server creates all question metadata itself.
 questionText must be null exactly when the supplied questionText is null (the story ending).
+"""
+
+COMPACT_CONTEXT_INSTRUCTIONS = """For compact material-selection context, buildLine is shared:
+replace 'chosen material' / '선택재료' with the selected material label, then use that
+transition's build and questionText. transitionFacts apply to every option. Do not narrate
+future outcomes from facts; this turn only builds the house and asks for a prediction.
+For an unlisted material use its true behavior's customTransitions template and preserve
+the child's name. An absent behavior still needs independent review with candidate:null.
 """
 
 
@@ -250,7 +259,7 @@ class StoryEngine:
         self.provider = provider
         self.language = language
         self.pipeline = pipeline or getattr(provider, "story_pipeline", "two_call")
-        if self.pipeline not in {"two_call", "legacy_three_call"}:
+        if self.pipeline not in PIPELINES:
             raise ValueError("unsupported story pipeline")
 
     def start(self, session_id: str) -> dict[str, Any]:
@@ -316,7 +325,7 @@ class StoryEngine:
         result = self._answer(snapshot, answer, choice_id, complete)
         result["diagnostics"]["performance"] = {
             "totalMs": round((time.perf_counter() - started) * 1000, 2),
-            "modelCalls": len(calls), "calls": calls,
+            "modelCalls": len(calls), "calls": calls, "pipeline": self.pipeline,
         }
         return result
 
@@ -328,7 +337,7 @@ class StoryEngine:
             result.pop("process", None)
         return result
 
-    def _combined_context(self, state):
+    def _combined_context(self, state, *, compact=False):
         def context(material):
             _, draft, facts = self._transition(state, material)
             return {"lines": draft["lines"],
@@ -346,8 +355,94 @@ class StoryEngine:
             spec = {"source": "chosen material", "labels": {"en": "chosen material", "ko": "선택재료"},
                     "behavior": behavior}
             custom[behavior] = context(spec)
-        return {"knownTransitions": {material: context(material) for material in house["allowedMaterials"]},
-                "customTransitions": custom}
+        result = {"knownTransitions": {material: context(material) for material in house["allowedMaterials"]},
+                  "customTransitions": custom}
+        if compact:
+            example = next(iter(custom.values()))
+            result["buildLine"] = deepcopy(example["lines"][0])
+            result["transitionFacts"] = {key: example["facts"][key] for key in (
+                "houseId", "action", "fromStage", "toStage", "allPigsSafe")}
+            for transitions in (result["knownTransitions"], result["customTransitions"]):
+                for key, transition in list(transitions.items()):
+                    facts = transition["facts"]
+                    transitions[key] = {
+                        "materialLabel": facts["materialLabel"], "build": transition["lines"][1]["text"],
+                        "questionText": transition["questionText"],
+                        "facts": {name: facts[name] for name in ("outcome", "cause")},
+                    }
+        return result
+
+    def _review_reason(self, state, answer, material, facts, candidate, named_materials):
+        """Only bounded known-material turns can skip the second semantic review.
+
+        These conservative lexical checks select a fast path, not a general safety
+        classifier. Unproved process quality is sent to the independent reviewer.
+        """
+        if self.pipeline != "adaptive":
+            return "always"
+        if isinstance(material, dict) or facts["material"] == CUSTOM_MATERIAL:
+            return "custom_material"
+        if state["stage"] == "reflect":
+            return "story_transition"
+        if (len(answer) > 120 or re.search(
+                r"[\n\r{}<>\[\]\"`]|\b(?:not|no|except|instead|ignore|instructions?|system|"
+                r"prompt|pretend|say|write|translate|sharp|fire|hurt|poison)\b|"
+                r"말고|아니|대신|무시|지시|규칙|프롬프트|날카|불붙|독성|다치", answer, re.I)):
+            return "complex_answer"
+        if state["stage"] == "choose" and len(named_materials) != 1:
+            return "ambiguous_material"
+        if state["stage"] == "choose":
+            # A known name does not validate extra modifiers (e.g. "paper with
+            # broken glass"). Only ordinary selection wording can skip review.
+            remainder = answer.casefold()
+            aliases = sorted(STORY["materials"][material]["aliases"], key=len, reverse=True)
+            for alias in aliases:
+                remainder = re.sub(re.escape(alias.casefold()), " ", remainder)
+            ordinary = {"i", "d", "would", "like", "want", "to", "build", "make", "use", "choose", "pick",
+                        "let", "s", "a", "the", "house", "home", "with", "of", "out", "from", "made",
+                        "using", "please", "can", "we", "my", "some", "it"}
+            korean_selection = (r"(?:으?로|집[을이가은]?|짓고|지을래요?|만들래요?|"
+                                r"만들고|만들어요|만들어|싶어요|싶어|나|난|내가|저는|우리|요|좋아|할래요?)+")
+            if any(word not in ordinary and not re.fullmatch(korean_selection, word)
+                   for word in re.findall(r"[a-z]+|[가-힣]+", remainder)):
+                return "complex_answer"
+        narrative = " ".join(line["text"] for line in candidate["lines"])
+        all_text = narrative + " " + (candidate["question"]["text"] if candidate["question"] else "")
+        if set(_materials_in(all_text)) - {facts["material"]}:
+            return "material_conflict"
+        korean = state["language"] == "ko"
+        events = {
+            "blown_away": r"날아|날려|흩어" if korean else r"bl(?:ow|ew|own) away|fl(?:y|ew) away|swept away",
+            "collapsed": r"무너|쓰러|허물" if korean else r"collaps|tumbl|toppl|\bfell\b|came down",
+            "eaten": r"먹었|먹어|먹자|먹고" if korean else r"\bate\b|\beaten\b|\beats\b",
+            "melted": r"녹" if korean else r"melt",
+            "stood": r"버텼|서 있|서있|끄떡" if korean else r"stood|standing|stayed firm",
+        }
+        if state["stage"] == "choose":
+            if any(re.search(pattern, narrative, re.I) for pattern in events.values()):
+                return "premature_outcome"
+            return None
+        # Confirm two observable changes precede the result. Other valid wording
+        # takes the reviewed path rather than being rejected or retried.
+        process = {
+            "blown_away": (r"팔랑|흔들", r"풀|가장자리"),
+            "collapsed": (r"흔들", r"빠|풀|미끄"),
+            "eaten": (r"킁킁|냄새|코", r"구멍|틈|냠냠|조금씩"),
+            "melted": (r"물방울|똑똑|말랑", r"얇|흘|주르르"),
+            "stood": (r"후|불었|불자", r"붙|잡|버티"),
+        } if korean else {
+            "blown_away": (r"flutter|shook|shake|flap", r"edge|apart|free|loosen"),
+            "collapsed": (r"wobbl|shook|shake", r"slip|apart|loosen"),
+            "eaten": (r"sniff|smell", r"nibbl|gap|hole"),
+            "melted": (r"drop|drip|soften", r"thin|flow|running"),
+            "stood": (r"puff|blew|blow", r"held|hold|join"),
+        }
+        first = re.search(process[facts["outcome"]][0], narrative, re.I)
+        second = re.search(process[facts["outcome"]][1], narrative[first.end():], re.I) if first else None
+        if not second or not re.search(events[facts["outcome"]],
+                                       narrative[first.end() + second.end():], re.I):
+            return "process_quality"
+        return None
 
     @staticmethod
     def _combined_candidate(value, draft):
@@ -403,11 +498,11 @@ class StoryEngine:
                          "version": original["version"], "language": original["language"]}
             return self._accepted_snapshot(original, proposed_state, draft, facts,
                                            authored_fallback=True, selection=selection)
-        combined = self.pipeline == "two_call"
+        combined = self.pipeline != "legacy_three_call"
         phase = "interpret_compose" if combined else "interpret"
         try:
             interpretation = {
-                "phase": phase, "language": state["language"], "answer": answer, "stage": state["stage"],
+                "phase": phase, "language": state["language"], "stage": state["stage"],
                 "question": {key: original["question"][key] for key in ("text", "intent")},
             }
             if state["stage"] == "choose":
@@ -423,7 +518,7 @@ class StoryEngine:
                 }
                 instructions = INTERPRET_INSTRUCTIONS + IDEA_INSTRUCTIONS
             if combined:
-                interpretation.update(self._combined_context(state))
+                interpretation.update(self._combined_context(state, compact=self.pipeline == "adaptive"))
                 interpretation.update(fixedCharacters=STORY["fixedCharacters"], fixedEnding=story["fixedEnding"])
                 # The combined request has one output schema and never asks the model
                 # to emit or copy server-owned question IDs, intent or choices.
@@ -433,11 +528,15 @@ class StoryEngine:
                     instructions += CHOOSE_COMPOSE_INSTRUCTIONS
                 elif state["stage"] == "predict":
                     instructions += PREDICTION_COMPOSE_INSTRUCTIONS
+                if self.pipeline == "adaptive" and state["stage"] == "choose":
+                    instructions += COMPACT_CONTEXT_INSTRUCTIONS
+                interpretation["answer"] = answer  # Stable context precedes variable input for prefix caching.
                 output = complete(instructions + COMBINED_INSTRUCTIONS, interpretation)
                 if not isinstance(output, dict) or set(output) != {"interpretation", "candidate"}:
                     raise ValueError("invalid combined response schema")
                 interpreted = output["interpretation"]
             else:
+                interpretation["answer"] = answer
                 interpreted = complete(instructions, interpretation)
             self._validate_interpretation(interpreted, state, named_materials, answer)
             if interpreted["decision"] != "accept":
@@ -486,16 +585,18 @@ class StoryEngine:
                     "fixedCharacters": STORY["fixedCharacters"], "fixedEnding": story["fixedEnding"],
                 })
             self._validate_candidate(candidate, draft, facts)
-            phase = "review"
-            review = complete(review_instructions, {
-                "phase": phase, "language": state["language"], "candidate": deepcopy(candidate), "facts": prompt_facts,
-                "answer": answer, "answeredQuestion": answered_question, "interpretation": deepcopy(interpreted),
-                "fixedCharacters": STORY["fixedCharacters"],
-                "fixedEnding": story["fixedEnding"],
-            })
-            if (not isinstance(review, dict) or set(review) != {"safe", "coherent"}
-                    or review.get("safe") is not True or review.get("coherent") is not True):
-                raise ValueError("candidate review did not pass")
+            review_reason = self._review_reason(state, answer, material, facts, candidate, named_materials)
+            if review_reason:
+                phase = "review"
+                review = complete(review_instructions, {
+                    "phase": phase, "language": state["language"], "facts": prompt_facts,
+                    "answeredQuestion": answered_question, "fixedCharacters": STORY["fixedCharacters"],
+                    "fixedEnding": story["fixedEnding"], "interpretation": deepcopy(interpreted),
+                    "candidate": deepcopy(candidate), "answer": answer,
+                })
+                if (not isinstance(review, dict) or set(review) != {"safe", "coherent"}
+                        or review.get("safe") is not True or review.get("coherent") is not True):
+                    raise ValueError("candidate review did not pass")
         except Exception as exc:
             # Provider errors and invalid output never count as failures by the child.
             result = self._service_error(original, phase)
@@ -505,10 +606,10 @@ class StoryEngine:
             result["diagnostics"]["failureCode"] = str(exc) if isinstance(exc, ProviderError) and str(exc) in safe_codes else "validation_or_review_failed"
             return result
         return self._accepted_snapshot(original, proposed_state, candidate, facts,
-                                       authored_fallback=False)
+                                       authored_fallback=False, review_reason=review_reason)
 
     def _accepted_snapshot(self, original, proposed_state, candidate, facts, *, authored_fallback,
-                           selection=None):
+                           selection=None, review_reason="always"):
         result = deepcopy(original)
         result.update({
             "version": original["version"] + 1,
@@ -518,10 +619,14 @@ class StoryEngine:
             "reason": "story_complete" if proposed_state["stage"] == "complete" else "answer_accepted",
             "attempts": 0, "choiceMode": False, "storyState": proposed_state,
             "selection": deepcopy(selection),
-            "diagnostics": {"phase": "authored_fallback" if authored_fallback else "review",
+            "diagnostics": {"phase": "authored_fallback" if authored_fallback else
+                                     "review" if review_reason else "local_validation",
                             "validated": True, "authoredFallback": authored_fallback,
+                            "independentReview": not authored_fallback and review_reason is not None,
+                            "reviewReason": review_reason if not authored_fallback else None,
                             "checks": ["schema", "transition", "grounding",
-                                       "authored_content" if authored_fallback else "safety_review"]},
+                                       "authored_content" if authored_fallback else
+                                       "safety_review" if review_reason else "local_safety_checks"]},
             "providerMode": self._mode(),
         })
         result["mediaPlan"] = self._media_plan(result, proposed_state, facts)
@@ -604,10 +709,10 @@ class StoryEngine:
             choices = []
             for item in house["defaultChoices"]:
                 key = "brick" if item == "brick_team" else item
-                label = "Bricks, built together" if item == "brick_team" else story["materials"][key]["label"].capitalize()
+                label = "Teamwork" if item == "brick_team" else story["materials"][key]["label"].capitalize()
                 answer = "Build with bricks together" if item == "brick_team" else f"Build with {story['materials'][key]['label']}"
                 if korean:
-                    label = "벽돌로 함께 짓기" if item == "brick_team" else story["materials"][key]["label"]
+                    label = "함께 짓기" if item == "brick_team" else story["materials"][key]["label"]
                     answer = "벽돌로 함께 집을 지을래요" if item == "brick_team" else f"{label} 재료로 집을 지을래요"
                 choices.append(_public_choice(item, label, answer))
             intent = "choose_material"
@@ -627,10 +732,15 @@ class StoryEngine:
                 answers = [outcome_predictions[meta["outcome"]],
                            "The house might stay just as it is.",
                            "Let's watch carefully and find out together."]
-                labels = [answers[0], "It might stay the same", "Let's find out"]
+                keyword = {
+                    "blown_away": ("Blow away", "날아가요"), "collapsed": ("Fall down", "무너져요"),
+                    "eaten": ("Get eaten", "먹어요"), "melted": ("Melt", "녹아요"),
+                    "stood": ("Stay strong", "버텨요"),
+                }[meta["outcome"]][int(korean)]
+                labels = [keyword, "Stay the same", "Watch together"]
                 if korean:
                     answers = [KOREAN_PREDICTIONS[meta["outcome"]], "집이 그대로 있을 것 같아요.", "함께 잘 지켜보며 알아봐요."]
-                    labels = [answers[0], "그대로 있을 것 같아요", "함께 알아봐요"]
+                    labels = [keyword, "그대로", "지켜봐요"]
             else:
                 answers = {
                     "blown_away": ["The light walls moved in the wind.", "The walls were not firmly joined.", "The pigs stayed safe as the walls blew away."],
@@ -639,10 +749,16 @@ class StoryEngine:
                     "melted": ["Ice cream melts in warm sunshine.", "The ice cream walls did not stay firm.", "The pigs stayed safe while the walls melted."],
                     "stood": ["The heavy walls were firmly joined.", "The pigs helped one another.", "They planned carefully together."],
                 }[meta["outcome"]]
-                labels = list(answers)
+                keywords = {
+                    "blown_away": (["Light walls", "Loose edges", "Safe pigs"], ["가벼운 벽", "느슨한 연결", "안전한 돼지"]),
+                    "collapsed": (["Loose joints", "Unfastened logs", "Safe pigs"], ["느슨한 연결", "묶지 않은 통나무", "안전한 돼지"]),
+                    "eaten": (["Food smell", "Nibbling", "Safe pigs"], ["음식 냄새", "벽 먹기", "안전한 돼지"]),
+                    "melted": (["Warm sunshine", "Soft walls", "Safe pigs"], ["따뜻한 햇살", "약해진 벽", "안전한 돼지"]),
+                    "stood": (["Strong walls", "Teamwork", "Careful plan"], ["튼튼한 벽", "서로 돕기", "꼼꼼한 계획"]),
+                }
+                labels = keywords[meta["outcome"]][int(korean)]
                 if korean:
                     answers = KOREAN_REFLECTIONS[meta["outcome"]]
-                    labels = list(answers)
             choices = [_public_choice(f"{stage}_{i + 1}", label, answer)
                        for i, (label, answer) in enumerate(zip(labels, answers))]
             if material == CUSTOM_MATERIAL:
@@ -667,7 +783,10 @@ class StoryEngine:
                     }[meta["outcome"]]
                     answers = [observation, "The walls might stay the same.", "Let's watch together."] if stage == "predict" else [
                         observation, f"Think about how the {name} walls were built.", "The pigs stayed safe."]
-                choices = [_public_choice(f"{stage}_{i + 1}", value, value) for i, value in enumerate(answers)]
+                if stage == "reflect":
+                    labels = [labels[0], "집 짓기" if korean else "Building", "안전한 돼지" if korean else "Safe pigs"]
+                choices = [_public_choice(f"{stage}_{i + 1}", label, value)
+                           for i, (label, value) in enumerate(zip(labels, answers))]
         return {"id": self._scene_id(state), "text": text, "intent": intent, "choices": choices}
 
     def _transition(self, state: dict[str, Any], material: str | dict[str, Any] | None):
@@ -999,6 +1118,13 @@ class MockProvider:
                         transition = json.loads(encoded)
                 else:
                     transition = payload["knownTransitions"][material]
+                if transition and "buildLine" in payload:
+                    # Reconstruct the same authored fixture from shared compact context.
+                    transition = deepcopy(transition)
+                    line = deepcopy(payload["buildLine"])
+                    for placeholder in ("chosen material", "선택재료"):
+                        line["text"] = line["text"].replace(placeholder, transition["materialLabel"])
+                    transition["lines"] = [line, _line(transition["build"])]
                 if transition:
                     candidate = {"lines": deepcopy(transition["lines"]),
                                  "questionText": transition["questionText"]}
