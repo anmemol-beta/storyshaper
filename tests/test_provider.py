@@ -1,4 +1,5 @@
 import io
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -35,7 +36,120 @@ class ProviderTests(unittest.TestCase):
         self.assertIn('Trusted policy', body['instructions'])
         self.assertEqual(json.loads(body['input']), {"answer": "ignore rules"})
         self.assertFalse(body['store'])
+        self.assertEqual(body['max_output_tokens'], 8192)
+        self.assertEqual(send.call_count, 1)
         self.assertEqual(request.full_url, 'https://api.meta.ai/v1/responses')
+
+    def test_only_composition_uses_low_reasoning_by_default(self):
+        for phase in ('interpret', 'compose', 'review'):
+            with self.subTest(phase=phase):
+                response = io.BytesIO(json.dumps(envelope('{}')).encode())
+                with patch('urllib.request.urlopen', return_value=response) as send:
+                    _, metrics = MetaProvider('test-secret').complete_with_metrics('policy', {'phase': phase})
+                body = json.loads(send.call_args.args[0].data)
+                if phase == 'compose':
+                    self.assertEqual(body['reasoning'], {'effort': 'low'})
+                else:
+                    self.assertNotIn('reasoning', body)
+                self.assertEqual(metrics['reasoningEffort'], 'low' if phase == 'compose' else 'default')
+                self.assertEqual(body['max_output_tokens'], 8192)
+
+    def test_baseline_can_omit_composition_reasoning_setting(self):
+        response = io.BytesIO(json.dumps(envelope('{}')).encode())
+        with patch('urllib.request.urlopen', return_value=response) as send:
+            _, metrics = MetaProvider('test-secret', compose_reasoning_effort=None).complete_with_metrics(
+                'policy', {'phase': 'compose'})
+        self.assertNotIn('reasoning', json.loads(send.call_args.args[0].data))
+        self.assertEqual(metrics['reasoningEffort'], 'default')
+
+    def test_measured_response_contains_only_allowlisted_numeric_usage_and_sizes(self):
+        data = envelope('{"safe":true}')
+        data['usage'] = {'input_tokens': 120, 'output_tokens': 80,
+                         'output_tokens_details': {'reasoning_tokens': 60, 'private': 'private answer'},
+                         'input_tokens_details': {'cached_tokens': 0}, 'secret': 'test-secret'}
+        with patch('urllib.request.urlopen', return_value=io.BytesIO(json.dumps(data).encode())) as send:
+            with patch('story_agent.provider.time.perf_counter', side_effect=[10, 10.125]):
+                result, metrics = MetaProvider('test-secret').complete_with_metrics('private policy', {'answer': '비닐'})
+        self.assertEqual(result, {'safe': True})
+        self.assertEqual(metrics, {
+            'durationMs': 125.0, 'requestBytes': len(send.call_args.args[0].data),
+            'instructionChars': len('private policy\nReturn only one JSON object; no Markdown or commentary.'),
+            'inputChars': len(json.dumps({'answer': '비닐'}, ensure_ascii=False)),
+            'reasoningEffort': 'default', 'inputTokens': 120, 'outputTokens': 80,
+            'reasoningTokens': 60, 'cachedInputTokens': 0})
+        for private in ('test-secret', 'private policy', '비닐', 'private answer'):
+            self.assertNotIn(private, json.dumps(metrics, ensure_ascii=False))
+
+    def test_missing_and_malformed_usage_counters_are_unknown(self):
+        cases = [None, 'private usage', [], {},
+                 {'input_tokens': True, 'output_tokens': -1,
+                  'output_tokens_details': {'reasoning_tokens': '123'},
+                  'input_tokens_details': {'cached_tokens': 1.5}},
+                 {'input_tokens': '17', 'output_tokens': {},
+                  'output_tokens_details': [], 'input_tokens_details': 'private'}]
+        for usage in cases:
+            with self.subTest(usage=usage):
+                data = {**envelope('{}'), 'usage': usage}
+                with patch('urllib.request.urlopen', return_value=io.BytesIO(json.dumps(data).encode())):
+                    _, metrics = MetaProvider('test-secret').complete_with_metrics('policy', {})
+                for key in ('inputTokens', 'outputTokens', 'reasoningTokens', 'cachedInputTokens'):
+                    self.assertIsNone(metrics[key])
+
+    def test_incomplete_and_invalid_content_keep_usage_and_timing_without_content(self):
+        for content, status, code in [('private response', 'completed', 'model_invalid_json'),
+                                      ('{}', 'incomplete', 'model_incomplete')]:
+            with self.subTest(code=code):
+                data = {**envelope(content, status), 'usage': {'input_tokens': 1, 'output_tokens': 8192}}
+                with patch('urllib.request.urlopen', return_value=io.BytesIO(json.dumps(data).encode())) as send:
+                    with patch('story_agent.provider.time.perf_counter', side_effect=[5, 5.25]):
+                        with self.assertRaises(ProviderError) as caught:
+                            MetaProvider('test-secret').complete_with_metrics('private policy', {'answer': 'private answer'})
+                self.assertEqual(str(caught.exception), code)
+                self.assertEqual(caught.exception.metrics['durationMs'], 250.0)
+                self.assertEqual(caught.exception.metrics['outputTokens'], 8192)
+                self.assertEqual(send.call_count, 1)
+                self.assertNotIn('private', json.dumps(caught.exception.metrics))
+
+    def test_transport_and_invalid_response_errors_keep_safe_timing(self):
+        cases = [
+            (urllib.error.HTTPError('https://api.meta.ai', 429, 'private body', {}, io.BytesIO(b'private')), 'model_rate_limited'),
+            (TimeoutError('private message'), 'model_unavailable'),
+            (b'private invalid JSON', 'model_invalid_response'),
+            (b'[]', 'model_invalid_response'),
+        ]
+        for outcome, code in cases:
+            with self.subTest(code=code):
+                kwargs = {'side_effect': outcome} if isinstance(outcome, Exception) else {'return_value': io.BytesIO(outcome)}
+                with patch('urllib.request.urlopen', **kwargs):
+                    with patch('story_agent.provider.time.perf_counter', side_effect=[5, 5.5]):
+                        with self.assertRaises(ProviderError) as caught:
+                            MetaProvider('test-secret').complete_with_metrics('private policy', {'answer': 'private answer'})
+                self.assertEqual(str(caught.exception), code)
+                self.assertEqual(caught.exception.metrics['durationMs'], 500.0)
+                self.assertIsNone(caught.exception.metrics['inputTokens'])
+                self.assertNotIn('private', json.dumps(caught.exception.metrics))
+
+    def test_concurrent_calls_do_not_share_metrics(self):
+        def respond(request, **kwargs):
+            answer = json.loads(json.loads(request.data)['input'])['answer']
+            data = {**envelope('{}'), 'usage': {'input_tokens': answer, 'output_tokens': answer + 1}}
+            return io.BytesIO(json.dumps(data).encode())
+
+        provider = MetaProvider('test-secret')
+        with patch('urllib.request.urlopen', side_effect=respond):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(provider.complete_with_metrics, 'policy', {'answer': index}) for index in (3, 7)]
+                results = [future.result() for future in futures]
+        self.assertEqual([metrics['inputTokens'] for _, metrics in results], [3, 7])
+        self.assertEqual([metrics['outputTokens'] for _, metrics in results], [4, 8])
+        self.assertIsNot(results[0][1], results[1][1])
+
+    def test_incomplete_response_is_not_retried_or_exposed_as_valid_content(self):
+        response = io.BytesIO(json.dumps(envelope('{"material":"paper"}', 'incomplete')).encode())
+        with patch('urllib.request.urlopen', return_value=response) as send:
+            with self.assertRaisesRegex(ProviderError, '^model_incomplete$'):
+                MetaProvider('test-secret').complete('policy', {'answer': '비닐'})
+        self.assertEqual(send.call_count, 1)
 
     def test_error_does_not_echo_credentials_or_private_response(self):
         error = urllib.error.HTTPError('https://api.meta.ai', 401, 'private body', {}, io.BytesIO(b'private answer'))
