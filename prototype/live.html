@@ -24,7 +24,7 @@
   <p class="reader-help">Voice registration and audio generation belong to the narration module. This screen only selects a reader and calls its public interface.</p>
 </section>
 <main class="book" id="book" data-state="COVER">
- <div class="art"><img id="imgCur" class="is-current" src="img/intro.jpg" alt="Story illustration"><img id="imgNext" src="img/intro.jpg" alt=""><div class="live-overlay" id="loading" hidden>✦ <span id="loadingText">Updating story…</span></div></div>
+ <div class="art"><img id="imgCur" class="is-current" src="img/intro.jpg" alt="Story illustration"><img id="imgNext" src="img/intro.jpg" alt=""><video id="storyVideo" class="live-video" muted playsinline hidden aria-label="Animated story scene"></video><div class="live-overlay" id="loading" hidden>✦ <span id="loadingText">Updating story…</span></div></div>
  <section class="text-panel">
    <button class="cover" id="cover" type="button"><span id="storyTitle">아기돼지 삼형제</span><small id="readBy">Read by Default reader</small><b>▶ Start</b></button>
    <div id="narrative" class="live-narrative" aria-live="polite"></div>
