@@ -38,7 +38,7 @@ class Element {
   focus() { this.focused = true; }
 }
 
-function harness(language = 'en') {
+function harness(language = 'en', narration = null) {
   let now = 1000, timerId = 0;
   const timers = new Map();
   function setTimeout(callback, delay = 0) {
@@ -97,6 +97,7 @@ function harness(language = 'en') {
   const storage = new Map([['story-language', language]]);
   const context = vm.createContext({
     document, Audio, Image: class {}, URLSearchParams,
+    ...(narration ? {Narration:narration} : {}),
     location: {search: ''},
     window: {addEventListener: (name, callback) => listeners.set(name, callback)},
     localStorage: {getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value)},
@@ -118,29 +119,41 @@ function harness(language = 'en') {
   return {element, run, snapshot, tick, audioElements, plays, speech, speechSettings, timers, listeners};
 }
 
+test('the first-failure cards work while the parent invitation is preparing and ignore its late audio', async () => {
+  const pending = [];
+  const narration = {usesParentVoice:() => true, voiceName:() => 'Dad', prepare:lines => new Promise(resolve => pending.push({lines, resolve}))};
+  const h = harness('en', narration);
+  h.run("go('p1', true); fail()");
+  assert.equal(pending.length, 1);
+  assert.match(pending[0].lines[0], /Tap the one you like/);
+  assert.equal(h.element('hints').hidden, false);
+  assert.equal(h.element('hints').children[0].disabled, false);
+  h.element('hints').children[0].onclick();
+  assert.equal(h.snapshot().currentKey, 'b1paper');
+  pending[0].resolve(['http://127.0.0.1:8100/old-invitation.mp3']);
+  await new Promise(setImmediate);
+  assert.ok(!h.plays.some(play => play.src.endsWith('/old-invitation.mp3')));
+});
+
 for (const language of ['en', 'ko']) {
-  test(`${language}: three misses show numbered picture cards and the next question resets misses`, () => {
+  test(`${language}: the first miss opens touch cards before narration ends and the next question resets misses`, () => {
     const h = harness(language);
     h.run("go('p1', true)");
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      h.run('fail()');
-      assert.equal(h.snapshot().errors, attempt);
-      assert.equal(h.snapshot().phase, 'ERROR');
-      assert.equal(h.element('hints').hidden, true);
-      assert.equal(h.element('demo').hidden, true);
-    }
     h.run('fail()');
+    assert.equal(h.snapshot().errors, 1);
     assert.equal(h.snapshot().phase, 'ASKING');
     assert.equal(h.element('hints').hidden, false);
     assert.equal(h.element('hints').children.length, 2);
     assert.deepEqual(h.element('hints').children.map(card => card.children[0].textContent), ['1', '2']);
     assert.match(h.element('hints').textContent, language === 'ko' ? /종이/ : /Paper/);
     assert.equal(h.speech.at(-1).lang, language === 'ko' ? 'ko-KR' : 'en-US');
+    assert.equal(h.element('hints').children[0].disabled, false);
+    // No speech onend is fired: the child can tap during the spoken invitation.
     h.element('hints').children[0].onclick();
     assert.equal(h.snapshot().currentKey, 'b1paper');
     assert.equal(h.snapshot().state.h1, 'paper');
     assert.equal(h.snapshot().errors, 0);
-    h.run("go('p2', true); fail(); fail(); fail()");
+    h.run("go('p2', true); fail()");
     assert.equal(h.element('hints').children.length, 1, 'Only a prepared forward answer is offered');
     assert.match(h.element('hints').textContent, language === 'ko' ? /나무/ : /Wood/);
   });
@@ -148,7 +161,7 @@ for (const language of ['en', 'ko']) {
   test(`${language}: every prepared question has a fallback card without adding story branches`, () => {
     const h = harness(language);
     for (const key of ['p1', 'p1silly', 'w1', 'p2', 'p2silly', 'p3', 'w3']) {
-      h.run(`go('${key}', true); fail(); fail(); fail()`);
+      h.run(`go('${key}', true); fail()`);
       assert.equal(h.element('hints').hidden, false, `${key} must expose cards`);
       assert.ok(h.element('hints').children.length >= 1 && h.element('hints').children.length <= 2);
     }
@@ -157,16 +170,14 @@ for (const language of ['en', 'ko']) {
 
 test('changing language preserves misses, visible fallback cards and chosen materials', () => {
   const h = harness();
-  h.run("state.h1 = 'straw'; go('p2', true); fail(); fail(); setLanguage('ko')");
+  h.run("state.h1 = 'straw'; go('p2', true); fail(); setLanguage('ko')");
   assert.equal(h.snapshot().currentKey, 'p2');
   assert.equal(h.snapshot().state.h1, 'straw');
-  assert.equal(h.snapshot().errors, 2);
-  assert.equal(h.snapshot().phase, 'ERROR');
-  h.run('fail()');
-  assert.equal(h.snapshot().errors, 3);
+  assert.equal(h.snapshot().errors, 1);
+  assert.equal(h.snapshot().phase, 'ASKING');
   assert.match(h.element('hints').textContent, /나무/);
   h.run("setLanguage('en')");
-  assert.equal(h.snapshot().errors, 3);
+  assert.equal(h.snapshot().errors, 1);
   assert.equal(h.element('hints').hidden, false);
   assert.match(h.element('hints').textContent, /Wood/);
   h.element('hints').children[0].onclick();

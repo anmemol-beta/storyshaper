@@ -18,6 +18,8 @@ python3 -m vision.server            # story agent + media + speech + camera on h
 
 Open `http://127.0.0.1:8000/prototype/agent.html`. **Show it to the camera** appears when the server reports `visionAvailable`. Press it, hold the thing up, press **Take the picture**. The photo stays on screen while the story thinks and closes once the story answers.
 
+This server also enables the microphone and live Muse Image generation in this lab. Each accepted new answer generates a picture and runs an independent image review. The previous picture stays visible during generation; captions distinguish generated, prepared and failed results. Mock mode uses prepared illustrations. Image delays do not block the next answer or the first-failure touch choices. See [the media API](../media/API.md).
+
 ## API
 
 `POST /api/see?language=en|ko` with one image as the body (`image/jpeg`, `image/png`, `image/webp`), at most 4 MB.

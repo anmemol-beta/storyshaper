@@ -16,6 +16,10 @@ class MediaPlayground(Playground):
         super().__init__(*args, **kwargs)
         self.media = media or MediaJobs()
 
+    def config(self):
+        return {**super().config(), 'mediaAvailable': True,
+                'imageGenerationAvailable': self.media.image_provider is not None}
+
     def create(self, *args, **kwargs):
         snapshot = super().create(*args, **kwargs)
         self.media.activate(snapshot)
@@ -59,6 +63,18 @@ class MediaPlayground(Playground):
 class MediaHandler(Handler):
     def do_GET(self):
         parsed = urlsplit(self.path)
+        if parsed.path.startswith('/api/media/images/'):
+            try:
+                self.guard()
+                values = parse_qs(parsed.query)
+                if set(values) != {'sessionId'} or len(values['sessionId']) != 1:
+                    raise APIError(400, 'invalid_request', 'Send one sessionId.')
+                session_id = values['sessionId'][0]
+                self.server.playground.media_snapshot(session_id)
+                image = self.server.playground.media.image(parsed.path.rsplit('/', 1)[1], session_id)
+                return self.reply(200, image, 'image/jpeg')
+            except (APIError, JobError) as exc:
+                return self._media_error(exc)
         if not parsed.path.startswith('/api/media/jobs/'):
             # Serve registered clips with a playable MIME type, never arbitrary paths.
             registry = self.server.playground.media.registry
@@ -118,7 +134,7 @@ class MediaHandler(Handler):
         if isinstance(exc, APIError):
             return self.error(exc)
         code = str(exc)
-        status = 404 if code == 'job_not_found' else 429 if code == 'job_limit' else 409
+        status = 404 if code in {'job_not_found', 'image_not_found'} else 429 if code == 'job_limit' else 409
         self.error(APIError(status, code, 'Media unavailable; keep the current picture.'))
 
 

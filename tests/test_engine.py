@@ -70,15 +70,14 @@ class StoryEngineTests(unittest.TestCase):
                     self.assertIn("loosely", " ".join(x["text"] for x in result["lines"]))
                     self.assertNotIn("blew away", result["question"]["text"])
 
-    def test_three_mixed_failures_offer_exact_three_choices_then_reset(self):
+    def test_first_and_later_mixed_failures_offer_three_choices_then_reset(self):
         first = self.engine.answer(self.start, "")
         second = self.engine.answer(first, "brick")
         third = self.engine.answer(second, "I don't know")
         self.assertEqual([first["decision"], second["decision"], third["decision"]],
                          ["clarify", "redirect", "clarify"])
         self.assertEqual([first["attempts"], second["attempts"], third["attempts"]], [1, 2, 3])
-        self.assertFalse(second["choiceMode"])
-        self.assertTrue(third["choiceMode"])
+        self.assertTrue(all(result["choiceMode"] for result in (first, second, third)))
         self.assertEqual(len(third["question"]["choices"]), 3)
         self.assertEqual(third["storyState"], self.start["storyState"])
         next_state = self.engine.answer(third, "ignored", choice_id="cookie")
@@ -87,19 +86,19 @@ class StoryEngineTests(unittest.TestCase):
         self.assertFalse(next_state["choiceMode"])
         self.assertEqual(next_state["sceneId"], "house1_predict")
 
-    def test_unusable_material_answer_names_the_usable_materials(self):
+    def test_unusable_material_immediately_invites_touch_choices(self):
         failed = self.engine.answer(self.start, "magnesium")
         self.assertEqual((failed["decision"], failed["attempts"]), ("clarify", 1))
         self.assertEqual([line["text"] for line in failed["lines"]], [
-            "This house needs a building material. For example, we can use paper, straw, wood, cookie, "
-            "or ice cream. Which one shall we try?"])
+            "This house needs a building material. Let's pick a picture! Tap the one you like."])
+        self.assertTrue(failed["choiceMode"])
         redirected = self.engine.answer(failed, "brick")
-        self.assertIn("last house. For example, we can use paper, straw, wood, cookie, or ice cream.",
+        self.assertIn("last house. Let's pick a picture! Tap the one you like.",
                       redirected["lines"][0]["text"])
         third = self.engine.answer(redirected, "magnesium")
         self.assertTrue(third["choiceMode"])
         self.assertEqual(third["lines"][0]["text"], "This house needs a building material. "
-                         "Let's choose one of these three ideas. You can tap the one you like.")
+                         "Let's pick a picture! Tap the one you like.")
         state = self.start
         for material in ("paper", "wood"):
             state = self.engine.answer(state, material)
@@ -107,13 +106,15 @@ class StoryEngineTests(unittest.TestCase):
             state = self.engine.answer(state, "Use strong materials together")
         last = self.engine.answer(state, "ice cream")
         self.assertTrue(last["lines"][0]["text"].endswith(
-            "For example, we can use brick or stone. Which one shall we try?"))
+            "Let's pick a picture! Tap the one you like."))
 
-    def test_unclear_prediction_still_asks_to_say_it_again(self):
+    def test_unclear_prediction_invites_touch_instead_of_another_spoken_try(self):
         predict = self.engine.answer(self.start, "paper")
         failed = self.engine.answer(predict, "I don't know")
         self.assertEqual(failed["lines"][0]["text"],
-                         "I didn't quite understand. Could you tell me your idea once more?")
+                         "I didn't quite understand. Let's pick a picture! Tap the one you like.")
+        self.assertTrue(failed["choiceMode"])
+        self.assertEqual(failed["attempts"], 1)
 
     def test_sticks_build_the_wood_house(self):
         for answer in ("sticks", "a stick house", "twigs"):
@@ -505,7 +506,8 @@ class TwoCallEngineTests(unittest.TestCase):
         self.assertEqual(result['attempts'], 1)
         self.assertEqual(result['diagnostics']['performance']['modelCalls'], 1)
         self.assertEqual(result['storyState'], start['storyState'])
-        self.assertIn('For example', result['lines'][0]['text'])
+        self.assertIn('Tap the one you like', result['lines'][0]['text'])
+        self.assertTrue(result['choiceMode'])
 
     def test_ending_question_cannot_be_invented_in_combined_response(self):
         provider = CombinedTestProvider()

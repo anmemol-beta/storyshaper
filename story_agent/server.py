@@ -133,8 +133,10 @@ class Playground:
             question = current.get("question")
             if current["version"] != version or not question or question["id"] != question_id:
                 raise APIError(409, "stale_question", "The story has moved on. Use the current question.", deepcopy(current))
-            if choice is not None and (not current.get("choiceMode") or choice not in
-                                       {item["id"] for item in question["choices"]}):
+            # A microphone/ASR error can expose the already-authored choices in
+            # the browser before any request reaches this server. Accept only
+            # a current, server-owned choice; no extra failure request is needed.
+            if choice is not None and choice not in {item["id"] for item in question["choices"]}:
                 raise APIError(400, "invalid_choice", "Use a choice from the current question.")
             if session.turns >= 60:
                 raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")

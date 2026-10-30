@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="agent.css">
   <script src="agent-i18n.js" defer></script>
   <script src="voice-input.js" defer></script>
+  <script src="image-transitions.js" defer></script>
+  <script src="story-media.js" defer></script>
   <script src="camera-input.js" defer></script>
   <script src="narration.js" defer></script>
   <script src="agent.js" defer></script>
@@ -64,9 +66,11 @@
             <span class="decision" id="decisionBadge">Not started</span>
           </div>
 
-          <figure class="reference-art">
-            <img src="img/intro.jpg" alt="Reference illustration of the three little pigs in a sunny woodland." data-copy-alt>
-            <figcaption data-copy>Original reference illustration · not generated for this answer</figcaption>
+          <figure class="reference-art story-art" id="imagePanel" aria-busy="false">
+            <img id="storyImage" class="is-current" src="img/intro.jpg" alt="Story illustration" data-copy-alt>
+            <img id="storyImageNext" src="img/intro.jpg" alt="" aria-hidden="true">
+            <div class="image-progress" id="imageProgress" role="status" hidden></div>
+            <figcaption id="imageCaption">Original reference illustration · not generated for this answer</figcaption>
           </figure>
           <p class="field-hint" id="mediaNotice" role="status" hidden></p>
 
@@ -85,14 +89,21 @@
             <p class="question-intent" id="questionIntent" hidden></p>
           </section>
 
+          <fieldset class="choice-panel" id="choicePanel" hidden>
+            <legend data-copy>Choose a story-safe option</legend>
+            <p id="choicePrompt" role="status" aria-live="polite" data-copy>Let's pick a picture! Tap the one you like.</p>
+            <div class="choice-list" id="choices"></div>
+          </fieldset>
+
           <form id="answerForm" hidden>
             <label class="input-label" for="answer" data-copy>Your test answer</label>
             <textarea id="answer" name="answer" rows="3" maxlength="800" placeholder="Type your answer to the current question…" data-copy-placeholder aria-describedby="answerHint" disabled></textarea>
             <div class="answer-footer">
-              <p class="field-hint" id="answerHint" data-copy>Type an answer, or speak it or show it to the camera when those are available. Media generation is a separate integration.</p>
+              <p class="field-hint" id="answerHint" data-copy>Type, speak, or show a material. Live mode creates a new picture for each accepted answer.</p>
               <div class="answer-actions">
                 <button class="button" id="cameraButton" type="button" hidden disabled>Show it to the camera</button>
                 <button class="button" id="micButton" type="button" hidden disabled>Speak an answer</button>
+                <button class="button" id="rejectTranscript" type="button" hidden data-copy>That's not what I said</button>
                 <button class="button primary" id="sendButton" type="submit" disabled data-copy>Continue story →</button>
               </div>
             </div>
@@ -106,12 +117,6 @@
               </div>
             </div>
           </form>
-
-          <fieldset class="choice-panel" id="choicePanel" hidden>
-            <legend data-copy>Choose a story-safe option</legend>
-            <p data-copy>Tap an option, or try another answer above.</p>
-            <div class="choice-list" id="choices"></div>
-          </fieldset>
 
           <p class="request-status" id="requestStatus" role="status" aria-live="polite" aria-atomic="true"></p>
           <div class="notice" id="requestError" role="alert" hidden>
@@ -143,7 +148,7 @@
             </details>
             <details class="inspector">
               <summary data-copy>Inspect media handoff</summary>
-              <p class="small" data-copy>Validated data for image, video, and narration services. This lab does not generate media.</p>
+              <p class="small" data-copy>Server-approved scene data drives the picture. Live mode generates a new image for every accepted answer.</p>
               <pre id="mediaJson">No media plan yet.</pre>
             </details>
             <details class="inspector">

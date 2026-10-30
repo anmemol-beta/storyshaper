@@ -1,4 +1,4 @@
-"""Story agent + local media + voice + camera answers on one server: python -m vision.server.
+"""Story agent + live images + voice + camera answers on one server: python -m vision.server.
 
 Adds POST /api/see?language=en|ko to speech.server. The body is one camera frame (JPEG, PNG or
 WebP); the reply is {"object": "<name>"} or {"object": ""} when no single thing is clearly shown.
@@ -11,6 +11,8 @@ import shutil
 from urllib.parse import parse_qs, urlsplit
 
 from speech.server import SpeechHandler, SpeechPlayground
+from media.jobs import MediaJobs
+from media.image_provider import MuseImageProvider
 from speech.transcribe import MuseTranscriber
 from story_agent.provider import load_env
 from story_agent.server import ROOT, APIError
@@ -82,7 +84,8 @@ def main():
     key = os.environ.get("MODEL_API_KEY", "")
     model = os.environ.get("STORY_AGENT_MODEL", "muse-spark-1.3")
     app = VisionPlayground(key, model, transcriber=MuseTranscriber(key) if key else None,
-                           vision=MuseVision(key, model) if key else None)
+                           vision=MuseVision(key, model) if key else None,
+                           media=MediaJobs(image_provider=MuseImageProvider(key) if key else None))
     try:
         with VisionServer(("127.0.0.1", args.port), app) as server:
             print(f"Story + media + speech + camera: http://127.0.0.1:{server.server_port}/prototype/agent.html", flush=True)

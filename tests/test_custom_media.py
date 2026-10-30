@@ -72,6 +72,21 @@ class CustomMediaTests(unittest.TestCase):
         self.assertEqual(first.asset_key, second.asset_key)
         self.assertEqual(AssetRegistry().content_key(first), AssetRegistry().content_key(second))
 
+    def test_touch_after_first_prediction_failure_keeps_custom_material_and_source_question(self):
+        engine, state = chosen()
+        failed = engine.answer(state, '')
+        self.assertTrue(failed['choiceMode'])
+        self.assertEqual(failed['attempts'], 1)
+        choice = failed['question']['choices'][0]
+        accepted = engine.answer(failed, 'ignored', choice_id=choice['id'])
+        spec = normalize(accepted)
+        self.assertEqual(spec.material_id, state['mediaPlan']['materialId'])
+        self.assertEqual(spec.material_spec, state['mediaPlan']['materialSpec'])
+        self.assertEqual(spec.selection, accepted['mediaPlan']['selection'])
+        self.assertEqual(spec.selection['questionId'], failed['question']['id'])
+        self.assertEqual(spec.selection['version'], failed['version'])
+        self.assertEqual(spec.selection['label'], choice['label'])
+
     def test_custom_cache_keys_distinguish_materials_and_sessions(self):
         registry = AssetRegistry()
         vinyl = normalize(chosen(session='one')[1])

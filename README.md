@@ -24,21 +24,31 @@ Silly answers are not blocked. They are folded back into the story: an ice cream
 
 ## Try the prototype
 
-To test the story agent with typed answers, run the local playground (Python 3.10+, no packages required):
+To test **a newly generated picture for each accepted answer**, the microphone and camera together, install `ffmpeg`, copy `.env.example` to `.env`, set `MODEL_API_KEY` locally, and run (Python 3.10+):
+
+```bash
+python3 -m vision.server --port 8000
+```
+
+Open [the agent playground](http://127.0.0.1:8000/prototype/agent.html) and choose **Live model**. Each accepted typed, spoken or touch answer starts one Muse Image edit and an independent Muse Spark image review. The previous picture stays visible while drawing; only a reviewed result replaces it. Captions distinguish newly generated pictures, prepared offline illustrations and failed generation. You can answer the next question while drawing. Duplicate requests and language changes reuse the same scene generation; failed jobs are not automatically retried. Generated pictures remain in this local server's memory and disappear on restart.
+
+**Speak an answer** records up to eight seconds, transcribes with Muse Voice Transcribe, and puts editable words in the answer box. Press **Continue story** to submit. A first recording or recognition failure immediately opens touch choices. Browser recording needs a secure context: `localhost` works; a tablet opening a plain HTTP LAN address does not.
+
+For a text-only playground without `ffmpeg` or live pictures, use:
 
 ```bash
 python3 -m story_agent.server
 ```
 
-Open [the agent playground](http://127.0.0.1:8000/prototype/agent.html), or follow **Lab** from the clickable prototype. Choose **Deterministic mock** to test authored rules without an API key. It is deterministic and does not test AI generation. To generate real narration and questions with Muse Spark, copy `.env.example` to `.env`, set `MODEL_API_KEY` locally, restart the server, then choose **Live model**.
+Choose **Deterministic mock** to test authored rules without an API key. On the integrated server this mode displays prepared illustrations and makes no story or image model calls. The text-only server can also generate story text with Muse Spark when configured with `MODEL_API_KEY`; its image and microphone services are unavailable.
 
 Use **English / 한국어** at the top to switch the interface, current story, questions and choices. The language is remembered across both prototype screens. Switching preserves story progress and uses authored translations for the current passage; later model responses use the selected language. Earlier test records retain their original wording. Korean reading in the clickable book uses browser speech instead of the existing English recordings.
 
-The agent keeps each question's purpose and permitted story transitions in authored metadata. Its wording follows the chosen material and actual event: a cookie house leads to a question about the wolf eating its walls; a loosely assembled wood house leads to collapse. The first model call interprets the answer and drafts the next passage and question wording. The server determines and validates the transition, identifiers and choices; a second, independent model call reviews the result before it is accepted. Invalid model output leaves story progress unchanged. After three input failures on one question, three validated choices are available. A service failure offers those choices immediately without counting a child failure; selecting one follows authored content without calling the model, clearly labeled as a fallback.
+The agent keeps each question's purpose and permitted story transitions in authored metadata. Its wording follows the chosen material and actual event: a cookie house leads to a question about the wolf eating its walls; a loosely assembled wood house leads to collapse. The first model call interprets the answer and drafts the next passage and question wording. The server determines and validates the transition, identifiers and choices; a second, independent model call reviews the result before it is accepted. Invalid model output leaves story progress unchanged. **The first unaccepted answer or speech failure immediately opens three touch choices.** A short spoken and written invitation guides the child to tap; the cards work before the invitation finishes. Microphone or recognition failures open the already-authored choices locally, without another request. A service failure also offers those choices without counting a child failure. One tap follows server-validated authored story text without a story model call, clearly labeled as a fallback; live picture generation still runs for that accepted answer. The selected option and its original question context are included in `mediaPlan.selection` for image integration.
 
-To also use the microphone, install `ffmpeg`, configure `MODEL_API_KEY`, and run `python3 -m speech.server` instead. Recognized words can be checked and edited before submission. See [the speech setup](speech/README.md).
+`python3 -m speech.server` also provides live pictures and microphone input, without the camera. See [the speech setup](speech/README.md) and [media API](media/API.md).
 
-This playground tests story generation and state handling. Custom materials retain their identity; when no picture is available, the playground explains that limit and continues the story. The picture is a static reference; `mediaPlan` in the inspector is a handoff for future image/video integration. Microphone input is available through the speech server. Live image/video generation, parent-voice synthesis and production safety certification are not implemented by this playground. Sessions and test answers are held only in memory and disappear when the server restarts; live mode sends the current answer and story context to Meta. The server listens only on `127.0.0.1`.
+Custom materials retain their server-approved identity in the generated picture request. Generation or review failure uses a matching prepared illustration when available, or keeps the previous picture with an explanatory caption. Image prompts contain approved material, action and character facts; raw failed speech and camera frames do not enter the image request. Live story and transcription send their respective inputs to Meta. Live video generation, physical device validation and production family access controls remain unfinished. Parent-voice narration requires the separate narration service. The local server listens only on `127.0.0.1`; sessions and answers disappear on restart.
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -48,7 +58,7 @@ See [the story-agent design and test guide](docs/internal/story-agent.md) for th
 
 The clickable prototype shows the full story flow with real pages generated by Muse Image.
 It is labeled **Fixed story demo** and links directly to the **live AI test**. Changing modes in the agent playground starts a new session with that provider; **Refresh connection** checks server configuration again after a key is added.
-The microphone and live API calls are not connected yet: tapping the mic always "hears" the first answer, and **Settings → Show demo answers** (or `?demo=1` in the URL) adds buttons to answer for the child.
+In this fixed demo, the microphone and live API calls are not connected: tapping the mic always "hears" the first answer, and **Settings → Show demo answers** (or `?demo=1` in the URL) adds buttons to answer for the child.
 
 ```bash
 open prototype/index.html        # macOS

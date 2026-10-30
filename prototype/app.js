@@ -4,7 +4,8 @@ const book = $("book"), art = $("art"), line = $("line"), mic = $("mic"), bubble
   againBtn = $("again"), painting = $("painting"), demo = $("demo");
 
 // Story states (see the design doc, 6-2). `phase` drives everything the child sees; `state` below holds the story choices.
-// COVER -> READING -> ASKING -> LISTENING -> HEARD -> GENERATING -> UPDATED -> READING ... DONE; ERROR returns to LISTENING.
+// COVER -> READING -> ASKING -> LISTENING -> HEARD -> GENERATING -> UPDATED -> READING ... DONE.
+// The first missed answer returns to ASKING with touch cards already active.
 let language = stored("story-language") === "ko" ? "ko" : "en";
 const copy = () => BOOK_COPY[language];
 const storyData = () => storyForLanguage(language);
@@ -12,7 +13,7 @@ const HOLD_MS = 600;       // pressing longer than this works like a walkie-talk
 const MIN_HEARD_MS = 500;  // a shorter "recording" counts as not heard
 const LISTEN_MAX_MS = 8000;
 const HEARD_MS = 2500;     // time to tap "Say it again" before a heard answer is used; tune with a real child
-const MAX_TRIES = 3;       // missed tries on one question before picture cards (development-roadmap.md, 4)
+const MAX_TRIES = 1;       // the first missed answer immediately opens touch cards (roadmap §4)
 const TTS_TIMEOUT_MS = 30000; // fall back if the browser never reports speech completion
 const PAINT_MS = 5000;     // stand-in for the 12-20 s redraw
 const BASE_ICON = ["🌱", "🏡", "🏡", "🏡", "🌟"];
@@ -110,7 +111,7 @@ $("speed").oninput = () => {
 showSpeed();
 
 // Demo answers: a grown-up's panel, hidden by default; on with the settings toggle or ?demo=1.
-// A child who keeps missing gets picture cards instead (showChoices).
+// The first missed answer opens picture cards immediately (showChoices).
 let demoOn = new URLSearchParams(location.search).has("demo") || stored("story-demo") === "1";
 $("demoToggle").checked = demoOn;
 $("demoToggle").onchange = () => { demoOn = $("demoToggle").checked; store("story-demo", demoOn ? "1" : "0"); updateDemo(); };
@@ -262,7 +263,7 @@ function readChoices(text) {
   });
 }
 
-// After MAX_TRIES missed tries on one question: numbered picture cards, read aloud, so a child who cannot read
+// After the first missed answer: numbered picture cards, read aloud, so a child who cannot read
 // or be understood can still answer. The mic stays on for a child who wants to talk again.
 function showChoices() {
   const cards = current.ask.filter((a) => a.icon).slice(0, 3).map((a) => ({ b: a.icon, label: a.say.replace(/!$/, ""), go: a.go }));

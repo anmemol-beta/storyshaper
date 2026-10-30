@@ -48,6 +48,52 @@ class SessionTests(unittest.TestCase):
             self.app.answer(newer)
         self.assertEqual(caught.exception.code, 'invalid_choice')
 
+    def test_microphone_fallback_accepts_a_current_authored_choice_without_an_extra_failure_request(self):
+        choice = self.start['question']['choices'][0]
+        body = turn_body(self.start, 'client text must not replace the selected material')
+        body.update(choiceId=choice['id'], selection={'label': 'forged'}, material='brick')
+        session = self.app.sessions[self.start['sessionId']]
+        with patch.object(session.engine.provider, 'complete', side_effect=AssertionError('model called')):
+            result = self.app.answer(body)
+            replay = self.app.answer(body)
+        self.assertEqual(result, replay)
+        self.assertEqual(session.turns, 1)
+        self.assertEqual(result['attempts'], 0)
+        self.assertFalse(result['choiceMode'])
+        self.assertEqual(result['diagnostics']['performance']['modelCalls'], 0)
+        self.assertTrue(result['diagnostics']['authoredFallback'])
+        self.assertEqual(result['storyState']['houses'][0]['material'], choice['id'])
+        self.assertEqual(result['selection'], {
+            'choiceId': choice['id'], 'label': choice['label'], 'answer': choice['answer'],
+            'sessionId': self.start['sessionId'], 'sceneId': self.start['sceneId'],
+            'questionId': self.start['question']['id'], 'version': self.start['version'], 'language': 'en'})
+        self.assertEqual(result['mediaPlan']['selection'], result['selection'])
+        localized = self.app.change_language({'sessionId': result['sessionId'],
+                                              'version': result['version'], 'language': 'ko'})
+        self.assertEqual(localized['mediaPlan']['selection'], result['selection'])
+        self.assertEqual(localized['mediaPlan']['material'], choice['id'])
+
+    def test_first_failure_then_touch_is_idempotent_and_rejects_old_or_invented_choices(self):
+        failure_request = turn_body(self.start, '')
+        failed = self.app.answer(failure_request)
+        self.assertEqual(self.app.answer(failure_request), failed)
+        self.assertEqual(failed['attempts'], 1)
+        self.assertTrue(failed['choiceMode'])
+        choice = failed['question']['choices'][0]
+        touch = dict(turn_body(failed, 'ignored', 'touch'), choiceId=choice['id'])
+        accepted = self.app.answer(touch)
+        self.assertEqual(self.app.answer(touch), accepted)
+        self.assertEqual(accepted['mediaPlan']['selection']['version'], failed['version'])
+        self.assertEqual(accepted['mediaPlan']['material'], choice['id'])
+        with self.assertRaises(APIError) as stale:
+            self.app.answer(dict(touch, requestId='late-touch'))
+        self.assertEqual(stale.exception.code, 'stale_question')
+        for choice_id in (choice['id'], 'invented'):
+            with self.subTest(choice=choice_id), self.assertRaises(APIError) as invalid:
+                self.app.answer(dict(turn_body(accepted, request='invalid'), choiceId=choice_id))
+            self.assertEqual(invalid.exception.code, 'invalid_choice')
+        self.assertEqual(self.app.sessions[self.start['sessionId']].snapshot, accepted)
+
     def test_same_session_parallel_answer_is_rejected_without_child_failure(self):
         session = self.app.sessions[self.start['sessionId']]
         before = deepcopy(session.snapshot)

@@ -22,6 +22,7 @@ class MediaSpec:
     outcome: str
     material_id: str | None = None
     material_spec: dict | None = None
+    selection: dict | None = None
 
     @property
     def token(self):
@@ -69,7 +70,8 @@ def normalize(snapshot):
                 or plan['allPigsSafe'] is not True
                 or plan['characters'] != STORY['fixedCharacters'][1:]
                 or plan['houses'] != state['houses']
-                or plan['narration'] != snapshot['lines']):
+                or plan['narration'] != snapshot['lines']
+                or plan.get('selection') != snapshot.get('selection')):
             raise InvalidPlan('inconsistent_plan')
         source_index = index - 1 if stage == 'choose' else index
         if source_index < 1 or (stage == 'complete' and index != 3):
@@ -107,6 +109,6 @@ def normalize(snapshot):
             raise InvalidPlan('inconsistent_action')
         return MediaSpec(snapshot['sessionId'], scene, snapshot['version'], STORY['storyId'],
                          house_id, f'house{index}', material, action, outcome,
-                         material_id, deepcopy(material_spec))
+                         material_id, deepcopy(material_spec), deepcopy(snapshot.get('selection')))
     except (KeyError, TypeError, IndexError, AttributeError) as exc:
         raise InvalidPlan('malformed_plan') from exc
