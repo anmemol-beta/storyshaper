@@ -80,8 +80,8 @@
   const STEPS = ["who", "find", "pick", "listen", "done"];
   const RECORD_SECONDS = 30;
   const recordLabel = () => "● " + tr("Record {seconds} seconds now", {seconds: RECORD_SECONDS});
-  // Where "Start a story" and the logo lead: the page that sent the parent here (?return=agent.html).
-  const RETURN = (r => (/^[a-z-]+\.html$/.test(r || "") ? r : "agent.html"))(new URLSearchParams(location.search).get("return"));
+  // Where "Start a story" and the logo lead: the page that sent the parent here (?return=live.html), else the live book.
+  const RETURN = (r => (/^[a-z-]+\.html$/.test(r || "") ? r : "live.html"))(new URLSearchParams(location.search).get("return"));
   const PREVIEW = {
     en: "Once upon a time, a mother pig lived with her three little pigs.",
     ko: "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.",
@@ -529,12 +529,13 @@
       // The same voice reads both books. The server voices the newest request first, so send the other
       // language's book first and the page language's book last (each from its last page to its opening);
       // the short fillers go last of all.
+      // Sent as beacons, so they still arrive if the parent leaves this page right away.
       const chunks = lines => { const out = []; for (let i = 0; i < lines.length; i += 20) out.push(lines.slice(i, i + 20)); return out.reverse(); };
-      for (const lang of language === "ko" ? ["en", "ko"] : ["ko", "en"]) {
-        for (const chunk of chunks(await bookLines(lang))) await Narration.prepare(chunk, {language: lang});
-      }
+      const order = language === "ko" ? ["en", "ko"] : ["ko", "en"];
+      const books = {en: await bookLines("en"), ko: await bookLines("ko")};
+      for (const lang of order) for (const chunk of chunks(books[lang])) Narration.voiceAhead(chunk, {language: lang});
+      for (const lang of order) Narration.voiceAhead(Narration.fillers(lang), {language: lang});
     } catch {}
-    Narration.warm();
   }
 
   $("allRoles").checked = (() => { try { return localStorage.getItem("story-voice-all") === "1"; } catch { return false; } })();
