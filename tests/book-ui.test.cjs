@@ -121,7 +121,7 @@ function harness(language = 'en', narration = null) {
 
 test('the first-failure cards work while the parent invitation is preparing and ignore its late audio', async () => {
   const pending = [];
-  const narration = {usesParentVoice:() => true, prepare:lines => new Promise(resolve => pending.push({lines, resolve}))};
+  const narration = {usesParentVoice:() => true, voiceName:() => 'Dad', prepare:lines => new Promise(resolve => pending.push({lines, resolve}))};
   const h = harness('en', narration);
   h.run("go('p1', true); fail()");
   assert.equal(pending.length, 1);
