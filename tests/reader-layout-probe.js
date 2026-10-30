@@ -1,4 +1,6 @@
-/* Run inspectReaderLayout() in DevTools at each viewport, without API calls. */
+/* Paste into DevTools, then run JSON.stringify(inspectReaderLayout()) at each
+   viewport. Test cover, active story, choices and open settings without paid calls.
+   Vertical scrolling is allowed; collapsed panels and clipped controls are not. */
 function inspectReaderLayout() {
   const rect = element => element.getBoundingClientRect();
   const book = document.querySelector('.book');
@@ -15,7 +17,19 @@ function inspectReaderLayout() {
     const bounds = rect(element);
     if (bounds.left < -1 || bounds.right > innerWidth + 1) failures.push('control outside viewport: ' + element.id);
     if (bounds.height < 44) failures.push('small touch target: ' + element.id);
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent), area = rect(parent);
+      if (['hidden', 'clip'].includes(style.overflowY) &&
+          (bounds.top < area.top - 2 || bounds.bottom > area.bottom + 2)) {
+        failures.push('clipped control: ' + element.id);
+        break;
+      }
+    }
   }
+  const microphone = document.querySelector('#mic');
+  const camera = document.querySelector('#cameraButton');
+  if (microphone && camera && visible(microphone) && visible(camera) &&
+      rect(microphone).left < rect(camera).right) failures.push('microphone moved left of camera');
   return {viewport: [innerWidth, innerHeight], bookWidth: Math.round(rect(book).width),
     artHeight: Math.round(rect(art).height), textHeight: Math.round(rect(text).height),
     columns: getComputedStyle(book).gridTemplateColumns, failures, pass: !failures.length};
