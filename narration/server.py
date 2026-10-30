@@ -442,20 +442,34 @@ def chatterbox_synthesizer():
             tuned[t3_file] = ChatterboxTTS(t3, model.s3gen, model.ve, model.tokenizer, device, conds=model.conds)
         return tuned[t3_file]
 
+    # Chatterbox re-analyses the reference clip on every line when given audio_prompt_path; the result only
+    # depends on the clip, so it is kept per engine and clip ("path#hash", so a re-chosen clip is analysed again).
+    # Measured on the Mac: English 3.1 -> 2.5 s per line, Korean 6.3 -> 4.7 s (experiments/narration_speed.py).
+    conds = {}
+
+    def generate(engine, text, ref_key, exaggeration, cfg_weight, **kw):
+        key = (id(engine), ref_key)
+        if key not in conds:
+            engine.prepare_conditionals(str(ROOT / ref_key.split("#", 1)[0]), exaggeration=exaggeration)
+            if len(conds) >= 16:
+                conds.pop(next(iter(conds)))
+            conds[key] = engine.conds
+        engine.conds = conds[key]
+        return engine.generate(text, exaggeration=exaggeration, cfg_weight=cfg_weight, **kw)
+
     def synthesize(text, voice):
         nonlocal multilingual
         exaggeration = voice["exclaim_exaggeration"] if "!" in text else voice["exaggeration"]
-        ref = ROOT / voice["ref"].split("#", 1)[0]       # casting refs are repo-relative, profile refs absolute
+        # casting refs are repo-relative, profile refs absolute (ROOT / absolute = absolute)
         language = voice.get("language", "en")
         if language == "en":
             engine = tuned_model(voice["t3"].split("#", 1)[0]) if voice.get("t3") else model
-            wav = engine.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+            wav = generate(engine, text, voice["ref"], exaggeration, voice["cfg_weight"])
         else:
             if multilingual is None:                     # loaded on the first non-English line
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
                 multilingual = ChatterboxMultilingualTTS.from_pretrained(device=device)   # a string, see mtl_tts
-            wav = multilingual.generate(text, language_id=language, audio_prompt_path=str(ref),
-                                        exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+            wav = generate(multilingual, text, voice["ref"], exaggeration, voice["cfg_weight"], language_id=language)
         with tempfile.TemporaryDirectory() as tmp:
             src, out = Path(tmp) / "line.wav", Path(tmp) / "line.mp3"
             ta.save(str(src), wav, model.sr)
