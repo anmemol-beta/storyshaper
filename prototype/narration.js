@@ -1,6 +1,7 @@
 /* Story voices from the local narration server (narration/server.py).
    Narration.speak(lines, {key, language, onLine}) queues every line at once, then plays them in order.
-   A line that is not ready in time, or any server error, is read by the browser voice instead, so the story never stops.
+   A line that is not voiced yet is waited for, so the story stays in the parent's voice; only a server error or a line
+   still not voiced after LINE_WAIT seconds is read by the browser voice, so the story never stops.
    Narration.interject() says a short "let's see…" line in the parent's voice right away, to fill the wait after an answer.
    Narration.prepare(lines) only returns clip URLs, for pages that play audio themselves (the picture book).
    Narration.stop() cuts everything, e.g. when the child starts talking or the page changes.
@@ -12,6 +13,9 @@ const Narration = (() => {
   const server = params.get("voiceServer") || "http://127.0.0.1:8100";
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
   const REQUEST_MS = 600, CLIP_LOAD_MS = 800;
+  // Seconds a line that isn't voiced yet may wait before the browser voice reads it (the server's maximum). The parent
+  // chose a pause over a machine voice (10/31); a line takes ~2.5 s to voice in English, ~5-9 s in Korean on a Mac.
+  const LINE_WAIT = 30;
   // Said the moment a child answers, while the next page is being written and drawn. Generated ahead (warm()).
   const FILLERS = [
     "Ooh, what a good idea! Let's see what happens…",
@@ -101,7 +105,7 @@ const Narration = (() => {
   }
 
   // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
-  function playClip(url, my) {
+  function playClip(url, my, loadMs = CLIP_LOAD_MS, beforePlay = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
       let settled = false, started = false;
@@ -114,7 +118,7 @@ const Narration = (() => {
         if (finish === done) finish = null;
         resolve(ok);
       };
-      const timer = setTimeout(() => { if (!started) done(false); }, CLIP_LOAD_MS);
+      const timer = setTimeout(() => { if (!started) done(false); }, loadMs);
       audio = clip;
       finish = done;
       clip.onended = () => done(true);
@@ -124,6 +128,7 @@ const Narration = (() => {
         await untilResumed();
         if (settled || my !== token) return done(false);
         started = true;
+        beforePlay?.();
         setPlayback("playing", "parent");
         clip.play().catch(() => done(false));
       }, {once: true});
@@ -288,14 +293,16 @@ const Narration = (() => {
       try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}
     }
     if (my !== token) return;
-    firstLineReady();
     for (let k = 0; k < parts.length; k += 1) {
       await untilResumed();
       if (my !== token) return;
       if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
-      const played = clips?.[k]?.ready ? await playClip(`${server}${clips[k].url}?wait=0`, my) : false;
+      const clip = clips?.[k];
+      const wait = clip?.ready ? 0 : LINE_WAIT;
+      const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS, k === 0 ? firstLineReady : null) : false;
       if (my !== token) return;
       if (!played) {
+        if (k === 0) firstLineReady();
         await untilResumed();
         if (my !== token) return;
         setPlayback("playing", "browser");
