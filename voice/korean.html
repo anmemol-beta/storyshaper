@@ -7,42 +7,46 @@
 <style>
   :root { --bg:#f6f7fb; --card:#fff; --ink:#1d2333; --muted:#5b6378; --line:#dde1ea; --accent:#2f4fb5; --bad:#a3471b; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system, "Apple SD Gothic Neo", sans-serif; line-height:1.55; }
-  main { max-width:900px; margin:0 auto; padding:28px 16px 60px; display:flex; flex-direction:column; gap:16px; }
+  main { max-width:960px; margin:0 auto; padding:28px 16px 60px; display:flex; flex-direction:column; gap:16px; }
   h1 { margin:0; font-size:1.5rem; }
   p { margin:0; color:var(--muted); }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; display:grid; gap:10px; }
   .q { font-weight:600; font-size:1.05rem; }
-  .row { display:grid; grid-template-columns:120px minmax(0,1fr); gap:6px 12px; align-items:center; }
-  .tag { font-weight:700; color:var(--accent); font-size:.9rem; }
-  audio { width:100%; height:36px; }
-  .heard { grid-column:2; font-size:.88rem; color:var(--muted); }
+  .row { display:grid; grid-template-columns:230px minmax(0,1fr); gap:4px 12px; align-items:center; }
+  .tag { font-weight:700; color:var(--accent); font-size:.85rem; }
+  audio { width:100%; height:34px; }
+  .heard { grid-column:2; font-size:.85rem; color:var(--muted); }
   .heard b { color:var(--bad); }
-  @media (max-width:560px) { .row { grid-template-columns:1fr; } .heard { grid-column:1; } }
+  table { border-collapse:collapse; width:100%; }
+  th, td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; font-variant-numeric:tabular-nums; }
+  @media (max-width:640px) { .row { grid-template-columns:1fr; } .heard { grid-column:1; } }
 </style>
 </head>
 <body>
 <main>
-  <h1>한국어 낭독 시험 (Chatterbox Multilingual)</h1>
-  <p>기준 음성은 현준님의 <b>영어</b> 녹음(voice/ref_clip.wav)입니다. 같은 한국어 문장을 기본 설정(cfg 0.5)과 억양 줄이기 설정(cfg 0)으로 만들었고, Muse Voice Transcribe로 다시 받아써 글자 오류율을 쟀습니다(받아쓰기 자체의 오류도 섞여 있음).</p>
+  <h1>한국어 낭독 시험</h1>
+  <p>그림책 한국어 5줄을 여러 방식으로 만들고 Muse Voice Transcribe로 되받아써 글자 오류율을 쟀습니다. 기준 TTS(Yuna)도 13%가 나와, 받아쓰기 자체의 오류가 약 10% 이상 섞여 있습니다. 숫자는 비교용으로만 보고, 직접 들어서 판단하세요.</p>
+  <div class="card"><table><tr><th>방식</th><th>평균 오류율</th></tr>
+  <tr><td>English reference (parent), cfg 0.5</td><td>19%</td></tr><tr><td>English reference (parent), cfg 0</td><td>26%</td></tr><tr><td>Korean reference (Zeroth speaker A)</td><td>22%</td></tr><tr><td>Korean reference (Zeroth speaker B)</td><td>10%</td></tr><tr><td>Voice conversion: macOS Yuna → parent</td><td>36%</td></tr><tr><td>(source) macOS Yuna, no cloning</td><td>13%</td></tr>
+  </table></div>
   <div id="lines"></div>
+  <p>Korean reference clips: Zeroth-Korean test set (Bingsu/zeroth-korean on Hugging Face), CC BY 4.0. macOS Yuna is used only for this experiment.</p>
 </main>
 <script>
-// From voice/out/korean/results.json, inlined so the page also works when opened as a file.
-const results = [{"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "cfg": 0.5, "file": "1_cfg0.5.mp3", "seconds": 24.0, "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요..", "cer": 0.0}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "cfg": 0.0, "file": "1_cfg0.mp3", "seconds": 8.5, "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요.", "cer": 0.0}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "cfg": 0.5, "file": "2_cfg0.5.mp3", "seconds": 10.4, "heard": " 첫째 되지는 되지는 회사들이 따뜻한 풀밭을 찾았어요.", "cer": 0.389}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "cfg": 0.0, "file": "2_cfg0.mp3", "seconds": 7.3, "heard": "저제 되지는 햇살이 따뜻함 불밭을 찾았어요..", "cer": 0.278}, {"line": 3, "text": "무엇으로 집을 지었을까?", "cfg": 0.5, "file": "3_cfg0.5.mp3", "seconds": 4.7, "heard": "워스로 집을 지었을까?", "cer": 0.3}, {"line": 3, "text": "무엇으로 집을 지었을까?", "cfg": 0.0, "file": "3_cfg0.mp3", "seconds": 4.0, "heard": "워스로스로 15이었을까?", "cer": 0.7}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "cfg": 0.5, "file": "4_cfg0.5.mp3", "seconds": 6.3, "heard": "종이분아 첫째 대지는 종이를 접고 또 또 접었어요.", "cer": 0.211}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "cfg": 0.0, "file": "4_cfg0.mp3", "seconds": 5.9, "heard": "종이구나 첫째 돼지는 종이를 적고 또고 또 적었어요.", "cer": 0.211}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "cfg": 0.5, "file": "5_cfg0.5.mp3", "seconds": 5.9, "heard": "첫째 되지는 동생의 집으로 달려갔어요.", "cer": 0.062}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "cfg": 0.0, "file": "5_cfg0.mp3", "seconds": 6.3, "heard": "첫째 되지는 동생의 집으로 달려왔어요.", "cer": 0.125}];
-{
-  const byLine = {};
-  results.forEach(r => (byLine[r.line] ||= []).push(r));
-  document.getElementById("lines").innerHTML = Object.values(byLine).map(rows => `
-    <div class="card" style="margin-bottom:14px">
-      <div class="q">${rows[0].text}</div>
-      ${rows.map(r => `
-        <div class="row">
-          <span class="tag">cfg ${r.cfg}</span>
-          <audio controls preload="none" src="out/korean/${r.file}"></audio>
-          <span class="heard">받아쓴 결과: “${r.heard}” · 오류율 <b>${Math.round(r.cer * 100)}%</b> · 생성 ${r.seconds}초</span>
-        </div>`).join("")}
-    </div>`).join("");
-}
+// Inlined from voice/out/korean/*results.json so the page also works when opened as a file.
+const rows = [{"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "English reference (parent), cfg 0.5", "file": "1_cfg0.5.mp3", "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요..", "cer": 0.0}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "English reference (parent), cfg 0", "file": "1_cfg0.mp3", "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요.", "cer": 0.0}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "English reference (parent), cfg 0.5", "file": "2_cfg0.5.mp3", "heard": " 첫째 되지는 되지는 회사들이 따뜻한 풀밭을 찾았어요.", "cer": 0.389}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "English reference (parent), cfg 0", "file": "2_cfg0.mp3", "heard": "저제 되지는 햇살이 따뜻함 불밭을 찾았어요..", "cer": 0.278}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "English reference (parent), cfg 0.5", "file": "3_cfg0.5.mp3", "heard": "워스로 집을 지었을까?", "cer": 0.3}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "English reference (parent), cfg 0", "file": "3_cfg0.mp3", "heard": "워스로스로 15이었을까?", "cer": 0.7}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "English reference (parent), cfg 0.5", "file": "4_cfg0.5.mp3", "heard": "종이분아 첫째 대지는 종이를 접고 또 또 접었어요.", "cer": 0.211}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "English reference (parent), cfg 0", "file": "4_cfg0.mp3", "heard": "종이구나 첫째 돼지는 종이를 적고 또고 또 적었어요.", "cer": 0.211}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "English reference (parent), cfg 0.5", "file": "5_cfg0.5.mp3", "heard": "첫째 되지는 동생의 집으로 달려갔어요.", "cer": 0.062}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "English reference (parent), cfg 0", "file": "5_cfg0.mp3", "heard": "첫째 되지는 동생의 집으로 달려왔어요.", "cer": 0.125}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "Korean reference (Zeroth speaker A)", "file": "ko_ref1_1_cfg0.5.mp3", "heard": "옛날 날 옛적에 엄마 돼지와 아기 돼지 삼형제가 살았어요.", "cer": 0.045}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "Korean reference (Zeroth speaker A)", "file": "ko_ref1_2_cfg0.5.mp3", "heard": "첫째첫째, 되진은 햇살알이 따뜻한 풀밭을 찾았어요.", "cer": 0.333}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "Korean reference (Zeroth speaker A)", "file": "ko_ref1_3_cfg0.5.mp3", "heard": " 무엇으로 지구를 지었을까?", "cer": 0.3}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "Korean reference (Zeroth speaker A)", "file": "ko_ref1_4_cfg0.5.mp3", "heard": "종이구나 첫째 되지는 종이를 적고 또 적었어요.", "cer": 0.158}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "Korean reference (Zeroth speaker A)", "file": "ko_ref1_5_cfg0.5.mp3", "heard": "첫째 돼지는 동생의 집으로 달려갔어요.려갔어요.", "cer": 0.25}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "Korean reference (Zeroth speaker B)", "file": "ko_ref4_1_cfg0.5.mp3", "heard": "옛날 옛적에 엄마 돼지와 아기 돼지지 삼 형제가 살았어요.", "cer": 0.045}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "Korean reference (Zeroth speaker B)", "file": "ko_ref4_2_cfg0.5.mp3", "heard": "첫째, 김씨는 헛살이 따뜻한 풀밭을 찾았어요.", "cer": 0.167}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "Korean reference (Zeroth speaker B)", "file": "ko_ref4_3_cfg0.5.mp3", "heard": "무엇으로 집을 지었을까?", "cer": 0.0}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "Korean reference (Zeroth speaker B)", "file": "ko_ref4_4_cfg0.5.mp3", "heard": "종이구나. 첫째 되지는 종이를 적고 또 적었어요..", "cer": 0.158}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "Korean reference (Zeroth speaker B)", "file": "ko_ref4_5_cfg0.5.mp3", "heard": "첫째 되지는 동생의 직으로 달려갔어요.", "cer": 0.125}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "Voice conversion: macOS Yuna → parent", "file": "vc_1.mp3", "heard": "옛날 옛적에 엄마 돼지와 아기 돼지 삼 형제가 살았어요..", "cer": 0.0}, {"line": 1, "text": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.", "label": "(source) macOS Yuna, no cloning", "file": "vc_src_1.mp3", "heard": "옛날 옛적에 옛적에 엄마 돼지와 아기 돼지 삼 형제가 살았어요.", "cer": 0.136}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "Voice conversion: macOS Yuna → parent", "file": "vc_2.mp3", "heard": "첫째 뒤에 지닌 햇살이 깔끔한 풀밭을 풀밭을 찾아왔어요.", "cer": 0.556}, {"line": 2, "text": "첫째 돼지는 햇살이 따뜻한 풀밭을 찾았어요.", "label": "(source) macOS Yuna, no cloning", "file": "vc_src_2.mp3", "heard": "첫째 돼지는 돼지는 햇살이 따뜻한 풀밭에 찾았어요..", "cer": 0.222}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "Voice conversion: macOS Yuna → parent", "file": "vc_3.mp3", "heard": "我가 스루지브이지었을까?", "cer": 0.6}, {"line": 3, "text": "무엇으로 집을 지었을까?", "label": "(source) macOS Yuna, no cloning", "file": "vc_src_3.mp3", "heard": "무엇으로 집을 지었을까??", "cer": 0.0}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "Voice conversion: macOS Yuna → parent", "file": "vc_4.mp3", "heard": "종이구나 첫째 되지는 종이를 적고 또 적었어요.", "cer": 0.158}, {"line": 4, "text": "종이구나! 첫째 돼지는 종이를 접고 또 접었어요.", "label": "(source) macOS Yuna, no cloning", "file": "vc_src_4.mp3", "heard": "종이구나. 첫째 되지는 종이를 접고 또 접었어요.", "cer": 0.053}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "Voice conversion: macOS Yuna → parent", "file": "vc_5.mp3", "heard": "첩지해지는 제의해진 종생의 집으로 달려갔어요..", "cer": 0.5}, {"line": 5, "text": "첫째 돼지는 동생의 집으로 달려갔어요.", "label": "(source) macOS Yuna, no cloning", "file": "vc_src_5.mp3", "heard": "첫째 되지는 되지는 동생의 집으로 달려갔어요..", "cer": 0.25}];
+const byLine = {};
+rows.forEach(r => (byLine[r.line] ||= []).push(r));
+document.getElementById("lines").innerHTML = Object.values(byLine).map(list => `
+  <div class="card" style="margin-bottom:14px">
+    <div class="q">${list[0].text}</div>
+    ${list.map(r => `
+      <div class="row">
+        <span class="tag">${r.label}</span>
+        <audio controls preload="none" src="out/korean/${r.file}"></audio>
+        <span class="heard">받아쓴 결과: “${r.heard}” · 오류율 <b>${Math.round(r.cer * 100)}%</b></span>
+      </div>`).join("")}
+  </div>`).join("");
 </script>
 </body>
 </html>
