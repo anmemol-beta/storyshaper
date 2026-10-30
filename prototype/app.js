@@ -436,6 +436,16 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = copy()[el.dataset.i18nTitle]; });
   document.querySelectorAll("[data-language]").forEach((el) => { el.setAttribute("aria-pressed", String(el.dataset.language === language)); });
   applyTheme();
+  showReader();
+}
+
+// Whose voice reads the book: the parent registered on voice.html, or the storybook voice.
+// Registered voices are English only, so Korean always shows the device voice.
+function showReader() {
+  const name = language === "en" && typeof Narration !== "undefined" ? Narration.voiceName() : null;
+  $("readerName").textContent = name || copy().storybookVoice;
+  $("readBy").hidden = !name;
+  $("readBy").textContent = name ? copy().readBy(name) : "";
 }
 function setLanguage(next) {
   if (!["en", "ko"].includes(next) || next === language) return;

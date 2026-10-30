@@ -117,16 +117,18 @@ Chatterbox also adds an inaudible watermark to every clip it generates, which he
 
 Each character has a voice that fits them. We compared four options by ear: the narrator and the three pigs are read in the parent's voice (the pigs a little livelier), and the wolf has a different stock voice (LibriTTS-R, CC BY 4.0), so a child always knows who is speaking. Changing only the pitch of the parent's voice scored lowest.
 
-**A parent who is away can still read.** On `prototype/voice.html` a parent chooses whose voice it is (their own, a family member who agreed, or someone the family misses), then adds a video or a voice message, or reads a short bedtime passage aloud. StoryShaper finds the clearest ten seconds on a waveform, shows what **Muse Voice Transcribe** heard, plays a story line in that voice, and keeps only that ten-second clip. **Delete** removes the clip and every line read with it.
+**A parent who is away can still read.** On `prototype/voice.html` a parent chooses whose voice it is (their own, a family member who agreed, or someone the family misses), then adds a video or a voice message, or reads a short bedtime passage that ends with a spoken permission sentence ("I'm happy for my voice to read stories to my child"), which is checked with Muse Voice Transcribe. StoryShaper finds the clearest ten seconds on a waveform, shows what **Muse Voice Transcribe** heard, plays a story line in that voice, and keeps only that ten-second clip. **Delete** removes the clip and every line read with it.
 
 Lines are generated as the story needs them, newest first, and cached, so a line is made once. If a line isn't ready in time the browser voice reads it and the story keeps going.
 
+The picture book then shows "Read by Dad" on its cover and reads in that voice; the reader can be changed in Settings.
+
 ```bash
-voice/.venv-chatterbox/bin/python -m narration.server   # voices, port 8100 (needs Chatterbox and ffmpeg)
-python3 -m speech.server                                 # story agent, media and speech, port 8000
+scripts/demo.sh          # both servers, and every saved voice reads the whole book ahead (needs Chatterbox and ffmpeg)
+scripts/demo.sh --wait   # the same, but wait until every line is voiced before recording a demo
 ```
 
-Then open `http://127.0.0.1:8000/prototype/voice.html` to add a voice and `agent.html` to hear the story. Details: [`narration/README.md`](narration/README.md).
+Then open `http://127.0.0.1:8000/prototype/voice.html` to add a voice and `index.html` to hear the story. Details: [`narration/README.md`](narration/README.md).
 
 ## Progress
 

@@ -29,6 +29,15 @@ RELATIONS = {
     "family_late": "A family member who has passed away (I am their close family)",
 }
 VOICE_ID = re.compile(r"^[0-9a-f]{12}$")
+# Read at the end of the bedtime passage on voice.html; heard in the recording = spoken consent.
+CONSENT_SENTENCE = "I'm happy for my voice to read stories to my child."
+CONSENT_WORDS = ("happy", "voice", "read", "stories", "child")
+
+
+def consent_heard(transcript):
+    """True when the transcript contains most of the consent sentence (speech recognition drops or changes words)."""
+    words = set(re.findall(r"[a-z]+", (transcript or "").lower()))
+    return sum(w in words or w + "ren" in words for w in CONSENT_WORDS) >= 4
 
 
 class VoiceError(Exception):
@@ -131,8 +140,9 @@ class VoiceLibrary:
     def _write_meta(self, voice_id, meta):
         (self.folder(voice_id) / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
 
-    def create(self, data, content_type):
-        """Turn an uploaded recording or video into a draft profile and suggest clips."""
+    def create(self, data, content_type, check_consent=False):
+        """Turn an uploaded recording or video into a draft profile and suggest clips.
+        check_consent: the parent recorded the bedtime passage; transcribe it to hear the consent sentence."""
         if not data:
             raise VoiceError(400, "empty_upload", "The file is empty.")
         voice_id = uuid.uuid4().hex[:12]
@@ -153,6 +163,8 @@ class VoiceLibrary:
             meta = {"id": voice_id, "status": "draft", "createdAt": int(time.time()),
                     "source": "video" if content_type.startswith("video/") else "audio",
                     "sourceSeconds": round(len(samples) / sr, 1)}
+            if check_consent:
+                meta["consentHeard"] = consent_heard(self._transcribe(folder / "full.wav", seconds=60))
             (folder / "meta.json").write_text(json.dumps(meta, indent=2))
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)
@@ -172,19 +184,23 @@ class VoiceLibrary:
             raise VoiceError(400, "invalid_clip", "The clip is outside the recording.")
         write_wav(folder / "ref.wav", clip, sr)
         quality = clip_quality(clip, sr, samples)
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
-            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(folder / "ref.wav"), "-ac", "1",
-                            "-ar", "16000", "-c:a", "pcm_s16le", tmp.name], check=True)
-            try:
-                transcript = self.transcribe(Path(tmp.name).read_bytes())
-            except Exception as exc:
-                print(f"transcribe failed: {exc}", flush=True)
-                transcript = None
+        transcript = self._transcribe(folder / "ref.wav")
         meta = self.meta(voice_id)
         meta.update({"clip": {"start": round(start, 2), "end": round(end, 2)}, "quality": quality,
                      "transcript": transcript})
         self._write_meta(voice_id, meta)
         return meta
+
+    def _transcribe(self, wav, seconds=None):
+        """Muse Voice Transcribe on (the first `seconds` of) a file; None if it fails."""
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), *(["-t", str(seconds)] if seconds else []),
+                            "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", tmp.name], check=True)
+            try:
+                return self.transcribe(Path(tmp.name).read_bytes())
+            except Exception as exc:
+                print(f"transcribe failed: {exc}", flush=True)
+                return None
 
     def ref(self, voice_id):
         path = self.folder(voice_id) / "ref.wav"
@@ -203,7 +219,7 @@ class VoiceLibrary:
         meta = self.meta(voice_id)
         meta.update({"status": "saved", "name": name.strip(), "savedAt": int(time.time()),
                      "consent": {"relation": relation, "statement": RELATIONS[relation], "attested": True,
-                                 "at": int(time.time())}})
+                                 "spoken": meta.get("consentHeard", False), "at": int(time.time())}})
         self._write_meta(voice_id, meta)
         # Keep only the short clip: the full recording is not needed once the voice is saved.
         (self.folder(voice_id) / "full.wav").unlink(missing_ok=True)

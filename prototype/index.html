@@ -43,7 +43,8 @@
               <label><input type="radio" name="theme" value="system"><span data-i18n="auto">Auto</span></label>
             </div>
           </fieldset>
-          <label class="tog"><input type="checkbox" id="voice" checked><span data-i18n="voice">Read aloud in a parent's voice</span></label>
+          <div class="reader"><span data-i18n="reader">Reader</span><b id="readerName">Storybook voice</b><a href="voice.html" data-i18n="change">Change</a></div>
+          <label class="tog"><input type="checkbox" id="voice" checked><span data-i18n="voice">Read aloud</span></label>
           <label class="tog speed" for="speed"><span data-i18n="speed">Reading speed</span>
             <input type="range" id="speed" min="0.6" max="1.2" step="0.05" value="0.85">
             <output id="speedVal">0.85×</output>
@@ -87,7 +88,7 @@
     </div>
 
     <section class="text-panel">
-      <button class="cover" id="cover" type="button"><span data-i18n="storyTitle">The Three Little Pigs</span><b data-i18n="start">▶ Start the story</b></button>
+      <button class="cover" id="cover" type="button"><span data-i18n="storyTitle">The Three Little Pigs</span><small class="read-by" id="readBy" hidden></small><b data-i18n="start">▶ Start the story</b></button>
       <p class="line" id="line"></p>
       <div class="mic-col">
         <button class="mic" id="mic" type="button" aria-label="Tap to talk" disabled>

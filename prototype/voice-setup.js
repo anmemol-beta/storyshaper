@@ -14,7 +14,13 @@
 
   const store = {
     get() { try { return localStorage.getItem("story-voice"); } catch { return null; } },
-    set(id) { try { id ? localStorage.setItem("story-voice", id) : localStorage.removeItem("story-voice"); } catch {} }
+    // The name is kept too, so the picture book can say "Read by Dad" without asking the server.
+    set(id, name = "") {
+      try {
+        if (id) { localStorage.setItem("story-voice", id); localStorage.setItem("story-voice-name", name); }
+        else { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); }
+      } catch {}
+    }
   };
 
   async function api(path, options = {}) {
@@ -84,14 +90,15 @@
 
   function showError(id, message) { $(id).textContent = message; $(id).hidden = !message; }
 
-  async function upload(blob, label) {
+  // recorded: the bedtime passage was read here, so the server also listens for the permission sentence.
+  async function upload(blob, label, recorded = false) {
     showError("findError", "");
     $("working").hidden = false;
     $("workingText").textContent = `Listening to ${label}…`;
     Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
     render();
     try {
-      state.draft = await api("/api/voices", {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
+      state.draft = await api(`/api/voices${recorded ? "?recorded=1" : ""}`, {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
       $("workingText").textContent = "Finding the clearest parts…";
       await loadPeaks();
       const best = [...state.draft.suggestions].sort((a, b) => b.speech - a.speech)[0];
@@ -165,7 +172,7 @@
       document.querySelector(".ideas").hidden = false;
       $("record").textContent = `● Record ${RECORD_SECONDS} seconds now`;
       $("record").onclick = record;
-      upload(new Blob(chunks, {type: recorder.mimeType || "audio/webm"}), "the recording");
+      upload(new Blob(chunks, {type: recorder.mimeType || "audio/webm"}), "the recording", true);
     };
     recorder.start();
     cue.classList.add("live");
@@ -313,6 +320,10 @@
         [q.speech >= 0.6, q.speech >= 0.6 ? "Mostly talking" : "Lots of silence"],
         [q.snrDb >= 15, q.snrDb >= 15 ? "Quiet background" : "Noisy background"],
       ];
+      if (state.draft.consentHeard !== undefined) {
+        items.push([state.draft.consentHeard, state.draft.consentHeard ? "Permission heard"
+          : "We didn't hear the last sentence. You can record again, or go on."]);
+      }
       $("checks").replaceChildren(...items.map(([good, text]) =>
         Object.assign(document.createElement("li"), {className: good ? "good" : "bad", textContent: text})));
       const heard = $("heard");
@@ -340,6 +351,9 @@
     $("ask").hidden = true;
     $("listenStatus").textContent = `Reading it in ${possessive()} voice. This takes about ten seconds…`;
     try {
+      // Voice the rest of the first page too. The preview is the book's first line and is asked for last,
+      // because the server reads the newest request first.
+      if (typeof Narration !== "undefined") await Narration.prepare((await bookLines()).slice(1, FIRST_PAGE), {voice: state.draft.id});
       const clip = await api(`/api/voices/${state.draft.id}/preview`, post({}));
       const url = `${server}${clip.url}?wait=30`;
       play.onclick = () => playPreview(url);
@@ -377,10 +391,11 @@
     $("next").disabled = true;
     try {
       const meta = await api(`/api/voices/${state.draft.id}/save`, post({name: $("name").value, relation, attested: $("attest").checked}));
-      store.set(meta.id);
+      store.set(meta.id, meta.name);
       prepareBook();
+      watchBook(meta.id);
       $("doneTitle").textContent = `${meta.name}’s voice is ready`;
-      $("doneText").textContent = `Tonight's story will be read in ${meta.name}’s voice. Only the ten-second part was kept. The first pages are being prepared now, so reading can start right away.`;
+      $("doneText").textContent = `Tonight's story will be read in ${meta.name}’s voice. Only the ten-second part was kept.`;
       go("done");
       loadVoices();
     } catch (error) {
@@ -397,11 +412,37 @@
     go("who");
   };
 
+  // Every line of the picture book, in story order (prototype/audio/lines.json).
+  const FIRST_PAGE = 8;
+  let book = null;
+  async function bookLines() {
+    if (!book) { try { book = (await (await fetch("audio/lines.json")).json()).map(l => l.text); } catch { book = []; } }
+    return book;
+  }
+
+  // Show how much of the book is voiced, until all of it is or the page changes.
+  async function watchBook(id) {
+    const lines = await bookLines();
+    if (typeof Narration === "undefined" || !lines.length) return;
+    const status = $("bookStatus");
+    while (state.step === "done" && store.get() === id) {
+      let ready = 0;
+      for (let i = 0; i < lines.length; i += 20) {
+        const n = await Narration.readyCount(lines.slice(i, i + 20));
+        if (n === null) { status.textContent = ""; return; }
+        ready += n;
+      }
+      if (ready >= lines.length) { status.textContent = "The whole storybook is ready."; status.classList.add("all"); return; }
+      status.textContent = `Getting the storybook ready: ${ready} of ${lines.length} lines. You can start reading now.`;
+      await new Promise(r => setTimeout(r, 2500));
+    }
+  }
+
   // Voice the "let's see…" lines and the whole picture book now, in the background, so they play without waiting.
   async function prepareBook() {
     if (typeof Narration === "undefined") return;
     try {
-      const lines = (await (await fetch("audio/lines.json")).json()).map(l => l.text);
+      const lines = await bookLines();
       // The server voices the newest request first, so send the last pages first, then the opening,
       // and the short "let's see…" lines last so they are ready first.
       const chunks = [];
@@ -428,7 +469,7 @@
       const pick = document.createElement("label");
       const radio = Object.assign(document.createElement("input"), {type: "radio", name: "active"});
       radio.checked = (store.get() || null) === voice.id;
-      radio.onchange = () => store.set(voice.id);
+      radio.onchange = () => store.set(voice.id, voice.name);
       const text = document.createElement("span");
       text.append(voice.name, Object.assign(document.createElement("small"), {
         textContent: voice.note || (voice.consent?.relation === "family_late" ? "Someone we miss" :

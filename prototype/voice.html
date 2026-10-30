@@ -81,6 +81,9 @@
   section.recording .drop, section.recording .or, section.recording .lead { display: none; }
   .script { margin-top: 16px; padding: 18px 20px; border-radius: 20px; background: var(--page); border: 2px solid var(--honey); box-shadow: var(--shadow); }
   .script .story { margin: 0; }
+  .script .consent { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .book-status { margin: -4px 0 4px; min-height: 1.5em; font-size: .9rem; color: var(--subtle); }
+  .book-status.all { color: var(--green); font-weight: 700; }
   .cue { margin: 0 0 10px; font-weight: 700; color: var(--green); }
   .cue.live::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #D9534F; animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
@@ -159,7 +162,7 @@
 <body>
 <div class="shell">
   <header class="bar">
-    <a class="logo" href="agent.html">✿ StoryShaper</a>
+    <a class="logo" href="index.html">✿ StoryShaper</a>
   </header>
 
   <ol class="pages" id="pages" aria-label="Steps">
@@ -209,6 +212,7 @@
           The wind whispered through the tall pine trees, and the stars came out one by one.
           “Goodnight, moon. Goodnight, stars,” said Bo with a great big yawn.
           Then he curled up in his warm blanket and dreamed of honey, rivers, and wide blue skies.</p>
+        <p class="story consent">I'm happy for my voice to read stories to my child.</p>
       </div>
       <ul class="ideas">
         <li>A birthday message or a video call</li>
@@ -237,7 +241,7 @@
         <button class="play" type="button" id="play" aria-label="Play the story line">
           <svg viewBox="0 0 44 44" fill="currentColor" aria-hidden="true"><path d="M15 10l20 12-20 12z"/></svg>
         </button>
-        <p class="story">“Once upon a time, three little pigs set out to build their very own homes.”</p>
+        <p class="story">“Once upon a time, a mother pig lived with her three little pigs.”</p>
         <p class="status" id="listenStatus" role="status"></p>
         <p class="ask" id="ask" hidden></p>
       </div>
@@ -248,7 +252,8 @@
         <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="60" fill="var(--peach)"/><path d="M28 40c10-4 22-4 32 3 10-7 22-7 32-3v42c-10-4-22-4-32 3-10-7-22-7-32-3z" fill="var(--page)" stroke="var(--green)" stroke-width="3" stroke-linejoin="round"/><path d="M60 43v42" stroke="var(--green)" stroke-width="3"/><path d="M84 22l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6L75 29l6-1z" fill="var(--honey)"/></svg>
         <h1 id="doneTitle">The voice is ready</h1>
         <p class="lead" id="doneText"></p>
-        <a class="btn main" href="agent.html" style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
+        <p class="book-status" id="bookStatus" role="status"></p>
+        <a class="btn main" href="index.html" style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
         <button class="btn quiet" type="button" id="again">Add another voice</button>
       </div>
     </section>
