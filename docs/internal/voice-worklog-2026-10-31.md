@@ -116,3 +116,5 @@
 | `voice/` 녹음 WAV를 공개 저장소에 둘까? | 현준님 본인 목소리, 제출 시 공개 범위 확인 필요 | — |
 
 더 발전될 부분: 한국어 줄 사이 침묵(클라우드 GPU 필요), 실제 아이 대상 테스트, 위 결정에 따른 기본값 변경.
+
+참고(03:10): 지호님 PR #43(낭독 대기 단축, 재생 일시정지, 저장 목소리 선택)이 밤사이 병합됨. 병합된 main에서 파이썬 39개 통과, 노드 121개 중 1개 실패. 실패한 `live-book.test.cjs` "the retry button recovers…"는 이 Mac의 pyenv `site-packages`에 설치된 다른 `tests` 패키지가 저장소의 `tests` 폴더를 가려서 생긴 **환경 문제**(`ModuleNotFoundError: tests.test_live_images`)라 코드 문제는 아니다. 지호님께 공유 필요. 서버는 최신 main으로 다시 띄워 둠.
