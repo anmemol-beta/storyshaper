@@ -59,3 +59,13 @@
 이번 커밋은 계획 문서만 추가했다. 과거 PR #9의 Python 81개·Node 35개 통과 기록을 새 브랜치의 재실행 결과로 주장하지 않는다. 새 생성·API 호출·영상 평가도 수행하지 않았다.
 
 참고: [미디어 API](API.md), [구현 계획](integration-plan.md), [개발 로드맵](../docs/internal/development-roadmap.md), [이전 구현 보고서](../docs/reports/2026-10-29-media-ui-implementation.md). 원격 후속 문서·코드는 아직 main에 없는 제안/변경으로 구분했다.
+
+## 2026-10-30 POC update (ChatGPT)
+
+- Merged latest `main` at `8810e0f` into `img2vid` while retaining branch plan.
+- Added reproducible single-image → MP4 **camera-motion fallback** (`experiments/image_motion_poc.py`) and explicit generative image-to-video acceptance criteria (`media/IMG2VID_POC.md`).
+- The code produces H.264 video from a still using FFmpeg zoompan; **this is not an AI model output**. A synthetic test of the specified FFmpeg processing path produced a 1280×720, 2 s H.264 MP4, but was not run against a real repo illustration in this environment.
+- Actual generative image-to-video POC **not yet demonstrated**: requires a verified provider, model credentials/credit, review of generated action/character consistency and a real downloaded video.
+- Existing media API already supports playing vetted local MP4 entries; do not mark `reviewed:true` without human visual inspection or commit demo fixture files as if they were generation results.
+- All voice-module and agent-logic internals remain untouched.
+
