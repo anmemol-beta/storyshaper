@@ -9,7 +9,7 @@ mkdir -p "$LOGS"
 
 voice/.venv-chatterbox/bin/python -m narration.server > "$LOGS/narration.log" 2>&1 &
 NARRATION=$!
-python3 -m speech.server > "$LOGS/story.log" 2>&1 &
+python3 -m vision.server > "$LOGS/story.log" 2>&1 &
 STORY=$!
 trap 'kill $NARRATION $STORY 2>/dev/null; echo; echo "Stopped."' EXIT INT TERM
 
