@@ -374,4 +374,15 @@ class VoiceLibrary:
         return voices
 
     def delete(self, voice_id):
+        """The profile, and everything trained from it: its fine-tune dataset (finetune-data/<id>) and every
+        run whose training data was this voice (finetune-runs/*/train.json), which live outside the profile."""
         shutil.rmtree(self.folder(voice_id))
+        voice_dir = self.root.parent
+        shutil.rmtree(voice_dir / "finetune-data" / voice_id, ignore_errors=True)
+        for run in (voice_dir / "finetune-runs").glob("*/train.json"):
+            try:
+                data = json.loads(run.read_text()).get("data", "")
+            except ValueError:
+                continue
+            if Path(data).name == voice_id:
+                shutil.rmtree(run.parent, ignore_errors=True)

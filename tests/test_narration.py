@@ -260,6 +260,21 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertFalse(quiet.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True)["consentHeard"])
         self.assertNotIn("consentHeard", quiet.create((self.root / "talk.wav").read_bytes(), "video/mp4"))
 
+    def test_deleting_a_voice_also_deletes_what_was_trained_from_it(self):
+        draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
+        vid = draft["id"]
+        data = self.root / "finetune-data" / vid
+        (data / "wavs").mkdir(parents=True)
+        mine, other = self.root / "finetune-runs" / "dad-run", self.root / "finetune-runs" / "someone-else"
+        for run, source in ((mine, data), (other, self.root / "finetune-data" / "aaaaaaaaaaaa")):
+            run.mkdir(parents=True)
+            (run / "train.json").write_text(json.dumps({"data": str(source)}))
+        self.library.delete(vid)
+        self.assertFalse((self.root / "profiles" / vid).exists())
+        self.assertFalse(data.exists())
+        self.assertFalse(mine.exists())
+        self.assertTrue(other.exists())
+
     def test_consent_and_bad_files_are_refused(self):
         draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
         self.library.choose(draft["id"], 2, 12)
