@@ -38,6 +38,9 @@
 
   .shell { max-width: 600px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px 120px; }
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+  .langs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .langs button { border: 0; background: transparent; padding: 6px 12px; font-size: .85rem; color: var(--subtle); cursor: pointer; }
+  .langs button[aria-pressed="true"] { background: var(--green); color: var(--on-green); font-weight: 700; }
   .logo { font-family: var(--title); font-size: 1.15rem; color: var(--green); text-decoration: none; }
 
   /* Progress: four pages of a little book */
@@ -162,48 +165,49 @@
 <body>
 <div class="shell">
   <header class="bar">
-    <a class="logo" href="index.html">✿ StoryShaper</a>
+    <a class="logo" href="agent.html" data-return>✿ StoryShaper</a>
+    <div class="langs" role="group" aria-label="Language"><button type="button" data-lang="en">English</button><button type="button" data-lang="ko">한국어</button></div>
   </header>
 
   <ol class="pages" id="pages" aria-label="Steps">
-    <li data-step="who">Who</li><li data-step="find">Their voice</li><li data-step="pick">Best part</li><li data-step="listen">Listen</li>
+    <li data-step="who" data-t>Who</li><li data-step="find" data-t>Their voice</li><li data-step="pick" data-t>Best part</li><li data-step="listen" data-t>Listen</li>
   </ol>
 
   <main>
     <section data-step="who">
-      <h1>Who will read the stories?</h1>
-      <p class="lead">Their voice will read every page aloud, even on nights they can't be there.</p>
+      <h1 data-t>Who will read the stories?</h1>
+      <p class="lead" data-t>Their voice will read every page aloud, even on nights they can't be there.</p>
       <fieldset class="who">
         <legend hidden>Whose voice is this</legend>
         <label><input type="radio" name="relation" value="family_consented">
           <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="22" fill="var(--peach)"/><circle cx="22" cy="17" r="6" fill="var(--green)"/><path d="M11 33c2-6 6-9 11-9s9 3 11 9" fill="var(--green)"/><path d="M31 10l2 4 4 .5-3 3 .8 4-3.8-2-3.8 2 .8-4-3-3 4-.5z" fill="var(--honey)"/></svg>
-          <span><b>A parent who is away</b><small>Working far away, serving, or travelling. They agreed to this.</small></span></label>
+          <span><b data-t>A parent who is away</b><small data-t>Working far away, serving, or travelling. They agreed to this.</small></span></label>
         <label><input type="radio" name="relation" value="me">
           <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="22" fill="var(--peach)"/><circle cx="22" cy="17" r="6" fill="var(--green)"/><path d="M11 33c2-6 6-9 11-9s9 3 11 9" fill="var(--green)"/></svg>
-          <span><b>Me</b><small>I'll add a recording of my own voice.</small></span></label>
+          <span><b data-t>Me</b><small data-t>I'll add a recording of my own voice.</small></span></label>
         <label><input type="radio" name="relation" value="family_late">
           <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="22" fill="var(--peach)"/><path d="M22 33s-10-6-10-13a5.5 5.5 0 0 1 10-3 5.5 5.5 0 0 1 10 3c0 7-10 13-10 13z" fill="var(--green)"/></svg>
-          <span><b>Someone we miss</b><small>A family member who has passed away. I'm their close family.</small></span></label>
+          <span><b data-t>Someone we miss</b><small data-t>A family member who has passed away. I'm their close family.</small></span></label>
       </fieldset>
       <div class="field">
-        <label for="name">What does your child call them?</label>
-        <input id="name" maxlength="40" placeholder="Dad" autocomplete="off">
+        <label for="name" data-t>What does your child call them?</label>
+        <input id="name" maxlength="40" placeholder="Dad" data-t-placeholder="Dad" autocomplete="off">
       </div>
       <label class="promise"><input type="checkbox" id="attest">
-        <span>I have the right to use this voice for my family's stories. I won't add the voice of a public figure or anyone who hasn't agreed.</span></label>
-      <p class="fine">The voice stays inside StoryShaper and can't be downloaded. Every line it reads carries a hidden watermark, and you can delete it any time.</p>
+        <span data-t>I have the right to use this voice for my family's stories. I won't add the voice of a public figure or anyone who hasn't agreed.</span></label>
+      <p class="fine" data-t>The voice stays inside StoryShaper and can't be downloaded. Every line it reads carries a hidden watermark, and you can delete it any time.</p>
     </section>
 
     <section data-step="find" hidden>
       <h1 id="findTitle">Find their voice</h1>
-      <p class="lead">Add a video or a voice message. We only use the sound, and we keep just ten seconds of it.</p>
+      <p class="lead" data-t>Add a video or a voice message. We only use the sound, and we keep just ten seconds of it.</p>
       <label class="drop" id="drop">
         <svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><rect x="6" y="12" width="44" height="32" rx="8"/><path d="M24 22l10 6-10 6z" fill="currentColor"/></svg>
-        <strong>Choose a video or recording</strong>
-        <span>or drop it here</span>
+        <strong data-t>Choose a video or recording</strong>
+        <span data-t>or drop it here</span>
         <input type="file" id="file" accept="audio/*,video/*" hidden>
       </label>
-      <div class="or">or</div>
+      <div class="or" data-t>or</div>
       <button class="btn" type="button" id="record">● Record 30 seconds now</button>
       <div class="script" id="script" hidden>
         <p class="cue" id="cue" role="status">Read this aloud, slowly, the way you would at bedtime.</p>
@@ -213,19 +217,20 @@
           “Goodnight, moon. Goodnight, stars,” said Bo with a great big yawn.
           Then he curled up in his warm blanket and dreamed of honey, rivers, and wide blue skies.</p>
         <p class="story consent">I'm happy for my voice to read stories to my child.</p>
+        <p class="fine" data-t>Read it in English. One recording is enough: the same voice also reads the Korean stories.</p>
       </div>
       <ul class="ideas">
-        <li>A birthday message or a video call</li>
-        <li>Them reading a book aloud</li>
-        <li>Calm talking, one person, a quiet room</li>
+        <li data-t>A birthday message or a video call</li>
+        <li data-t>Them reading a book aloud</li>
+        <li data-t>Calm talking, one person, a quiet room</li>
       </ul>
       <div class="working" id="working" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="workingText">Listening to the video…</span></div>
       <p class="error" id="findError" role="alert" hidden></p>
     </section>
 
     <section data-step="pick" hidden>
-      <h1 id="pickTitle">Pick the clearest ten seconds</h1>
-      <p class="lead">The yellow part will be the voice we learn from. Tap a part to hear it, or slide it along the recording.</p>
+      <h1 id="pickTitle" data-t>Pick the clearest ten seconds</h1>
+      <p class="lead" data-t>The yellow part will be the voice we learn from. Tap a part to hear it, or slide it along the recording.</p>
       <div class="tape" id="tape"><div class="bars" id="bars"></div><div class="head" id="head" hidden></div></div>
       <div class="times"><span>0:00</span><span id="total"></span></div>
       <div class="verdict" id="verdict" hidden>
@@ -238,10 +243,10 @@
     <section data-step="listen" hidden>
       <h1 id="listenTitle">Listen</h1>
       <div class="listen">
-        <button class="play" type="button" id="play" aria-label="Play the story line">
+        <button class="play" type="button" id="play" aria-label="Play the story line" data-t-aria="Play the story line">
           <svg viewBox="0 0 44 44" fill="currentColor" aria-hidden="true"><path d="M15 10l20 12-20 12z"/></svg>
         </button>
-        <p class="story">“Once upon a time, a mother pig lived with her three little pigs.”</p>
+        <p class="story" id="previewLine">“Once upon a time, a mother pig lived with her three little pigs.”</p>
         <p class="status" id="listenStatus" role="status"></p>
         <p class="ask" id="ask" hidden></p>
       </div>
@@ -250,26 +255,26 @@
     <section data-step="done" hidden>
       <div class="finale">
         <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="60" fill="var(--peach)"/><path d="M28 40c10-4 22-4 32 3 10-7 22-7 32-3v42c-10-4-22-4-32 3-10-7-22-7-32-3z" fill="var(--page)" stroke="var(--green)" stroke-width="3" stroke-linejoin="round"/><path d="M60 43v42" stroke="var(--green)" stroke-width="3"/><path d="M84 22l3 6 6 1-4.5 4.5 1 6-5.5-3-5.5 3 1-6L75 29l6-1z" fill="var(--honey)"/></svg>
-        <h1 id="doneTitle">The voice is ready</h1>
+        <h1 id="doneTitle" data-t>The voice is ready</h1>
         <p class="lead" id="doneText"></p>
         <p class="book-status" id="bookStatus" role="status"></p>
-        <a class="btn main" href="index.html" style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
-        <button class="btn quiet" type="button" id="again">Add another voice</button>
+        <a class="btn main" href="agent.html" data-return data-t style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
+        <button class="btn quiet" type="button" id="again" data-t>Add another voice</button>
       </div>
     </section>
 
     <section class="voices" id="voicesBox" hidden>
-      <h2>Voices on this device</h2>
+      <h2 data-t>Voices on this device</h2>
       <div id="voices"></div>
       <label class="every"><input type="checkbox" id="allRoles">
-        <span>Read every character in this voice<small>Off: the wolf has his own voice, so children always know who is talking.</small></span></label>
+        <span><span data-t>Read every character in this voice</span><small data-t>Off: the wolf has his own voice, so children always know who is talking.</small></span></label>
     </section>
   </main>
 </div>
 
 <nav class="actions" id="actions">
   <div>
-    <button class="btn quiet" type="button" id="back">Back</button>
+    <button class="btn quiet" type="button" id="back" data-t>Back</button>
     <button class="btn main" type="button" id="next">Continue</button>
   </div>
 </nav>
