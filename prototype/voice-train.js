@@ -27,6 +27,10 @@
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "The microphone is blocked. Allow it in the browser.": "마이크가 막혀 있어요. 브라우저에서 허용해 주세요.",
     "Record": "녹음", "Stop": "멈추기",
+    "Can't read these sentences? Add videos or voice messages of them instead.": "문장을 읽어 줄 수 없나요? 그 사람의 영상이나 음성 메시지를 대신 올려 주세요.",
+    "Add videos or voice messages": "영상·음성 메시지 올리기",
+    "Listening to {name}…": "{name} 듣는 중…",
+    "Added {added} clips ({seconds} s) from {name}.": "{name}에서 {added}개 구간({seconds}초)을 더했어요.",
   };
   let language = (() => {
     const asked = new URLSearchParams(location.search).get("lang");
@@ -58,10 +62,11 @@
 
   function showProgress() {
     const clips = Object.values(done);
+    const read = clips.filter(c => c.source !== "media").length;
     const secs = Math.round(clips.reduce((s, c) => s + c.seconds, 0));
-    $("meter").style.width = `${(clips.length / Math.max(1, sentences.length)) * 100}%`;
+    $("meter").style.width = `${Math.min(1, secs / 600) * 100}%`;          // ten minutes of speech fills the bar
     $("count").textContent = tr("{done} of {total} sentences · {minutes} min {seconds} s recorded",
-      {done: clips.length, total: sentences.length, minutes: Math.floor(secs / 60), seconds: secs % 60});
+      {done: read, total: sentences.length, minutes: Math.floor(secs / 60), seconds: secs % 60});
   }
 
   function show() {
@@ -135,6 +140,20 @@
     show();
   }
 
+  // Home videos and voice messages: the server cuts them at pauses and uses the transcript as each clip's text.
+  $("media").onchange = async () => {
+    const files = [...$("media").files];
+    $("media").value = "";
+    for (const file of files) {
+      $("mediaStatus").textContent = tr("Listening to {name}…", {name: file.name});
+      try {
+        const result = await call(`/api/voices/${voiceId}/train`, {method: "POST", headers: {"Content-Type": file.type || "audio/mpeg"}, body: file});
+        for (const c of result.clips) done[c.n] = c;
+        $("mediaStatus").textContent = tr("Added {added} clips ({seconds} s) from {name}.", {added: result.added, seconds: result.seconds, name: file.name});
+        showProgress();
+      } catch (e) { error(e.message); }
+    }
+  };
   $("rec").onclick = toggle;
   $("skip").onclick = () => { index = Math.min(index + 1, sentences.length - 1); lastUrl = null; show(); };
   $("prev").onclick = () => { index = Math.max(0, index - 1); lastUrl = null; show(); };

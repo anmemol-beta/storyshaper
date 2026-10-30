@@ -12,7 +12,9 @@ POST   /api/voices[?recorded=1]    raw recording or video body -> draft voice wi
                                    (recorded=1: also check that the consent sentence was read)
 GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
 POST   /api/voices/<id>/train/<n>  one read-aloud training sentence (audio body) -> duration, transcript, match
+POST   /api/voices/<id>/finetune   {"enabled": true|false}: read this voice's English lines with its fine-tuned T3
 GET    /api/voices/<id>/train      training sentences recorded so far
+POST   /api/voices/<id>/train      a home video or voice message -> clips cut at pauses, transcribed as their text
 POST   /api/voices/<id>/clip       {"start", "end"} -> quality and Muse Voice Transcribe transcript
 POST   /api/voices/<id>/preview    a sample story line in the chosen clip's voice
 POST   /api/voices/<id>/save       {"name", "relation", "attested": true}
@@ -60,7 +62,7 @@ MAX_TEXT = 500
 LANGUAGES = ("en", "ko")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
-VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train)(?:/(\d{1,3}))?)?$")
+VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune)(?:/(\d{1,3}))?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text())}
 
@@ -98,11 +100,12 @@ class Narrator:
     def path(self, voice, key):
         return self.cache / voice / f"{key}.mp3"
 
-    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en"):
+    def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None):
         """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
-        enqueue=False only reports which lines are ready (for progress)."""
+        enqueue=False only reports which lines are ready (for progress). t3: a fine-tuned T3 file for the
+        parent roles in English (narration/finetune_merge.py); it is part of the cache key."""
         batch = -next(self.batch)
         clips = []
         with self.cond:
@@ -112,6 +115,8 @@ class Narrator:
                 settings = self.settings(role, parent_ref, all_roles)
                 if language != "en":            # English keys stay as before, so existing clips remain valid
                     settings["language"] = language
+                elif t3 and settings["ref"] != self.casting[role]["ref"]:    # the parent's voice, not a stock one
+                    settings["t3"] = t3
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
                 if not ready and enqueue:
@@ -238,6 +243,16 @@ class Handler(BaseHTTPRequestHandler):
         ref = self.server.library.ref(voice_id)
         return voice_id, f"{ref}#{hashlib.sha1(ref.read_bytes()).hexdigest()[:8]}"
 
+    def finetuned(self, voice_id):
+        """The voice's merged fine-tune ("path#mtime") when it is switched on, else None."""
+        if voice_id in (None, "default"):
+            return None
+        finetune = self.server.library.meta(voice_id).get("finetune") or {}
+        path = self.server.library.folder(voice_id) / str(finetune.get("file", ""))
+        if not finetune.get("enabled") or not path.is_file():
+            return None
+        return f"{path}#{int(path.stat().st_mtime)}"
+
     def handle_safely(self, action):
         if not self.guarded():
             return
@@ -312,7 +327,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
             voice, ref = self.parent_ref(body.get("voiceId"))
             return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
-                                                             enqueue=body.get("peek") is not True, language=language)})
+                                                             enqueue=body.get("peek") is not True, language=language,
+                                                             t3=self.finetuned(body.get("voiceId")))})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -323,6 +339,11 @@ class Handler(BaseHTTPRequestHandler):
         if not route or not route.group(2):
             raise VoiceError(404, "not_found", "Not found.")
         voice_id, action, number = route.groups()
+        if action == "train" and not number:
+            kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+            if not kind.startswith(("audio/", "video/")):
+                raise VoiceError(415, "unsupported_type", "Upload a recording or a video file.")
+            return self.reply(200, library.add_training_media(voice_id, self.body(MAX_UPLOAD)))
         if action == "train":
             n = int(number or 0)
             if n not in TRAINING:
@@ -339,8 +360,10 @@ class Handler(BaseHTTPRequestHandler):
             if language not in LANGUAGES:
                 raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
             [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT[language]}], *self.parent_ref(voice_id),
-                                     language=language)
+                                     language=language, t3=self.finetuned(voice_id))
             return self.reply(200, clip)
+        if action == "finetune":
+            return self.reply(200, library.set_finetune(voice_id, self.json_body().get("enabled") is True))
         if action == "save":
             body = self.json_body()
             return self.reply(200, library.save(voice_id, body.get("name"), body.get("relation"), body.get("attested")))
@@ -406,6 +429,18 @@ def chatterbox_synthesizer():
     model = ChatterboxTTS.from_pretrained(device=device)
 
     multilingual = None
+    tuned = {}                                      # fine-tuned T3 file -> engine sharing S3Gen, VE and tokenizer
+
+    def tuned_model(t3_file):
+        if t3_file not in tuned:
+            from chatterbox.models.t3 import T3
+            from safetensors.torch import load_file
+            t3 = T3()
+            t3.load_state_dict({k: v.float() for k, v in load_file(t3_file).items()})
+            t3.to(device).eval()
+            tuned.clear()                           # keep one fine-tune in memory (~2 GB)
+            tuned[t3_file] = ChatterboxTTS(t3, model.s3gen, model.ve, model.tokenizer, device, conds=model.conds)
+        return tuned[t3_file]
 
     def synthesize(text, voice):
         nonlocal multilingual
@@ -413,7 +448,8 @@ def chatterbox_synthesizer():
         ref = ROOT / voice["ref"].split("#", 1)[0]       # casting refs are repo-relative, profile refs absolute
         language = voice.get("language", "en")
         if language == "en":
-            wav = model.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
+            engine = tuned_model(voice["t3"].split("#", 1)[0]) if voice.get("t3") else model
+            wav = engine.generate(text, audio_prompt_path=str(ref), exaggeration=exaggeration, cfg_weight=voice["cfg_weight"])
         else:
             if multilingual is None:                     # loaded on the first non-English line
                 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
