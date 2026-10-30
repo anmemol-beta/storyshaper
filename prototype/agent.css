@@ -60,6 +60,7 @@ select { min-height: 44px; width: 100%; padding: 8px 30px 8px 11px; border: 1px 
 .reference-art figcaption { position: absolute; right: 8px; bottom: 8px; left: 8px; width: fit-content; max-width: calc(100% - 16px); padding: 3px 7px; background: rgb(255 253 248 / 93%); border-radius: 4px; color: #49534a; font-size: .6rem; line-height: 1.5; }
 .narrative { display: grid; gap: 15px; margin: 23px 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.1rem; line-height: 1.75; }
 .story-line { overflow-wrap: anywhere; }
+.story-line.speaking { margin: -4px -8px; padding: 4px 8px; border-radius: 8px; background: var(--green-soft); }
 .speaker { display: block; margin-bottom: 1px; font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; font-weight: 750; font-size: .61rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .empty-note { color: var(--muted); font-size: .88rem; font-family: "Avenir Next", Avenir, "Segoe UI", system-ui, sans-serif; }
 .question-panel { padding: 19px 20px; border-left: 3px solid var(--green); border-radius: 0 10px 10px 0; background: var(--green-soft); }
