@@ -12,6 +12,8 @@ POST   /api/voices[?recorded=1]    raw recording or video body -> draft voice wi
                                    (recorded=1: also check that the consent sentence was read)
 GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
 POST   /api/voices/<id>/train/<n>  one read-aloud training sentence (audio body) -> duration, transcript, match
+POST   /api/voices/<id>/sample     {"from": "practice"}: make the voice sample from practice sentences read in
+                                   the parent's usual voice; {"from": "original"}: back to the first clip
 POST   /api/voices/<id>/finetune   {"enabled": true|false}: read this voice's English lines with its fine-tuned T3
 GET    /api/voices/<id>/train      training sentences recorded so far
 POST   /api/voices/<id>/train      a home video or voice message -> clips cut at pauses, transcribed as their text
@@ -64,7 +66,7 @@ MAX_TEXT = 500
 LANGUAGES = ("en", "ko")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
-VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune)(?:/(\d{1,4})(\.wav)?)?)?$")
+VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune|sample)(?:/(\d{1,4})(\.wav)?)?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text(encoding="utf-8"))}
 
@@ -369,6 +371,10 @@ class Handler(BaseHTTPRequestHandler):
             [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT[language]}], *self.parent_ref(voice_id),
                                      language=language, t3=self.finetuned(voice_id))
             return self.reply(200, clip)
+        if action == "sample":                     # {"from": "practice" | "original"}
+            if self.json_body().get("from") == "practice":
+                return self.reply(200, library.sample_from_practice(voice_id))
+            return self.reply(200, library.restore_sample(voice_id))
         if action == "finetune":
             return self.reply(200, library.set_finetune(voice_id, self.json_body().get("enabled") is True))
         if action == "save":

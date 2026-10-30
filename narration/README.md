@@ -94,6 +94,8 @@ Chatterbox imitates a voice from at most 10 s of its reference clip, so recordin
 3. **Compare** held-out lines before/after (and today's voice with `--current <id>`): `python -m narration.finetune_eval --run <name> --ref … --real …` writes a listening page.
 4. **Use it**: `python -m narration.finetune_merge --run <name> --voice <id>` bakes the adapter into a T3 file in the voice's folder; the "Trained voice (beta)" switch on `voice.html` (`POST /api/voices/<id>/finetune`) makes the server read that voice's **English** parent lines with it. Korean keeps the multilingual model.
 
+**Without training:** the practice sentences can also replace the 10 s reference clip. "Use my practice reading" on `voice-train.html` (`POST /api/voices/<id>/sample {"from": "practice"}`, needs 3 clearly read sentences) builds it from the sentences whose pitch and pitch movement are closest to the parent's usual reading, so lively or creaky readings don't push the story voice higher. The first clip is kept as `ref_original.wav`; "Go back to the first recording" (`{"from": "original"}`) restores it. The reference's content is in every cache key, so lines are read again in the new voice. On 현준's recordings, with default settings, held-out speaker similarity went from 0.83 to 0.89–0.91 (pitch 124–136 Hz vs 117 Hz before; docs/internal/voice-worklog-2026-10-31.md §10).
+
 Deleting the voice deletes its clip, recordings, fine-tune dataset, runs trained from it and the merged model.
 
 First results (현준's 48 sentences, 4.2 min): held-out speaker similarity and transcription match stayed within noise of the zero-shot voice (0.83 / 0.95–0.98; real recordings score 0.90 against each other), so the switch stays off until it is judged by ear.

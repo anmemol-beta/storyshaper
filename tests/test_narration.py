@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from narration.server import Narrator, Server, lazy_synthesizer
-from narration.voices import SR, VoiceLibrary, clip_quality, consent_heard, suggest_clips, write_wav
+from narration.voices import SR, VoiceError, VoiceLibrary, clip_quality, consent_heard, suggest_clips, write_wav
 
 
 class SpokenConsentTest(unittest.TestCase):
@@ -277,6 +277,40 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertEqual([v["name"] for v in self.library.saved()], ["Dad"])
         self.library.delete(draft["id"])
         self.assertFalse(folder.exists())
+
+    def test_voice_sample_from_practice_sentences_in_the_usual_voice_and_back(self):
+        draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")
+        self.library.choose(draft["id"], 2, 12)
+        folder = self.root / "profiles" / draft["id"]
+        first = (folder / "ref.wav").read_bytes()
+        with self.assertRaises(VoiceError):                 # nothing read yet
+            self.library.sample_from_practice(draft["id"])
+
+        def sentence(hz, wobble, seconds=3):                # a voiced "sentence": a tone whose pitch moves +-wobble
+            t = np.arange(int(seconds * SR)) / SR
+            phase = 2 * np.pi * np.cumsum(hz * 2 ** (wobble / 12 * np.sin(2 * np.pi * 0.7 * t))) / SR
+            return np.concatenate([np.zeros(SR // 4), 0.3 * np.sin(phase), np.zeros(SR // 4)]).astype(np.float32)
+        (folder / "train").mkdir()
+        readings = {1: (120, 2), 2: (124, 2), 3: (118, 2), 4: (122, 2), 5: (200, 2), 6: (120, 9), 7: (120, 2)}
+        clips = {}
+        for n, (hz, wobble) in readings.items():
+            write_wav(folder / "train" / f"{n:03d}.wav", sentence(hz, wobble))
+            clips[str(n)] = {"n": n, "file": f"{n:03d}.wav", "source": "read", "text": "x", "seconds": 3.5,
+                             "match": 0.5 if n == 7 else 1.0}        # 7 was misread
+        (folder / "train" / "clips.json").write_text(json.dumps(clips))
+
+        sample = self.library.sample_from_practice(draft["id"])
+        self.assertEqual(len(sample["sentences"]), 3)              # three 3 s sentences fill the 10 s sample
+        self.assertLessEqual(set(sample["sentences"]), {1, 2, 3, 4})  # not the high one, the lively one or the misread one
+        self.assertEqual(self.library.training_status(draft["id"])["sample"], sample)
+        self.assertNotEqual((folder / "ref.wav").read_bytes(), first)
+        self.assertEqual((folder / "ref_original.wav").read_bytes(), first)
+        self.library.sample_from_practice(draft["id"])              # again: the first clip is still the one kept
+        self.assertEqual((folder / "ref_original.wav").read_bytes(), first)
+        self.library.restore_sample(draft["id"])
+        self.assertEqual((folder / "ref.wav").read_bytes(), first)
+        self.assertFalse((folder / "ref_original.wav").exists())
+        self.assertIsNone(self.library.training_status(draft["id"])["sample"])
 
     def test_recorded_consent_sentence_is_heard(self):
         library = VoiceLibrary(self.root / "p2", lambda wav: "and dreamed of honey. I'm happy for my voice to read stories to my child.")
