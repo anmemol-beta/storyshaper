@@ -143,6 +143,7 @@ class FakeImages:
     def __init__(self, gated=False, fail=False):
         self.calls = []
         self.started, self.release = threading.Event(), threading.Event()
+        self.both_started = threading.Event()
         self.fail = fail
         if not gated:
             self.release.set()
@@ -150,6 +151,8 @@ class FakeImages:
     def generate(self, spec, plan, references, cancelled):
         self.calls.append((spec, plan, references))
         self.started.set()
+        if len(self.calls) >= 2:
+            self.both_started.set()
         self.release.wait(3)
         if self.fail:
             raise ImageError('private fixture error')
@@ -221,6 +224,106 @@ class ImageJobTests(unittest.TestCase):
         self.assertFalse(ready['generated'])
         self.assertFalse(ready['generationRequested'])
         self.assertEqual(provider.calls, [])
+
+    def test_every_reachable_touch_choice_uses_exact_stored_art_in_both_languages(self):
+        for language in ('en', 'ko'):
+            manager, provider = self.manager()
+            engine = StoryEngine(LiveRules(), language=language)
+            pending = [((), engine.start(f'{language}-root'))]
+            visited, assets, actions = set(), set(), set()
+            serial = 0
+            with patch.object(manager.pool, 'submit', side_effect=AssertionError('Touch art must not queue')), \
+                    patch.object(manager.provider, 'resolve', side_effect=AssertionError('Touch art must not resolve video')):
+                while pending:
+                    path, state = pending.pop(0)
+                    if state['question'] is None:
+                        continue
+                    story = state['storyState']
+                    signature = (state['sceneId'], story['houses'][-1]['material']
+                                 if story['stage'] != 'choose' else None)
+                    if signature in visited:
+                        continue
+                    visited.add(signature)
+                    for choice in state['question']['choices']:
+                        # Each alternative is a distinct session, so immutable
+                        # server bindings cannot reuse another branch's image.
+                        serial += 1
+                        branch = engine.start(f'{language}-touch-{serial}')
+                        for choice_id in path:
+                            branch = engine.answer(branch, '', choice_id=choice_id)
+                        accepted = engine.answer(branch, 'forged free text', choice_id=choice['id'])
+                        spec = normalize(accepted)
+                        with self.subTest(language=language, scene=state['sceneId'], choice=choice['id']):
+                            ready = manager.request(accepted)
+                            self.assertEqual(ready['status'], 'ready')
+                            self.assertEqual(ready['source'], 'prepared_choice')
+                            self.assertEqual(ready['reason'], 'prepared_choice_image')
+                            self.assertEqual(ready['image'], manager.registry.image(spec))
+                            self.assertEqual(ready['spec']['selection']['answer'], choice['answer'])
+                            self.assertFalse(ready['generated'] or ready['generationRequested'])
+                            self.assertFalse(ready['generationRetryAvailable'])
+                            self.assertEqual(ready['retriesRemaining'], 0)
+                        assets.add(spec.asset_key)
+                        actions.add(spec.action)
+                        pending.append((path + (choice['id'],), accepted))
+            self.assertEqual(len(assets), 19)
+            self.assertTrue({'build', 'move_to_next_house', 'safe_ending', 'blown_away',
+                             'collapsed', 'eaten', 'melted', 'stood'} <= actions)
+            self.assertEqual(provider.calls, [])
+
+    def test_touch_art_reload_and_translation_reuse_without_generation(self):
+        manager, provider = self.manager()
+        accepted = self.engine.answer(self.start, '', choice_id='paper')
+        ready = manager.request(accepted)
+        self.assertEqual(manager.request(accepted)['jobId'], ready['jobId'])
+        self.assertEqual(manager.request(accepted, retry_of=ready['jobId'])['jobId'], ready['jobId'])
+        translated = self.engine.change_language(accepted, 'ko')
+        current = manager.request(translated)
+        self.assertEqual(current['status'], 'ready')
+        self.assertEqual(current['source'], 'prepared_choice')
+        self.assertEqual(current['image'], ready['image'])
+        self.assertNotEqual(current['jobId'], ready['jobId'])
+        self.assertFalse(manager.get(ready['jobId'], ready['sessionId'])['apply'])
+        self.assertEqual(provider.calls, [])
+        free = self.engine.answer(translated, '함께 지켜볼래요')
+        self.assertIsNone(free['selection'])
+        self.assertTrue(finish(manager, manager.request(free))['generated'])
+        self.assertEqual(len(provider.calls), 1)
+
+    def test_touch_art_is_ready_while_both_image_workers_are_busy(self):
+        manager, provider = self.manager(gated=True)
+        manager.request(scenes(session='busy-one')[2])
+        self.assertTrue(provider.started.wait(1))
+        manager.request(scenes(session='busy-two')[2])
+        self.assertTrue(provider.both_started.wait(1))
+        accepted = self.engine.answer(self.start, '', choice_id='paper')
+        ready = manager.request(accepted)
+        self.assertEqual(ready['status'], 'ready')
+        self.assertEqual(ready['source'], 'prepared_choice')
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_offline_free_answer_cache_does_not_mask_ready_touch_art(self):
+        manager, provider = self.manager()
+        mock = deepcopy(self.build)
+        mock['providerMode'] = 'mock'
+        fallback = finish(manager, manager.request(mock))
+        self.assertEqual(fallback['source'], 'local_assets')
+        engine = StoryEngine(LiveRules())
+        start = engine.start('touch-after-local')
+        ready = manager.request(engine.answer(start, '', choice_id='paper'))
+        self.assertEqual(ready['status'], 'ready')
+        self.assertEqual(ready['source'], 'prepared_choice')
+        self.assertEqual(ready['image'], fallback['image'])
+        self.assertEqual(provider.calls, [])
+
+    def test_touch_art_is_available_without_an_image_generator(self):
+        manager = MediaJobs()
+        self.addCleanup(manager.close)
+        accepted = self.engine.answer(self.start, '', choice_id='paper')
+        ready = manager.request(accepted)
+        self.assertEqual(ready['status'], 'ready')
+        self.assertEqual(ready['source'], 'prepared_choice')
+        self.assertFalse(ready['generationRequested'])
 
     def test_failed_review_keeps_truthful_prepared_fallback_and_does_not_retry(self):
         manager, provider = self.manager(fail=True)
@@ -363,9 +466,21 @@ class IntegratedImageAPITests(unittest.TestCase):
             binding = {key: state[key] for key in ('sessionId', 'sceneId', 'version')}
             self.assertEqual(request('POST', '/api/media/jobs', {**binding, 'prompt': 'forged'})[0], 400)
             job = request('POST', '/api/media/jobs', binding)[1]
-            result = finish(app.media, job)
+            self.assertEqual(job['status'], 'ready')
+            self.assertEqual(job['source'], 'prepared_choice')
+            self.assertFalse(job['generated'] or job['generationRequested'])
+            self.assertEqual(job['spec']['selection']['choiceId'], 'paper')
+            self.assertEqual(job['spec']['material'], 'paper', 'Forged answer text must not select the art')
+            self.assertEqual(images.calls, [])
+            stored = (ROOT / 'prototype/img/paper_house.jpg').read_bytes()
+            self.assertEqual(request('GET', job['image']['url']), (200, stored))
+            state = request('POST', '/api/answer', {'sessionId': state['sessionId'],
+                'version': state['version'], 'questionId': state['question']['id'],
+                'requestId': 'free', 'answer': 'Let us watch carefully together.'})[1]
+            binding = {key: state[key] for key in ('sessionId', 'sceneId', 'version')}
+            result = finish(app.media, request('POST', '/api/media/jobs', binding)[1])
             self.assertTrue(result['generated'])
-            self.assertEqual(images.calls[0][0].selection['choiceId'], 'paper')
+            self.assertIsNone(images.calls[0][0].selection)
             self.assertEqual(request('GET', result['image']['url']), (200, JPEG))
             other = request('POST', '/api/sessions', {'mode': 'live'})[1]
             self.assertEqual(request('GET', result['image']['url'].replace(start['sessionId'], other['sessionId']))[0], 404)

@@ -224,7 +224,9 @@
         : t("Loading your picture…", "그림을 불러오고 있어요…");
       return;
     }
-    const ready = pending.providerMode === "live" ? result.state === "generated" : result.state === "prepared";
+    const prepared = result.state === "prepared";
+    const ready = pending.providerMode === "live"
+      ? result.state === "generated" || (prepared && result.source === "prepared_choice") : prepared;
     if (ready) {
       const state = pending;
       pending = null;
@@ -244,7 +246,7 @@
       say(result.retryable === false
         ? t("Couldn't finish the picture. Please restart the story.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
         : t("Try loading the picture again.", "그림 다시 불러오기를 눌러 주세요."));
-      syncControls(); // A failed or prepared AI fallback never unlocks the next turn.
+      syncControls(); // A failed live generation's substitute picture keeps the next turn locked.
     }
   }
 
