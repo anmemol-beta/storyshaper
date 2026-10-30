@@ -89,6 +89,16 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(result['decision'], 'accept')
         self.assertEqual(result['storyState']['houses'][-1]['material'], 'brick')
 
+    def test_korean_unusable_material_answer_names_the_usable_materials(self):
+        engine = StoryEngine(MockProvider(), 'ko')
+        failed = engine.answer(engine.start('materials'), '마그네슘')
+        self.assertEqual(failed['lines'][0]['text'],
+                         '이 집을 지을 재료가 필요해요. 여기서는 종이, 짚, 나무, 과자, 아이스크림 중에서 '
+                         '고를 수 있어요. 어떤 걸로 지어 볼까요?')
+        self.assert_korean(failed)
+        self.assertEqual(engine.answer(engine.start('sticks'), '나뭇가지')['storyState']['houses'][0]['material'],
+                         'wood')
+
     def test_korean_retry_and_service_errors_preserve_failure_counts(self):
         engine = StoryEngine(MockProvider(), 'ko')
         state = engine.start('retries')

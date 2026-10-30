@@ -86,6 +86,41 @@ class StoryEngineTests(unittest.TestCase):
         self.assertFalse(next_state["choiceMode"])
         self.assertEqual(next_state["sceneId"], "house1_predict")
 
+    def test_unusable_material_answer_names_the_usable_materials(self):
+        failed = self.engine.answer(self.start, "magnesium")
+        self.assertEqual((failed["decision"], failed["attempts"]), ("clarify", 1))
+        self.assertEqual([line["text"] for line in failed["lines"]], [
+            "This house needs a building material. We can use paper, straw, wood, cookie, "
+            "or ice cream here. Which one shall we try?"])
+        redirected = self.engine.answer(failed, "brick")
+        self.assertIn("last house. We can use paper, straw, wood, cookie, or ice cream here.",
+                      redirected["lines"][0]["text"])
+        third = self.engine.answer(redirected, "magnesium")
+        self.assertTrue(third["choiceMode"])
+        self.assertEqual(third["lines"][0]["text"], "This house needs a building material. "
+                         "Let's choose one of these three ideas. You can tap the one you like.")
+        state = self.start
+        for material in ("paper", "wood"):
+            state = self.engine.answer(state, material)
+            state = self.engine.answer(state, "The walls might fall")
+            state = self.engine.answer(state, "Use strong materials together")
+        last = self.engine.answer(state, "ice cream")
+        self.assertTrue(last["lines"][0]["text"].endswith(
+            "We can use brick or stone here. Which one shall we try?"))
+
+    def test_unclear_prediction_still_asks_to_say_it_again(self):
+        predict = self.engine.answer(self.start, "paper")
+        failed = self.engine.answer(predict, "I don't know")
+        self.assertEqual(failed["lines"][0]["text"],
+                         "I didn't quite understand. Could you tell me your idea once more?")
+
+    def test_sticks_build_the_wood_house(self):
+        for answer in ("sticks", "a stick house", "twigs"):
+            with self.subTest(answer=answer):
+                state = self.engine.answer(self.start, answer)
+                self.assertEqual(state["decision"], "accept", state)
+                self.assertEqual(state["storyState"]["houses"][0]["material"], "wood")
+
     def test_full_graph_preserves_prior_houses_and_fixed_ending(self):
         state = self.start
         for material in ("cookie", "wood", "stone"):
