@@ -35,6 +35,12 @@ const Narration = (() => {
   let finish = null;        // resolves the clip that is playing, so stop() can end it early
   let filler = null;        // {audio, done, end} while an interjection plays
   let lastFiller = -1;
+  // After an answer the next passage takes ~10 s to write and a few more to voice. Until its first line
+  // starts, another short line is said every FILLER_GAP ms, at most FILLER_MAX times, so the wait isn't silent.
+  const FILLER_GAP = 8000, FILLER_MAX = 3;
+  let waiting = false;
+  let fillerTimer = null;
+  function stopWaiting() { waiting = false; clearTimeout(fillerTimer); }
 
   const stored = key => { try { return localStorage.getItem(key); } catch { return null; } };
   const voiceId = () => stored("story-voice");
@@ -48,6 +54,7 @@ const Narration = (() => {
   }
 
   function stop() {
+    stopWaiting();
     stopReading();
     if (filler) { filler.audio.pause(); filler.end(); }
   }
@@ -123,13 +130,22 @@ const Narration = (() => {
 
   // A short line in the parent's voice, said at once. Skipped if it is not generated yet: a robot voice
   // saying "let me think" would be worse than a moment of quiet.
-  async function interject(language = "en") {
+  function interject(language = "en") {
     if (!LANGUAGES.includes(language)) return;
+    stopWaiting();
+    waiting = true;
+    sayFiller(language, FILLER_MAX - 1);
+  }
+
+  async function sayFiller(language, more) {
+    if (!waiting) return;
+    if (more > 0) fillerTimer = setTimeout(() => sayFiller(language, more - 1), FILLER_GAP);
+    if (filler) return;                         // the previous one is still talking
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
     let clip;
     try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language}); } catch { return; }
-    if (!clip.ready) return;
+    if (!clip.ready || !waiting) return;
     if (filler) filler.end();
     const sound = new Audio(`${server}${clip.url}`);
     let resolve;
@@ -159,6 +175,7 @@ const Narration = (() => {
     if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
     for (let i = 0; i < usable.length; i += 1) {
       if (my !== token) return;
+      if (i === 0) stopWaiting();               // the story is talking again: no more fillers
       onLine(i);
       const played = urls ? await playClip(urls[i]) : false;
       if (my !== token) return;
