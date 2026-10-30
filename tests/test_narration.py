@@ -147,7 +147,7 @@ class FillerListTest(unittest.TestCase):
     def test_warm_script_uses_the_same_fillers_as_the_page(self):
         import re
         from narration.warm import FILLERS
-        page = (Path(__file__).resolve().parent.parent / "prototype" / "narration.js").read_text()
+        page = (Path(__file__).resolve().parent.parent / "prototype" / "narration.js").read_text(encoding="utf-8")
         from narration.warm import FILLERS_KO
         for name, expected in (("FILLERS", FILLERS), ("FILLERS_KO", FILLERS_KO)):
             block = re.search(rf"const {name} = \[(.*?)\];", page, re.S).group(1)

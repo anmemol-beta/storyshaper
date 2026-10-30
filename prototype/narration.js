@@ -33,8 +33,10 @@ const Narration = (() => {
   let audio = null;
   let lastKey = null;
   let finish = null;        // resolves the clip that is playing, so stop() can end it early
+  let speechFinish = null;  // resolves browser speech immediately when a scene is cancelled
   let filler = null;        // {audio, done, end} while an interjection plays
   let lastFiller = -1;
+  let interjectEpoch = 0;
 
   const stored = key => { try { return localStorage.getItem(key); } catch { return null; } };
   const voiceId = () => stored("story-voice");
@@ -44,11 +46,13 @@ const Narration = (() => {
     token += 1;
     if (audio) { audio.pause(); audio = null; }
     if (finish) finish(true);
+    if (speechFinish) speechFinish();
     if ("speechSynthesis" in window) speechSynthesis.cancel();
   }
 
   function stop() {
     stopReading();
+    interjectEpoch += 1;
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
@@ -68,8 +72,10 @@ const Narration = (() => {
       if (!("speechSynthesis" in window)) return setTimeout(resolve, 1500);
       const say = new SpeechSynthesisUtterance(text);
       say.lang = language === "ko" ? "ko-KR" : "en-US";
-      const done = () => { clearTimeout(guard); resolve(); };
-      const guard = setTimeout(resolve, 30000);
+      let settled = false;
+      const done = () => { if (settled) return; settled = true; clearTimeout(guard); if (speechFinish === done) speechFinish = null; resolve(); };
+      const guard = setTimeout(() => { speechSynthesis.cancel(); done(); }, 30000);
+      speechFinish = done;
       say.onend = done;
       say.onerror = done;
       speechSynthesis.speak(say);
@@ -125,10 +131,13 @@ const Narration = (() => {
   // saying "let me think" would be worse than a moment of quiet.
   async function interject(language = "en") {
     if (!LANGUAGES.includes(language)) return;
+    const epoch = ++interjectEpoch;
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
+    if (!voiceId()) { await browserSay(list[lastFiller], language); return; }
     let clip;
     try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language}); } catch { return; }
+    if (epoch !== interjectEpoch) return;
     if (!clip.ready) return;
     if (filler) filler.end();
     const sound = new Audio(`${server}${clip.url}`);
@@ -142,6 +151,7 @@ const Narration = (() => {
   // Generate the fillers now, so interject() can play them instantly later.
   // Every language unless one is given.
   function warm(language = null) {
+    if (!voiceId()) return;
     for (const lang of language ? [language] : LANGUAGES) {
       queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang}).catch(() => {});
     }
@@ -151,16 +161,22 @@ const Narration = (() => {
   async function speak(lines, {key = null, language = "en", onLine = () => {}} = {}) {
     if (key !== null && key === lastKey) return;
     lastKey = key;
+    interjectEpoch += 1;
+    if (filler) { filler.audio.pause(); filler.end(); }
     stopReading();
     const my = token;
     const usable = lines.filter(line => String(line.text || "").trim());
-    const urls = await prepare(usable, {language});
-    // Let an interjection finish its sentence before the story goes on.
-    if (filler) await Promise.race([filler.done, new Promise(r => setTimeout(r, 8000))]);
+    let urls = null;
+    if (voiceId() && LANGUAGES.includes(language)) {
+      try {
+        const clips = await queue(asLines(usable), {language});
+        urls = clips.map(clip => clip.ready ? `${server}${clip.url}` : null);
+      } catch { /* The browser voice starts immediately when the saved voice is unavailable. */ }
+    }
     for (let i = 0; i < usable.length; i += 1) {
       if (my !== token) return;
       onLine(i);
-      const played = urls ? await playClip(urls[i]) : false;
+      const played = urls?.[i] ? await playClip(urls[i]) : false;
       if (my !== token) return;
       if (!played) await browserSay(usable[i].text, language);
     }

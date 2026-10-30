@@ -51,6 +51,9 @@ class StoryImageTransition {
     let decoding = false;
     const loaded = () => {
       if (!live() || decoding) return;
+      // Changing src can briefly leave complete/naturalWidth from the old bitmap.
+      // Decode only after the browser has selected the requested resource.
+      if (this.next.currentSrc && this.next.currentSrc !== this.next.src) return;
       if (!this.next.naturalWidth) return fail();
       decoding = true;
       if (typeof this.next.decode === 'function') {

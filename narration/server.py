@@ -44,7 +44,7 @@ from urllib.parse import parse_qs, urlsplit
 from .voices import VoiceError, VoiceLibrary
 
 ROOT = Path(__file__).resolve().parent.parent
-CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text())
+CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text(encoding="utf-8"))
 CACHE = ROOT / "voice" / "cache"
 PROFILES = ROOT / "voice" / "profiles"
 PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
@@ -62,7 +62,7 @@ LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
 VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train)(?:/(\d{1,3}))?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
-TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text())}
+TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text(encoding="utf-8"))}
 
 
 class Narrator:

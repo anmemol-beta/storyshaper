@@ -55,8 +55,8 @@ def main():
     audio = ROOT / "prototype" / "audio"
     # The same parent voice reads both books. The server voices the newest request first, so the Korean
     # book (queued last) is voiced before the English one.
-    books = {"en": ([line["text"] for line in json.loads((audio / "lines.json").read_text())], FILLERS),
-             "ko": ([line["text"] for line in json.loads((audio / "lines.ko.json").read_text())], FILLERS_KO)}
+    books = {"en": ([line["text"] for line in json.loads((audio / "lines.json").read_text(encoding="utf-8"))], FILLERS),
+             "ko": ([line["text"] for line in json.loads((audio / "lines.ko.json").read_text(encoding="utf-8"))], FILLERS_KO)}
     voices = ["default"] + [v["id"] for v in call("/api/voices")["voices"]]
     names = {v["id"]: v["name"] for v in call("/api/voices")["voices"]}
     for voice in voices:
