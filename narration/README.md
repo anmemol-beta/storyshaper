@@ -63,11 +63,20 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 | `GET /api/voices` | | `{voices: [{id, name, source, savedAt, consent}]}` |
 | `DELETE /api/voices/<id>` | | `{deleted: id}` |
 
+## Where the voices are used
+
+- **Picture book (`index.html`)**: with a registered voice, each passage's clips come from this server (`Narration.prepare`) and play through the page's own audio element, so the highlight, skip and speed slider keep working. Without one, the 40 prepared clips in `prototype/audio/` play as before. The picture-card invitation after three missed tries is read the same way.
+- **Story agent lab (`agent.html`)**: every passage, question and, after three missed tries, the three choices are read; the moment an answer is sent, a short "let's see…" line is said in the parent's voice while the next part is written.
+- **Voice setup (`voice.html`)**: saving a voice voices the whole picture book (`audio/lines.json`) and the "let's see…" lines in the background, and has a switch to read every character, the wolf too, in that voice (`localStorage["story-voice-all"]`, sent as `allRoles`).
+
 ## Page module
 
 `prototype/narration.js` defines `Narration`:
 
 - `speak(lines, {key, language, onLine})`: queues the lines and plays them in order. `onLine(i)` is called as line `i` starts and with `-1` at the end. Calling `speak` with the same `key` again does nothing, so a re-render does not repeat the passage.
+- `prepare(lines)`: queues the lines and returns their clip URLs (or `null`), for pages that play audio themselves.
+- `interject()`: says one of five short lines ("Hmm, let me think about that…") right away; skipped if it is not generated yet. `warm()` generates them ahead. A following `speak` waits for it to finish.
+- `usesParentVoice()`: a voice is registered on this device.
 - `stop()`: cuts the reading at once. Call it when the child starts talking (so the mic does not hear the narration), and on page changes or restart.
 
 ## Checked on 2026-10-30 (Mac, MPS)
@@ -78,4 +87,6 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 - Direct API: `wolf`, `pig1`, `pig3` lines were voiced by their roles in 3–4 s each.
 - Voice registration in headless Chrome: an MP4 with the parent's 27 s recording → 2 suggested parts (71% and 63% talking) → clip checked and transcribed in 3.8 s → preview line in 13.6 s → saved (only `ref.wav` and `meta.json` left) → the agent page read the story in that voice → **Delete voice** removed the profile and its cached lines.
 - One Muse Voice Transcribe call hung past 30 s; a retry right after took 3 s. The server now gives up after 20 s and retries once; without a transcript the voice still works.
+- Picture book with a registered voice: the cover page was read with that voice's clips. Right after saving, the first line waited about 10 s because the whole book was still being voiced; once voiced, lines play at once.
+- Agent lab after saving a voice: a "let's see…" line played within 0.2 s of each of three answers; after three missed tries the choices "1. Paper. 2. Straw. 3. Cookie." were read.
 - Not checked: Safari/iPad autoplay (Chrome allowed playback after the first tap), a full story with wolf lines in the agent flow, a cloud GPU.

@@ -137,7 +137,9 @@
   .voice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
   .voice label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .voice input { width: 20px; height: 20px; accent-color: var(--green); }
-  .voice small { display: block; color: var(--subtle); font-size: .82rem; }
+  .voice small, .every small { display: block; color: var(--subtle); font-size: .82rem; }
+  .every { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); cursor: pointer; }
+  .every input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--green); }
 
   /* Buttons and the action bar */
   .btn { min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--green); background: transparent; color: var(--green); font-weight: 700; cursor: pointer; }
@@ -254,6 +256,8 @@
     <section class="voices" id="voicesBox" hidden>
       <h2>Voices on this device</h2>
       <div id="voices"></div>
+      <label class="every"><input type="checkbox" id="allRoles">
+        <span>Read every character in this voice<small>Off: the wolf has his own voice, so children always know who is talking.</small></span></label>
     </section>
   </main>
 </div>
@@ -264,6 +268,7 @@
     <button class="btn main" type="button" id="next">Continue</button>
   </div>
 </nav>
+<script src="narration.js"></script>
 <script src="voice-setup.js"></script>
 </body>
 </html>

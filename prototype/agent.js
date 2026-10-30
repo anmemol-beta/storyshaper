@@ -180,6 +180,11 @@
     if (typeof Narration !== "undefined") {
       const paragraphs = [...ui.narrative.children];
       const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text}] : next.lines;
+      // After three missed tries the three choices are read too, so a child who cannot read can pick one.
+      const options = next.choiceMode && next.question?.choices;
+      if (Array.isArray(options) && options.length) {
+        spoken.push({speakerId: "narrator", text: options.map((c, i) => `${i + 1}. ${c.label}.`).join(" ")});
+      }
       Narration.speak(spoken, {
         key: `${next.sessionId}:${next.version}:${AgentLanguage.language}`, language: AgentLanguage.language,
         onLine: i => paragraphs.forEach((p, k) => p.classList.toggle("speaking", k === i))
@@ -344,6 +349,8 @@
     const activeController = controller;
     clearRequestError();
     setBusy(true, t("Listening to your idea and checking the next part…"));
+    // Answer the child at once in the parent's voice while the next part is written.
+    if (typeof Narration !== "undefined") Narration.interject(AgentLanguage.language);
     startClock();
     // A live turn performs interpretation and composition, each with a 30s timeout.
     const timeout = setTimeout(() => activeController.abort(), 110000);
@@ -539,5 +546,6 @@
   });
   applyLanguage(AgentLanguage.language);
   setBusy(false);
+  if (typeof Narration !== "undefined") Narration.warm();
   loadConfig();
 })();

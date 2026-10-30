@@ -378,8 +378,9 @@
     try {
       const meta = await api(`/api/voices/${state.draft.id}/save`, post({name: $("name").value, relation, attested: $("attest").checked}));
       store.set(meta.id);
+      prepareBook();
       $("doneTitle").textContent = `${meta.name}’s voice is ready`;
-      $("doneText").textContent = `Tonight's story will be read in ${meta.name}’s voice. Only the ten-second part was kept.`;
+      $("doneText").textContent = `Tonight's story will be read in ${meta.name}’s voice. Only the ten-second part was kept. The first pages are being prepared now, so reading can start right away.`;
       go("done");
       loadVoices();
     } catch (error) {
@@ -395,6 +396,23 @@
     document.querySelectorAll("input[name=relation]").forEach(r => { r.checked = false; });
     go("who");
   };
+
+  // Voice the "let's see…" lines and the whole picture book now, in the background, so they play without waiting.
+  async function prepareBook() {
+    if (typeof Narration === "undefined") return;
+    try {
+      const lines = (await (await fetch("audio/lines.json")).json()).map(l => l.text);
+      // The server voices the newest request first, so send the last pages first, then the opening,
+      // and the short "let's see…" lines last so they are ready first.
+      const chunks = [];
+      for (let i = 0; i < lines.length; i += 20) chunks.push(lines.slice(i, i + 20));
+      for (const chunk of chunks.reverse()) await Narration.prepare(chunk);
+    } catch {}
+    Narration.warm();
+  }
+
+  $("allRoles").checked = (() => { try { return localStorage.getItem("story-voice-all") === "1"; } catch { return false; } })();
+  $("allRoles").onchange = () => { try { localStorage.setItem("story-voice-all", $("allRoles").checked ? "1" : "0"); } catch {} };
 
   /* ---------- voices on this device ---------- */
 

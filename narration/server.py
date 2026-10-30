@@ -1,7 +1,7 @@
 """Local narration server. Run: voice/.venv-chatterbox/bin/python -m narration.server
 
 Reading
-POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?}  queue lines, newest request first
+POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?, "allRoles"?}  queue lines, newest first
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
 GET    /api/voice/config           roles and languages
 
@@ -72,10 +72,12 @@ class Narrator:
             return "pig"
         return speaker_id if speaker_id in self.casting else "narrator"
 
-    def settings(self, role, parent_ref=None):
+    def settings(self, role, parent_ref=None, all_roles=False):
+        """A role's voice settings. Parent roles (every role with all_roles) use the parent's clip,
+        keeping the role's own expression and tempo."""
         settings = dict(self.casting[role])
-        if parent_ref is not None and role in PARENT_ROLES:
-            settings["ref"] = str(parent_ref)
+        if role in PARENT_ROLES or all_roles:
+            settings["ref"] = str(parent_ref) if parent_ref is not None else self.casting["narrator"]["ref"]
         return settings
 
     @staticmethod
@@ -85,16 +87,17 @@ class Narrator:
     def path(self, voice, key):
         return self.cache / voice / f"{key}.mp3"
 
-    def submit(self, lines, voice="default", parent_ref=None):
+    def submit(self, lines, voice="default", parent_ref=None, all_roles=False):
         """Queue lines ahead of anything queued earlier: the newest lines are the ones about to be heard.
-        voice names the cache folder; parent_ref replaces the parent reference clip for that voice."""
+        voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
+        all_roles reads every character, the wolf too, in the parent's voice."""
         batch = -next(self.batch)
         clips = []
         with self.cond:
             self.dropped.discard(voice)
             for line in lines:
                 text, role = line["text"].strip(), self.role(line.get("speakerId"))
-                settings = self.settings(role, parent_ref)
+                settings = self.settings(role, parent_ref, all_roles)
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
                 if not ready:
@@ -289,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise VoiceError(400, "invalid_lines",
                                  f"Send 1-{MAX_LINES} lines, each with text up to {MAX_TEXT} characters.")
             voice, ref = self.parent_ref(body.get("voiceId"))
-            return self.reply(200, {"clips": narrator.submit(lines, voice, ref)})
+            return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
