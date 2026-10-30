@@ -10,6 +10,7 @@
     "mode", "modeBadge", "configNote", "startButton", "connectionError",
     "connectionErrorText", "reconnectButton", "refreshConfig", "storyCard", "decisionBadge",
     "narrative", "questionTitle", "questionLabel", "questionIntent", "answerForm",
+    "startPanel", "startStoryButton", "questionPanel", "attemptNote",
     "answer", "micButton", "sendButton", "choicePanel", "choices", "requestStatus", "requestError",
     "requestErrorText", "retryButton", "sceneValue", "versionValue", "attemptsValue",
     "inputModeValue", "reasonValue", "stateJson", "mediaJson", "diagnosticsJson",
@@ -32,6 +33,43 @@
   const voice = typeof VoiceInput === "undefined" ? null : VoiceInput;
   let recording = null;
   const voiceReady = () => Boolean(voice?.supported() && config?.speechAvailable);
+  // The server allows three missed tries on a question before offering three choices (roadmap §4).
+  const MAX_TRIES = 3;
+  const reasonText = {
+    unclear_answer: "the story could not use that answer",
+    material_not_allowed: "that material is not one the pig can use here",
+    outside_story_rules: "it does not fit this part of the story",
+    instruction_override: "it tries to change the story's rules",
+    unsafe_request: "it is not safe for this story",
+    private_information: "it contains private information",
+    fixed_story_change: "it would change a fixed event of the story"
+  };
+  // A live turn takes 15-30 s; the button counts the seconds so the page never looks stuck.
+  let clock = null;
+  function startClock() {
+    const started = Date.now();
+    const tick = () => {
+      ui.sendButton.textContent = t("Thinking… {seconds}s", {seconds: Math.round((Date.now() - started) / 1000)});
+      clock = setTimeout(tick, 1000);
+    };
+    tick();
+  }
+  function stopClock() {
+    clearTimeout(clock);
+    clock = null;
+    ui.sendButton.textContent = t("Continue story →");
+  }
+  function showAttemptNote(answer, result) {
+    const used = result.decision !== "clarify" && result.decision !== "redirect";
+    ui.attemptNote.hidden = used;
+    if (used) return;
+    const why = t(reasonText[result.reason] || result.reason);
+    const shown = answer || t("(nothing heard)");
+    ui.attemptNote.textContent = result.choiceMode
+      ? t("“{answer}” was not used: {why}. Pick one of the three choices, or try another answer.", {answer: shown, why})
+      : t("“{answer}” was not used: {why}. {left} more tries, then three choices appear.",
+        {answer: shown, why, left: Math.max(0, MAX_TRIES - result.attempts)});
+  }
   const decisionLabel = decision => t(decisions[decision] || decision);
   const errorMessage = error => AgentLanguage.language === "ko"
     ? (error.code ? t(error.code) : t("Could not connect to the local server. Please check the server and try again."))
@@ -46,6 +84,11 @@
     ui.startButton.disabled = !config;
     ui.startButton.textContent = snapshot ? t("Start over") : t("Start session");
     const canAnswer = Boolean(snapshot?.question) && !value;
+    // Before a session there is nothing to answer, so the answer box is hidden, not shown disabled.
+    ui.startPanel.hidden = Boolean(snapshot);
+    ui.questionPanel.hidden = !snapshot;
+    ui.answerForm.hidden = !snapshot;
+    ui.startStoryButton.disabled = !config || value;
     ui.answer.disabled = !canAnswer;
     ui.sendButton.disabled = !canAnswer || !ui.answer.value.trim();
     ui.micButton.hidden = !voiceReady();
@@ -254,6 +297,7 @@
       });
       if (token !== epoch) return;
       renderSnapshot(result);
+      ui.attemptNote.hidden = true;
       historyEntries.length = 0;
       turnCount = 0;
       renderHistory();
@@ -286,6 +330,7 @@
     const activeController = controller;
     clearRequestError();
     setBusy(true, t("Listening to your idea and checking the next part…"));
+    startClock();
     // A live turn performs three sequential model calls, each with a 30s timeout.
     const timeout = setTimeout(() => activeController.abort(), 110000);
     try {
@@ -295,6 +340,7 @@
       if (token !== epoch || snapshot.sessionId !== current.sessionId) return;
       renderSnapshot(result);
       appendHistory(questionText, payload.answer || t("(nothing heard)"), result);
+      showAttemptNote(payload.answer, result);
       if (result.decision === "accept" || result.decision === "complete") ui.answer.value = "";
       const readyMessage = result.decision === "complete"
         ? t("The story is complete. Start over to test another idea.")
@@ -329,6 +375,7 @@
         showRequestError(message, { payload, questionText });
       }
     } finally {
+      stopClock();
       clearTimeout(timeout);
       if (token === epoch) controller = null;
     }
@@ -459,6 +506,7 @@
   ui.micButton.addEventListener("click", toggleRecording);
 
   ui.startButton.addEventListener("click", startSession);
+  ui.startStoryButton.addEventListener("click", startSession);
   ui.reconnectButton.addEventListener("click", loadConfig);
   ui.refreshConfig.addEventListener("click", loadConfig);
   // The selector must change the provider actually used, not just its visible label.
