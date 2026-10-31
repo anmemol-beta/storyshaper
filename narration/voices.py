@@ -303,14 +303,14 @@ class VoiceLibrary:
         Muse Voice Transcribe's transcript as each clip's text (for family who can't read sentences aloud)."""
         folder = self.folder(voice_id) / "train"
         folder.mkdir(exist_ok=True)
-        with tempfile.NamedTemporaryFile() as src, tempfile.NamedTemporaryFile(suffix=".wav") as wav:
-            src.write(data)
-            src.flush()
-            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", src.name, "-vn", "-t", str(max_seconds),
-                                   "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", wav.name], capture_output=True)
+        with tempfile.TemporaryDirectory() as temporary:
+            source, wav = Path(temporary) / "upload", Path(temporary) / "media.wav"
+            source.write_bytes(data)
+            done = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-t", str(max_seconds),
+                                   "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", str(wav)], capture_output=True)
             if done.returncode:
                 raise VoiceError(400, "audio_unreadable", "No audio could be read from this file.")
-            samples, sr = read_wav(wav.name)
+            samples, sr = read_wav(wav)
         clips = self._training_clips(voice_id)
         next_n = max([int(k) for k in clips if int(k) > 1000] + [1000]) + 1
         added, skipped = [], 0
