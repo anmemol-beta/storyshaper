@@ -69,7 +69,7 @@
     "Tonight's story will be read in {name}’s voice. Only the ten-second part was kept.": "오늘 밤 동화는 {name} 목소리로 읽어요. 10초 구간만 남겨 두었어요.",
     "The whole storybook is ready.": "동화책 전체가 준비됐어요.",
     "Getting the storybook ready: {ready} of {total} lines. You can start reading now.": "동화책 준비 중: {total}줄 중 {ready}줄. 지금 바로 읽기 시작해도 돼요.",
-    "Storybook voice": "기본 목소리", "The built-in reader": "기본으로 들어 있는 목소리", "My own voice": "내 목소리",
+    "Storybook voice": "기본 목소리", "Storybook voice (male)": "기본 목소리 (남성)", "The built-in reader": "기본으로 들어 있는 목소리", "My own voice": "내 목소리",
     "Delete": "지우기",
     "Delete {name}'s voice? The ten-second part and every story line read with it will be removed.": "{name} 목소리를 지울까요? 10초 구간과 이 목소리로 읽은 모든 문장이 지워져요.",
     "them": "그분", "their": "그분",
@@ -604,7 +604,8 @@
     catch { $("voicesBox").dataset.empty = "1"; $("voices").replaceChildren(); render(); return; }
     const active = store.get();
     if (active && !voices.some(v => v.id === active)) store.set(null);
-    const rows = [{id: null, name: tr("Storybook voice"), note: tr("The built-in reader")}, ...voices].map(voice => {
+    const rows = [{id: null, name: tr("Storybook voice"), note: tr("The built-in reader")},
+      ...voices.map(v => v.builtin ? {...v, name: tr(v.name), note: tr("The built-in reader")} : v)].map(voice => {
       const row = document.createElement("div");
       row.className = "voice";
       const pick = document.createElement("label");
@@ -629,7 +630,7 @@
         tune.append(box, tr("Trained voice (beta)"));
         row.append(tune);                         // beside the name, not inside its label (no nested labels)
       }
-      if (voice.id) {
+      if (voice.id && !voice.builtin) {
         const remove = Object.assign(document.createElement("button"), {type: "button", className: "btn small", textContent: tr("Delete")});
         remove.onclick = async () => {
           if (!confirm(tr("Delete {name}'s voice? The ten-second part and every story line read with it will be removed.", {name: voice.name}))) return;
@@ -641,7 +642,7 @@
       return row;
     });
     $("voices").replaceChildren(...rows);
-    $("voicesBox").dataset.empty = voices.length ? "" : "1";
+    $("voicesBox").dataset.empty = voices.some(v => !v.builtin) ? "" : "1";
     render();
   }
 

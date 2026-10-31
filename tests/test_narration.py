@@ -125,7 +125,7 @@ class NarratorTest(unittest.TestCase):
     def test_roles_follow_casting(self):
         n = Narrator(FakeVoice(), self.tmp.name)
         self.assertEqual([n.role(s) for s in ["narrator", "pig1", "pig3", "wolf", "mother", None]],
-                         ["narrator", "pig", "pig", "wolf", "narrator", "narrator"])
+                         ["narrator", "pig1", "pig3", "wolf", "narrator", "narrator"])
 
     def test_clip_is_generated_once_and_cached(self):
         voice = FakeVoice()
@@ -146,7 +146,7 @@ class NarratorTest(unittest.TestCase):
             self.assertEqual(n.wait("abcdef123456", clip["key"], 5), "ready")
         read = lambda c: n.path("abcdef123456", c["key"]).read_bytes()
         self.assertIn(b"/profiles/dad.wav", read(narrator))
-        self.assertIn(b"/profiles/dad.wav", read(pig))
+        self.assertIn(b"pig2_libritts_5683.wav", read(pig), "each pig keeps its own voice (10/31)")
         self.assertIn(b"wolf_libritts_1188.wav", read(wolf))
         self.assertEqual(narrator["url"], f"/audio/abcdef123456/{narrator['key']}.mp3")
 
@@ -159,7 +159,7 @@ class NarratorTest(unittest.TestCase):
             self.assertEqual(n.wait(voice, clip["key"], 5), "ready")
         self.assertIn(b"wolf_libritts_1188.wav", n.path("abcdef123456", usual["key"]).read_bytes())
         self.assertIn(b"/profiles/dad.wav", n.path("abcdef123456", every["key"]).read_bytes())
-        self.assertIn(b"voice/ref_clip.wav", n.path("default", default["key"]).read_bytes())
+        self.assertIn(b"narrator_libritts_121.wav", n.path("default", default["key"]).read_bytes())
 
     def test_korean_lines_use_the_same_parent_clip_with_their_own_cache(self):
         n = Narrator(FakeVoice(), self.tmp.name)
@@ -596,6 +596,20 @@ class HttpTest(unittest.TestCase):
         res = conn.getresponse()
         return res.status, dict(res.getheaders()), res.read()
 
+    def saved_voices(self):
+        return [v for v in json.loads(self.request("GET", "/api/voices")[2])["voices"] if not v.get("builtin")]
+
+    def test_the_male_storybook_narrator_is_listed_and_reads_the_narration_only(self):
+        [builtin] = [v for v in json.loads(self.request("GET", "/api/voices")[2])["voices"] if v.get("builtin")]
+        self.assertEqual((builtin["id"], builtin["name"]), ("000000007127", "Storybook voice (male)"))
+        origin = {"Origin": "http://127.0.0.1:8000"}
+        clips = json.loads(self.request("POST", "/api/voice/lines", {"voiceId": builtin["id"], "lines": [
+            {"speakerId": "narrator", "text": "Once."}, {"speakerId": "pig1", "text": "Hi!"}]}, origin)[2])["clips"]
+        audio = [self.request("GET", c["url"] + "?wait=5", headers=origin)[2] for c in clips]
+        self.assertIn(b"narrator_libritts_7127.wav", audio[0])
+        self.assertIn(b"pig1_libritts_237.wav", audio[1])
+        self.assertEqual(self.request("DELETE", f"/api/voices/{builtin['id']}", headers=origin)[0], 404)
+
     def test_queue_then_fetch_audio_from_a_local_page(self):
         origin = {"Origin": "http://127.0.0.1:8000"}
         status, headers, body = self.request("POST", "/api/voice/lines",
@@ -603,7 +617,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["Access-Control-Allow-Origin"], "http://127.0.0.1:8000")
         clip = json.loads(body)["clips"][0]
-        self.assertEqual(clip["role"], "pig")
+        self.assertEqual(clip["role"], "pig2")
         status, headers, audio = self.request("GET", clip["url"] + "?wait=5", headers=origin)
         self.assertEqual((status, headers["Content-Type"]), (200, "audio/mpeg"))
         self.assertTrue(audio.startswith(b"ID3"))
@@ -664,13 +678,13 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.request("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me"})[0], 400)
         status, _, _ = self.request("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me", "attested": True})
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(self.request("GET", "/api/voices")[2])["voices"][0]["name"], "Dad")
+        self.assertEqual(self.saved_voices()[0]["name"], "Dad")
         status, _, body = self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "voiceId": vid})
         clip = json.loads(body)["clips"][0]
         self.assertEqual(self.request("GET", clip["url"] + "?wait=5")[0], 200)
         self.assertEqual(self.request("DELETE", f"/api/voices/{vid}")[0], 200)
         self.assertEqual(self.request("GET", clip["url"])[0], 404)
-        self.assertEqual(json.loads(self.request("GET", "/api/voices")[2])["voices"], [])
+        self.assertEqual(self.saved_voices(), [])
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
     def test_training_sentences_are_stored_with_their_text_and_checked(self):
@@ -703,7 +717,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual((status, json.loads(body)["enabled"]), (200, True))
         after = json.loads(self.request("POST", "/api/voice/lines", {"lines": [{"text": "Hi"}], "voiceId": vid, "peek": True})[2])
         self.assertNotEqual(before["clips"][0]["key"], after["clips"][0]["key"])
-        self.assertTrue(json.loads(self.request("GET", "/api/voices")[2])["voices"][0]["finetune"]["enabled"])
+        self.assertTrue(self.saved_voices()[0]["finetune"]["enabled"])
         self.assertEqual(self.request("DELETE", f"/api/voices/{vid}")[0], 200)
         self.assertFalse(folder.exists())
 

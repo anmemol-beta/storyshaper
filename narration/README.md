@@ -2,13 +2,15 @@
 
 Story lines are read in each character's voice with Chatterbox:
 
-| `speakerId` | Voice | Settings |
-|---|---|---|
-| `narrator` (and any unknown id) | Parent (`voice/ref_clip.wav`) | exaggeration 0.7, cfg_weight 0.3, 0.84× tempo |
-| `pig1`, `pig2`, `pig3` | Parent, acted (one voice for all three pigs) | exaggeration 0.8, cfg_weight 0.3, 0.92× tempo |
-| `wolf` | LibriTTS-R speaker 1188 (`voice/characters/`, CC BY 4.0) | exaggeration 0.7 |
+| `speakerId` | Voice (LibriTTS-R, `voice/characters/`, CC BY 4.0) |
+|---|---|
+| `narrator` (and any unknown id) | The saved parent voice; without one, speaker 121 (or the male option, speaker 7127) |
+| `pig1`, `pig2`, `pig3` | Speakers 237, 5683 and 4507: one voice per pig, also when a parent voice is saved |
+| `wolf` | Speaker 1188 |
 
-The casting comes from a listening test of four options (roadmap §5, `voice/characters.html`). Settings live in `casting.json`. English narrator and pig settings were changed on 10/31 to match the parent's real reading (slower, livelier; voice worklog §9, §16); Korean uses them too, not yet checked by ear.
+Chosen by ear on 10/31. Clips live in `casting.json`; how each line is delivered (expression, cfg weight, tempo)
+comes from the script's tone and emotion (`story_agent/performance.json`). The male narrator is a built-in voice
+(`BUILTIN_VOICES` in `server.py`) listed first by `GET /api/voices`.
 
 ## Run
 

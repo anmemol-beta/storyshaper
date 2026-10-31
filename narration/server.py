@@ -10,7 +10,7 @@ GET    /audio/<voice>/scene-<key>.wav  complete PCM scene; never streams a parti
 GET    /api/voice/config           roles and languages
 
 Parent voices (narration/voices.py)
-GET    /api/voices                 saved voices
+GET    /api/voices                 built-in narrators ("builtin": true), then saved voices
 POST   /api/voices[?recorded=1]    raw recording or video body -> draft voice with suggested clips
                                    (recorded=1: also check that the consent sentence was read)
 GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
@@ -56,7 +56,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text(encoding="utf-8"))
 CACHE = ROOT / "voice" / "cache"
 PROFILES = ROOT / "voice" / "profiles"
-PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
+# Built-in narrators a reader can choose instead of the default one; they read like a saved parent voice.
+BUILTIN_VOICES = {"000000007127": {"name": "Storybook voice (male)", "ref": "voice/characters/narrator_libritts_7127.wav"}}
+PARENT_ROLES = ("narrator",)               # the parent reads the narration; every character keeps its own voice (10/31)
 # The preview is the picture book's first line, so the book can start the moment the voice is saved.
 PREVIEW_TEXT = {"en": "Once upon a time, a mother pig lived with her three little pigs.",
                 "ko": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요."}
@@ -95,8 +97,6 @@ class Narrator:
 
     def role(self, speaker_id):
         speaker_id = str(speaker_id or "narrator")
-        if speaker_id.startswith("pig"):
-            return "pig"
         return speaker_id if speaker_id in self.casting else "narrator"
 
     def settings(self, role, parent_ref=None, all_roles=False):
@@ -106,7 +106,7 @@ class Narrator:
         if role in PARENT_ROLES or all_roles:
             settings["ref"] = str(parent_ref) if parent_ref is not None else self.casting["narrator"]["ref"]
         from story_agent.performance import voice_direction
-        direction = voice_direction({"speakerId": "pig1" if role == "pig" else role, "text": "."})
+        direction = voice_direction({"speakerId": role, "text": "."})
         settings.update({key: direction[key] for key in ("exaggeration", "cfg_weight", "tempo")})
         settings["exclaim_exaggeration"] = direction["exaggeration"]
         settings["performance"] = direction
@@ -313,12 +313,12 @@ class Handler(BaseHTTPRequestHandler):
         so the first pages are ready by the time the parent presses Save."""
         if voice_id in (None, "default"):
             return "default", None
-        ref = self.server.library.ref(voice_id)
+        ref = ROOT / BUILTIN_VOICES[voice_id]["ref"] if voice_id in BUILTIN_VOICES else self.server.library.ref(voice_id)
         return voice_id, f"{ref}#{hashlib.sha1(ref.read_bytes()).hexdigest()[:8]}"
 
     def finetuned(self, voice_id):
         """The voice's merged fine-tune ("path#mtime") when it is switched on, else None."""
-        if voice_id in (None, "default"):
+        if voice_id in (None, "default") or voice_id in BUILTIN_VOICES:
             return None
         finetune = self.server.library.meta(voice_id).get("finetune") or {}
         path = self.server.library.folder(voice_id) / str(finetune.get("file", ""))
@@ -327,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
         return f"{path}#{int(path.stat().st_mtime)}"
 
     def finetune_scope(self, voice_id):
-        if voice_id in (None, "default"):
+        if voice_id in (None, "default") or voice_id in BUILTIN_VOICES:
             return None
         return (self.server.library.meta(voice_id).get("finetune") or {}).get("scope")
 
@@ -371,7 +371,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise VoiceError(400, "invalid_language", "Language must be en or ko.")
             return self.reply(200, training_catalog(language))
         if url.path == "/api/voices":
-            return self.reply(200, {"voices": self.server.library.saved()})
+            builtin = [{"id": voice_id, "name": voice["name"], "builtin": True} for voice_id, voice in BUILTIN_VOICES.items()]
+            return self.reply(200, {"voices": builtin + self.server.library.saved()})
         route = VOICE_ROUTE.match(url.path)
         if route and route.group(2) == "train" and route.group(4):
             return self.reply(200, self.server.library.training_audio(route.group(1), int(route.group(3))), "audio/wav")

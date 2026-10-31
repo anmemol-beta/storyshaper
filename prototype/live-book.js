@@ -252,7 +252,8 @@
 
   function voiceOptions() {
     const selected = typeof Narration !== "undefined" ? Narration.voiceId?.() || "" : "";
-    const options = [{id: "", name: t("Storybook voice", "기본 목소리")}, ...savedVoices];
+    const options = [{id: "", name: t("Storybook voice", "기본 목소리")},
+      ...savedVoices.map(voice => voice.builtin ? {...voice, name: t("Storybook voice (male)", "기본 목소리 (남성)")} : voice)];
     // Keep the selected name while a service error prevents refreshing the list.
     if (selected && !options.some(voice => voice.id === selected))
       options.push({id: selected, name: Narration.voiceName?.() || selected});
@@ -278,7 +279,7 @@
       const selected = Narration.voiceId?.();
       if (selected && !savedVoices.some(voice => voice.id === selected)) chooseVoice("");
       voiceOptions();
-      ui.voiceSelectStatus.textContent = savedVoices.length ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
+      ui.voiceSelectStatus.textContent = savedVoices.some(voice => !voice.builtin) ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
         : t("No saved voices yet. Add a parent's voice.", "저장된 목소리가 없어요. 부모 목소리를 추가해 주세요.");
     } catch {
       if (request !== voiceListRequest || ui.readerSettings.hidden) return;
