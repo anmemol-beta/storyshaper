@@ -97,11 +97,6 @@
 .read-aloud-toggle input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; transition: transform 160ms ease; }
 .read-aloud-toggle input:checked { background: var(--action-primary); }
 .read-aloud-toggle input:checked::before { transform: translateX(18px); }
-.narration-controls { position: absolute; z-index: 4; inset: auto 12px 12px auto; max-width: calc(100% - 24px); padding: 8px; border: 1px solid var(--border-soft); border-radius: 14px; background: var(--bg-story); color: var(--text-main); box-shadow: 0 3px 14px #0002; }
-.narration-controls > div { display: flex; flex-wrap: wrap; gap: 8px; }
-.narration-controls button { min-height: 44px; padding: 8px 14px; border: 1px solid var(--border-soft); border-radius: 10px; font: inherit; font-weight: 700; background: var(--action-primary); color: var(--on-action-primary); cursor: pointer; touch-action: manipulation; }
-.narration-controls button:disabled { opacity: .5; cursor: default; }
-.narration-controls span { display: block; min-height: 1.4em; margin-top: 4px; max-width: 26em; font-size: .75rem; line-height: 1.4; overflow-wrap: anywhere; }
 .reader-app .book {
   display: grid; grid-area: auto; align-self: stretch; flex: 1 0 auto;
   width: 100%; min-width: 0; min-height: 0; overflow: clip;
@@ -174,3 +169,44 @@
 .reader-app .art img.story-cue-cover { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 1; z-index: 3; pointer-events: none; object-fit: contain; transition: opacity .28s ease-out; }
 .reader-app .art img.story-cue-cover.is-revealing { opacity: 0; }
 .reader-app .art .live-overlay { z-index: 5; }
+
+/* Start screen (10/31): who reads, which language and how to read are chosen here, not in settings. */
+.reader-app .setup { display: flex; flex-direction: column; gap: 20px; padding: 8px 4px; font-family: var(--font-ui); }
+.reader-app .setup[hidden] { display: none; }
+.setup-title { margin: 0; font-family: var(--font-title); font-weight: 400; font-size: clamp(30px, 4vw, 46px); line-height: 1.15; color: var(--text-main); }
+.setup-group h2 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text-subtle); }
+.voice-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 8px; }
+.voice-card { display: flex; min-width: 0; border: 1.5px solid var(--border-soft); border-radius: 14px; background: var(--bg-story); overflow: hidden; transition: border-color .15s, background-color .15s; }
+.voice-card:has([aria-checked="true"]) { border-color: var(--action-primary); background: color-mix(in srgb, var(--action-primary) 9%, var(--bg-story)); }
+.voice-card button { min-height: 52px; border: 0; background: none; color: var(--text-main); font: inherit; cursor: pointer; touch-action: manipulation; }
+.voice-card [role="radio"] { flex: 1; min-width: 0; padding: 10px 12px; text-align: left; font-size: 16px; overflow-wrap: anywhere; }
+.voice-card [role="radio"][aria-checked="true"] { font-weight: 700; }
+.voice-card [role="radio"][aria-checked="true"]::before { content: "✓ "; color: var(--action-primary); }
+.voice-sample { flex: none; width: 52px; border-left: 1px solid var(--border-soft) !important; color: var(--action-primary) !important; font-size: 16px !important; }
+.voice-sample.busy { animation: sample-wait 1s ease-in-out infinite; }
+@keyframes sample-wait { 50% { opacity: .35; } }
+.segmented { display: inline-flex; padding: 3px; border: 1.5px solid var(--border-soft); border-radius: var(--radius-action); background: var(--bg-story); }
+.segmented button { min-height: 44px; padding: 0 20px; border: 0; border-radius: var(--radius-action); background: none; color: var(--text-main); font: inherit; font-size: 16px; cursor: pointer; }
+.segmented button[aria-checked="true"] { background: var(--action-primary); color: var(--on-action-primary); font-weight: 700; }
+.mode-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px; }
+.mode-cards button { display: grid; gap: 4px; align-content: start; padding: 14px; text-align: left; border: 1.5px solid var(--border-soft); border-radius: 14px; background: var(--bg-story); color: var(--text-main); font: inherit; cursor: pointer; transition: border-color .15s, background-color .15s; }
+.mode-cards button b { font-size: 17px; }
+.mode-cards button small { font-size: 13px; line-height: 1.45; color: var(--text-subtle); }
+.mode-cards button[aria-checked="true"] { border-color: var(--action-primary); background: color-mix(in srgb, var(--action-primary) 9%, var(--bg-story)); }
+.mode-cards button:disabled, .segmented button:disabled, .voice-card button:disabled { opacity: .5; cursor: default; }
+.reader-app .cover { position: static; inset: auto; min-height: 0; flex: none; display: block; padding: 0; background: none; }
+.reader-app .cover b { display: block; text-align: center; padding: 14px 26px; font-size: clamp(19px, 2vw, 22px); }
+.reader-app .cover:disabled b { opacity: .6; }
+
+/* One play/pause button above the story text, with who is reading. Hidden on the start screen and while a page is prepared. */
+.narration-controls { display: flex; align-items: center; gap: 10px; color: var(--text-subtle); }
+.narration-controls[hidden] { display: none; }
+.narration-controls button { flex: none; min-height: 44px; padding: 8px 16px; border: 1px solid var(--border-soft); border-radius: var(--radius-action); font: inherit; font-weight: 700; background: var(--bg-story); color: var(--action-primary); cursor: pointer; touch-action: manipulation; }
+.narration-controls button:disabled { opacity: .5; cursor: default; }
+.narration-controls p { margin: 0; min-width: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.narration-controls p span + span:not(:empty)::before { content: " · "; }
+
+/* Offline answers: a plain button that opens the three choices, not a microphone. */
+.reader-app .mic.choose { width: auto; aspect-ratio: auto; min-height: 52px; padding: 0 22px; font-size: 16px; font-weight: 700; }
+.reader-app .mic:not(.choose) { font-size: calc(var(--mic) * .42); }
+.reader-app .live-select[hidden] { display: none; }

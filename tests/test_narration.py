@@ -442,7 +442,7 @@ process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(t
                 snapshot = snapshots[-1]
         script = """const fs = require('node:fs'), vm = require('node:vm');
 const context = vm.createContext({URLSearchParams, location:{search:''}});
-vm.runInContext(fs.readFileSync(process.argv[1], 'utf8').replace('return {speak,', 'return {sceneParts, speak,') + '\\nthis.N = Narration;', context);
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8').replace(/\\n  return \\{/, '\\n  return {sceneParts, ') + '\\nthis.N = Narration;', context);
 const passage = s => s.question ? [...s.lines, {speakerId: 'narrator', text: s.question.text, kind: 'narration', tone: 'curious', emotion: 'curious'}] : s.lines;
 process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(s => context.N.sceneParts(passage(s)).map(({line, ...part}) => part))));"""
         source = Path(__file__).resolve().parent.parent / "prototype" / "narration.js"

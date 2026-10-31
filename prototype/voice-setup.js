@@ -478,7 +478,7 @@
       } else if (meta.transcript === "") {       // null: this server has no transcription, so say nothing
         heard.append(Object.assign(document.createElement("small"), {textContent: tr("We couldn't make out the words, but the voice can still be used.")}));
       }
-      heard.hidden = !heard.childNodes.length;
+      heard.hidden = !heard.children.length;       // every message starts with a <small> label
       if (!q.ok) showError("pickError", tr("This part might not sound right. You can still try it, or slide to another part."));
       state.checked = {start, end};
     } catch (error) {

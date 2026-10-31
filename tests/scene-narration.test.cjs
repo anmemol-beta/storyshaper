@@ -41,6 +41,7 @@ function sceneHarness({voiced = [0], pack = null, missingFiles = []} = {}) {
       if (String(url) === 'audio/pack/manifest.json') {
         return pack ? {ok: true, json: async () => ({voices: pack})} : {ok: false, status: 404};
       }
+      if (String(url).endsWith('/preview')) return {ok: true, json: async () => ({url: '/audio/abcdef123456/sample.mp3'})};
       if (String(url).startsWith('audio/pack/')) {
         if (missingFiles.includes(String(url))) return {ok: false, status: 404};
         return {ok: true, status: 200, blob: async () => Object.assign(new Blob(['ID3']), {line: 'app'})};
@@ -203,4 +204,13 @@ test("the built-in male narrator reads from its own app files and shares the cha
   await h.Narration.prepareScene(LINES, {language: 'en'});
   await tick();
   assert.deepEqual(h.requests, ['audio/pack/manifest.json', 'audio/pack/m.mp3', 'audio/pack/b.mp3']);
+});
+
+test("a voice's sample is the story's first line: the app's file for a storybook voice, the server for a parent", async () => {
+  const pack = {default: {'ko|narrator|narration|warm|calm|옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요.': 'first.mp3'}};
+  const h = sceneHarness({pack});
+  assert.equal(await h.Narration.sample(null, 'ko'), 'audio/pack/first.mp3');
+  assert.ok(!h.requests.some(url => url.includes('/preview')));
+  assert.match(await h.Narration.sample('abcdef123456', 'ko'), /\/audio\/abcdef123456\/sample\.mp3\?wait=30$/);
+  assert.ok(h.requests.some(url => url.endsWith('/api/voices/abcdef123456/preview')));
 });
