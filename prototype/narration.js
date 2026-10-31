@@ -232,15 +232,30 @@ const Narration = (() => {
   let pack = null;
   const packKey = (line, language) => [language, line.speakerId || "narrator", line.kind || "", line.tone || "",
     line.emotion || "", line.text].join("|");
-  function packed(lines, language) {
+  function packed(lines, language, voice = voiceId()) {
     if (allRoles()) return Promise.resolve(lines.map(() => null));
     pack ||= fetch(PACK + "manifest.json").then(r => r.ok ? r.json() : {}).catch(() => ({}));
     return pack.then(({voices = {}}) => lines.map(line => {
-      const own = voices[voiceId() || "default"];
+      const own = voices[voice || "default"];
       const key = packKey(line, language);
       const file = own && (own[key] || ((line.speakerId || "narrator") !== "narrator" && voices.default?.[key]));
       return file ? PACK + file : null;
     }));
+  }
+
+  // A voice's sample for the start screen: the story's first line (the same line the registration preview reads).
+  // A storybook voice plays the app's own file; a parent's voice is voiced by the server.
+  const FIRST_LINE = {en: "Once upon a time, three little pigs set out to build homes.",
+    ko: "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요."};
+  async function sample(id = null, language = "en") {
+    const line = {speakerId: "narrator", text: FIRST_LINE[language] || FIRST_LINE.en, kind: "narration", tone: "warm", emotion: "calm"};
+    const [file] = await packed([line], language, id);
+    if (file) return file;
+    if (!id) throw new Error("sample_unavailable");
+    const {response, body} = await request(`/api/voices/${id}/preview`, {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({language})}, {timeout: REQUEST_MS});
+    if (!response.ok) throw new Error(`sample_${response.status}`);
+    return `${server}${body.url}?wait=${LINE_WAIT}`;
   }
 
   // Clips for these lines, in order: the app's own file where there is one ({packed: true}), the server for the rest.
@@ -566,7 +581,7 @@ const Narration = (() => {
     } catch {}
   }
 
-  return {speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+  return {sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
     playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};

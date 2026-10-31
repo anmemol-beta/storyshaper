@@ -19,12 +19,13 @@
   </div>
 <section class="reader-settings" id="readerSettings" role="dialog" aria-labelledby="settingsTitle" hidden>
   <div class="settings-heading"><h2 id="settingsTitle">환경설정</h2><button id="closeSettings" type="button" aria-label="설정 닫기">×</button></div>
-  <p class="current-reader" id="readerName">읽어주는 목소리: 기본 목소리</p>
+  <p class="current-reader" id="readerName" hidden>읽어주는 목소리: 기본 목소리</p>
   <div class="settings-options">
     <label class="live-select"><span id="languageLabel">언어</span><select id="language"><option value="ko">한국어</option><option value="en">English</option></select></label>
-    <label class="live-select"><span id="modeLabel">버전</span><select id="mode"><option value="mock">오프라인 버전</option><option value="live">AI 버전</option></select></label>
+    <!-- How to read is chosen on the start screen (modeCards); this select keeps the chosen mode. -->
+    <label class="live-select" hidden><span id="modeLabel">버전</span><select id="mode"><option value="mock">오프라인 버전</option><option value="live">AI 버전</option></select></label>
   </div>
-  <label class="setting-row voice-select"><span id="voiceSelectLabel">저장된 목소리</span><select id="voiceSelect" disabled><option value="">기본 목소리</option></select></label>
+  <label class="setting-row voice-select"><span id="voiceSelectLabel">읽어 줄 목소리</span><select id="voiceSelect" disabled><option value="">기본 목소리</option></select></label>
   <p class="voice-select-status" id="voiceSelectStatus" role="status" aria-live="polite"></p>
   <label class="setting-row read-aloud-toggle"><span id="readAloudLabel">소리 내어 읽기</span><input type="checkbox" role="switch" id="readAloud" checked></label>
 </section>
@@ -39,17 +40,32 @@
      <button id="previousPage" type="button" aria-label="이전 장면" title="이전 장면" disabled>◀</button>
      <button id="nextPage" type="button" aria-label="다음 장면" title="다음 장면" disabled>▶</button>
    </nav>
-   <div class="narration-controls" role="group" aria-label="낭독 재생" id="narrationControls">
-     <div><button id="playNarration" type="button" disabled>▶ 재생</button><button id="pauseNarration" type="button" disabled>Ⅱ 일시정지</button></div>
-     <span id="narrationStatus" role="status" aria-live="polite"></span>
-   </div>
    <div class="live-overlay" id="loading" role="status" aria-live="polite" hidden>
      <span id="loadingText">다음 그림을 그리고 있어요…</span>
      <button id="retryMedia" type="button" hidden>그림 다시 불러오기</button>
    </div>
  </div>
  <section class="text-panel">
-   <button class="cover" id="cover" type="button"><span id="storyTitle">아기돼지 삼형제</span><small id="readBy">읽어주는 목소리: 기본 목소리</small><b id="startLabel">▶ 동화 시작</b></button>
+   <div class="setup" id="setup">
+     <h1 class="setup-title" id="storyTitle">아기돼지 삼형제</h1>
+     <section class="setup-group" aria-labelledby="voiceCardsTitle">
+       <h2 id="voiceCardsTitle">누가 읽어 줄까요?</h2>
+       <div class="voice-cards" id="voiceCards" role="radiogroup" aria-labelledby="voiceCardsTitle"></div>
+     </section>
+     <section class="setup-group" aria-labelledby="languageCardsTitle">
+       <h2 id="languageCardsTitle">어떤 말로 읽을까요?</h2>
+       <div class="segmented" id="languageCards" role="radiogroup" aria-labelledby="languageCardsTitle"><button type="button" role="radio" data-lang="ko">한국어</button><button type="button" role="radio" data-lang="en">English</button></div>
+     </section>
+     <section class="setup-group" aria-labelledby="modeCardsTitle">
+       <h2 id="modeCardsTitle">어떻게 읽을까요?</h2>
+       <div class="mode-cards" id="modeCards" role="radiogroup" aria-labelledby="modeCardsTitle"><button type="button" role="radio" data-mode="live"><b>✨ 아이와 함께 만들기</b><small>아이가 말로 답하면 AI가 이야기와 그림을 새로 만들어요.</small></button><button type="button" role="radio" data-mode="mock"><b>📖 정해진 이야기</b><small>세 가지 중에서 골라요. 바로 넘어가요.</small></button></div>
+     </section>
+     <button class="cover" id="cover" type="button"><b id="startLabel">▶ 동화 시작</b></button>
+   </div>
+   <div class="narration-controls" role="group" aria-label="낭독 재생" id="narrationControls" hidden>
+     <button id="playNarration" type="button" disabled>▶ 재생</button><button id="pauseNarration" type="button" disabled hidden>Ⅱ 멈춤</button>
+     <p><span id="readBy">읽어주는 목소리: 기본 목소리</span><span id="narrationStatus" role="status" aria-live="polite"></span></p>
+   </div>
    <div id="narrative" class="live-narrative" aria-live="polite"></div>
    <div id="question" class="live-question"></div>
    <div class="live-controls" id="freeInput" hidden>

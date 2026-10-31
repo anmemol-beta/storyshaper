@@ -8,7 +8,8 @@
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
     "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
     "narrationControls", "playNarration", "pauseNarration", "narrationStatus",
-    "pageNavigation", "previousPage", "nextPage", "pictureNotice"];
+    "pageNavigation", "previousPage", "nextPage", "pictureNotice",
+    "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -75,9 +76,10 @@
     ui.send.disabled = locked || choices;
     ui.mic.disabled = choices || (activity === "recording" ? false : locked);
     ui.mic.textContent = activity === "recording" ? "■" : selectedMode === "mock"
-      ? t("Choose", "고르기") : "🎙";
+      ? t("Pick from three", "세 가지 중 고르기") : "🎙";
     ui.mic.setAttribute("aria-label", activity === "recording" ? t("Finish recording", "녹음 끝내기")
       : selectedMode === "mock" ? t("Choose an answer", "선택지로 답하기") : t("Record answer", "말로 답하기"));
+    ui.mic.classList.toggle("choose", selectedMode === "mock" && activity !== "recording");
     ui.cameraButton.hidden = selectedMode !== "live" || !config.visionAvailable || !cameraSupported();
     ui.cameraButton.disabled = locked || choices;
     ui.choices.hidden = !choices;
@@ -85,6 +87,14 @@
     ui.language.disabled = ui.mode.disabled = !configured || activity !== "idle" || Boolean(pending);
     ui.language.disabled ||= reviewing();
     ui.cover.disabled = !configured || activity !== "idle" || Boolean(pending);
+    for (const button of ui.languageCards.children || []) {
+      button.setAttribute("aria-checked", String(button.dataset.lang === ui.language.value));
+      button.disabled = ui.language.disabled;
+    }
+    for (const button of ui.modeCards.children || []) {
+      button.setAttribute("aria-checked", String(button.dataset.mode === selectedMode));
+      button.disabled = ui.mode.disabled || (button.dataset.mode === "live" && configured && !config.liveAvailable);
+    }
     ui.restart.disabled = !configured;
     ui.book.setAttribute("aria-busy", String(Boolean(pending) || ["request", "navigation"].includes(activity)));
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? scenePreparation && !scenePreparation.audioReady ? "VOICING" : "DRAWING"
@@ -99,16 +109,20 @@
     const available = configured && Boolean(displayed) && !pending && activity === "idle";
     ui.playNarration.disabled = !available || ["playing", "loading"].includes(playback);
     ui.pauseNarration.disabled = !available || !["playing", "loading"].includes(playback);
-    ui.playNarration.textContent = playback === "paused" ? t("▶ Resume", "▶ 이어 듣기") : t("▶ Play", "▶ 재생");
-    ui.pauseNarration.textContent = t("Ⅱ Pause", "Ⅱ 일시정지");
+    const reading = ["playing", "loading"].includes(playback);
+    ui.narrationControls.hidden = !displayed || Boolean(pending);
+    ui.playNarration.hidden = reading;
+    ui.pauseNarration.hidden = !reading;
+    ui.playNarration.textContent = playback === "paused" ? t("▶ Resume", "▶ 이어 듣기") : t("▶ Listen again", "▶ 다시 듣기");
+    ui.pauseNarration.textContent = t("Ⅱ Pause", "Ⅱ 멈춤");
     const browserVoice = typeof Narration !== "undefined" && Narration.voiceSource?.() === "browser";
     ui.narrationStatus.textContent = scenePreparation && !scenePreparation.audioReady
       ? t("Preparing the whole page's voice…", "장면 전체의 목소리를 준비하고 있어요…")
       : !displayed ? "" : playback === "paused" ? t("Paused", "일시정지했어요")
       : playback === "loading" ? t("Preparing narration…", "낭독을 준비하고 있어요…")
       : playback === "playing" ? browserVoice ? t("Reading with the browser voice", "기본 음성으로 읽는 중")
-        : t("Reading aloud", "소리 내어 읽는 중")
-      : t("Tap Play to hear this page", "재생을 누르면 이 장면을 읽어 줘요");
+        : t("Reading aloud", "읽는 중")
+      : "";
   }
 
   function stopNarration() {
@@ -244,7 +258,19 @@
     ui.settingsButton.setAttribute("aria-label", t("Settings", "환경설정"));
     ui.settingsTitle.textContent = t("Settings", "환경설정");
     ui.closeSettings.setAttribute("aria-label", t("Close settings", "설정 닫기"));
-    ui.voiceSelectLabel.textContent = t("Saved voices", "저장된 목소리");
+    ui.voiceSelectLabel.textContent = t("Voice reading the story", "읽어 줄 목소리");
+    ui.voiceCardsTitle.textContent = t("Who will read?", "누가 읽어 줄까요?");
+    ui.languageCardsTitle.textContent = t("Which language?", "어떤 말로 읽을까요?");
+    ui.modeCardsTitle.textContent = t("How shall we read?", "어떻게 읽을까요?");
+    for (const button of ui.modeCards.children || []) {
+      const [title, note] = button.dataset.mode === "live"
+        ? [t("✨ Make it together", "✨ 아이와 함께 만들기"),
+          config.liveAvailable === false ? t("AI isn't available right now.", "지금은 AI를 쓸 수 없어요.")
+            : t("Your child answers out loud, and AI writes the story and draws new pictures.", "아이가 말로 답하면 AI가 이야기와 그림을 새로 만들어요.")]
+        : [t("📖 Ready-made story", "📖 정해진 이야기"), t("Pick one of three answers. Pages turn right away.", "세 가지 중에서 골라요. 바로 넘어가요.")];
+      button.children[0].textContent = title;
+      button.children[1].textContent = note;
+    }
     ui.narrationControls.setAttribute("aria-label", t("Narration playback", "낭독 재생"));
     voiceOptions();
     reader();
@@ -265,6 +291,56 @@
       return option;
     }));
     ui.voiceSelect.value = selected;
+    voiceCards(options, selected);
+  }
+
+  // The start screen's voices: tap a card to choose it, tap ▶ to hear the story's first line in that voice.
+  let sampleAudio = null;
+  function voiceCards(options, selected) {
+    ui.voiceCards.replaceChildren(...options.map(voice => {
+      const card = document.createElement("div");
+      card.className = "voice-card";
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.setAttribute("role", "radio");
+      pick.setAttribute("aria-checked", String(voice.id === selected));
+      pick.textContent = voice.name;
+      pick.onclick = () => { if (!ui.voiceSelect.disabled) chooseVoice(voice.id); };
+      const listen = document.createElement("button");
+      listen.type = "button";
+      listen.className = "voice-sample";
+      listen.textContent = "▶";
+      listen.setAttribute("aria-label", t(`Hear ${voice.name}`, `${voice.name} 들어 보기`));
+      listen.onclick = () => playSample(voice.id, listen);
+      card.append(pick);
+      card.append(listen);
+      return card;
+    }));
+  }
+
+  async function playSample(id, button) {
+    if (typeof Narration === "undefined" || !Narration.sample) return;
+    sampleAudio?.pause();
+    stopNarration();
+    button.classList.add("busy");
+    try {
+      const url = await Narration.sample(id || null, ui.language.value);
+      sampleAudio = new Audio(url);
+      await sampleAudio.play();
+    } catch {
+      say(t("Couldn't play this voice. Try again.", "이 목소리를 들려주지 못했어요. 다시 눌러 주세요."));
+    } finally { button.classList.remove("busy"); }
+  }
+
+  // The start screen lists the voices without opening settings.
+  async function loadVoiceCards() {
+    try {
+      if (typeof Narration === "undefined" || !Narration.listVoices) return;
+      const voices = await Narration.listVoices();
+      if (snapshot || voiceListLoading) return;
+      savedVoices = voices.filter(voice => typeof voice.id === "string" && typeof voice.name === "string");
+      voiceOptions();
+    } catch {}
   }
 
   async function loadVoices() {
@@ -307,7 +383,8 @@
 
   function reader() {
     const saved = typeof Narration !== "undefined" && Narration.voiceName?.();
-    const name = saved || t("Storybook voice", "기본 목소리");
+    const builtin = saved && savedVoices.some(voice => voice.builtin && voice.id === Narration.voiceId?.());
+    const name = builtin ? t("Storybook voice (male)", "기본 목소리 (남성)") : saved || t("Storybook voice", "기본 목소리");
     ui.readerName.textContent = t("Reader: ", "읽어주는 목소리: ") + name;
     ui.readBy.textContent = t("Read by ", "읽어주는 목소리: ") + name;
     ui.addVoice.hidden = false;
@@ -506,7 +583,7 @@
     if (remember) { rememberPage(state, displayedImage); pageIndex = pages.length - 1; }
     pictureVisibility();
     if (state.choiceMode) choiceLocks.add(questionKey(state));
-    ui.cover.hidden = true;
+    ui.cover.hidden = ui.setup.hidden = true;
     ui.narrative.replaceChildren(...state.lines.map(line => {
       const paragraph = document.createElement("p");
       if (line.speakerId && line.speakerId !== "narrator") {
@@ -649,7 +726,7 @@
     ui.narrative.replaceChildren();
     ui.question.textContent = "";
     ui.choices.replaceChildren();
-    ui.cover.hidden = true;
+    ui.cover.hidden = ui.setup.hidden = true;
     media.reset();
     activity = "request";
     say(t("Starting story…", "동화를 시작해요…"));
@@ -662,7 +739,7 @@
     } catch {
       if (token === epoch) {
         activity = "idle";
-        ui.cover.hidden = false;
+        ui.cover.hidden = ui.setup.hidden = false;
         say(t("Couldn't start. Please try again.", "동화를 열지 못했어요. 다시 시작해 주세요."));
         syncControls();
       }
@@ -769,7 +846,7 @@
         requestId: crypto.randomUUID(), answer: text, ...(choiceId ? {choiceId} : {})};
     retryPayload = payload; // A lost response can be replayed without advancing twice.
     activity = "request";
-    say(t("Thinking…", "생각하고 있어요…"));
+    say(t("Writing what happens next…", "다음 이야기를 쓰고 있어요…"));
     if (!choiceId && ui.readAloud.checked && typeof Narration !== "undefined")
       Narration.interject?.(selectedLanguage);
     syncControls();
@@ -889,6 +966,16 @@
     media.retry(pending);
   };
   ui.restart.onclick = ui.cover.onclick = begin;
+  for (const button of ui.languageCards.children || []) button.onclick = () => {
+    if (button.disabled || ui.language.value === button.dataset.lang) return;
+    ui.language.value = button.dataset.lang;
+    ui.language.onchange();
+  };
+  for (const button of ui.modeCards.children || []) button.onclick = () => {
+    if (button.disabled) return;
+    ui.mode.value = button.dataset.mode;
+    ui.mode.onchange();
+  };
   function setSettings(open, {restoreFocus = true} = {}) {
     ui.readerSettings.hidden = !open;
     ui.settingsButton.setAttribute("aria-expanded", String(open));
@@ -1023,9 +1110,13 @@
   syncControls();
   if (typeof Narration !== "undefined") Narration.warm?.(selectedLanguage);
   voiceNextPages();
+  loadVoiceCards();
   api("/api/config").then(data => {
     config = data;
     media.configure(data);
+    // Making the story together is the product; the ready-made story is the fallback.
+    if (config.liveAvailable && !snapshot && selectedMode === "mock") { selectedMode = ui.mode.value = "live"; }
+    labels();
   }).catch(() => {
     say(t("Check the story server connection.", "동화 서버 연결을 확인해 주세요."));
   }).finally(() => {

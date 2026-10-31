@@ -216,6 +216,33 @@ test('playback is gated during next-picture preparation and prefetch never start
   assert.equal(h.narrations.length, readings + 1);
 });
 
+test('the start screen makes the story together by default and shows one play button only while reading', async () => {
+  const h = await harness();
+  assert.equal(h.element('mode').value, 'live', 'AI is the default when it is available');
+  assert.equal(h.element('narrationControls').hidden, true, 'nothing to play on the start screen');
+  await h.start('mock');
+  assert.equal(h.element('setup').hidden, true);
+  assert.equal(h.element('narrationControls').hidden, false);
+  assert.deepEqual([h.element('pauseNarration').hidden, h.element('playNarration').hidden], [false, true]);
+  h.element('pauseNarration').onclick();
+  assert.deepEqual([h.element('pauseNarration').hidden, h.element('playNarration').hidden], [true, false]);
+  assert.equal(h.element('mic').classList.contains('choose'), true, 'offline answers open the choices, not a microphone');
+});
+
+test('the start screen lists every voice as a card that chooses it', async () => {
+  const h = await harness();
+  h.settings.voices = [{id:'000000007127', name:'Storybook voice (male)', builtin:true}, {id:'dad', name:'Dad'}];
+  await h.element('settingsButton').onclick();
+  const names = () => h.element('voiceCards').children.map(card => card.children[0].textContent);
+  const checked = () => h.element('voiceCards').children.map(card => card.children[0]['aria-checked']);
+  assert.deepEqual(names(), ['Storybook voice', 'Storybook voice (male)', 'Dad']);
+  assert.deepEqual(checked(), ['true', 'false', 'false']);
+  h.element('voiceCards').children[2].children[0].onclick();
+  assert.equal(h.settings.voiceId, 'dad');
+  assert.deepEqual(checked(), ['false', 'false', 'true']);
+  assert.match(h.element('readBy').textContent, /Dad/);
+});
+
 test('settings selects saved voices immediately without opening registration', async () => {
   const h = await harness(); await h.start();
   h.settings.voices = [{id:'mom', name:'Mom'}, {id:'dad', name:'Dad'}];
