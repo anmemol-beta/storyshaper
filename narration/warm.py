@@ -7,11 +7,10 @@ Lines are sent last page first and fillers last, because the server voices the n
 """
 import argparse
 import json
+import re
 import time
 import urllib.request
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
 SERVER = "http://127.0.0.1:8100"
 # Keep in sync with FILLERS in prototype/narration.js (tests/test_narration.py checks this).
 FILLERS = [
@@ -40,11 +39,70 @@ def call(path, body=None):
         return json.load(res)
 
 
+def _sentences(text):
+    """Match Narration.sentences in prototype/narration.js so warm cache keys match playback."""
+    if len(text) <= 40:
+        return [text]
+    parts = [part.strip() for part in re.findall(r'''[^.!?…]+(?:[.!?…]+["”’']?|$)\s*''', text)
+             if part.strip()] or [text]
+    merged = []
+    for part in parts:
+        if merged and (len(part) < 12 or len(merged[-1]) < 12):
+            merged[-1] += " " + part
+        else:
+            merged.append(part)
+    return merged
+
+
+def authored_book(language="en"):
+    """Return the current authored reader's spoken lines, including every registered material branch.
+
+    Walk the engine's fixed transitions without asking a provider to interpret or write anything.
+    Retain speaker and delivery metadata, and split sentences exactly as the reader does.
+    Dynamic AI prose and session-only custom materials cannot be warmed in advance.
+    """
+    from story_agent.engine import MockProvider, STORIES, StoryEngine
+
+    engine = StoryEngine(MockProvider(), language)
+    story = STORIES[language]
+    book, seen = [], set()
+
+    def add(line):
+        for text in _sentences(line["text"].strip()):
+            spoken = {**line, "text": text}
+            key = tuple(spoken[field] for field in ("speakerId", "text", "kind", "tone", "emotion"))
+            if key not in seen:
+                seen.add(key)
+                book.append(spoken)
+
+    def narration(text, *, question=False):
+        return {"speakerId": "narrator", "text": text, "kind": "narration",
+                "tone": "curious" if question else "warm", "emotion": "curious" if question else "calm"}
+
+    def visit(state):
+        for line in engine._authored_lines(state):
+            add(line)
+        question = engine._question(state)
+        if question is None:
+            return
+        add(narration(question["text"], question=True))
+        for choice in question["choices"]:
+            add(narration(choice["label"]))
+        materials = story["houses"][state["houseIndex"] - 1]["allowedMaterials"] if state["stage"] == "choose" else [None]
+        for material in materials:
+            next_state, _, _ = engine._transition(state, material)
+            visit(next_state)
+
+    visit(engine.start("voice-warmup")["storyState"])
+    return book
+
+
 def lines_for(voice, texts, peek=False, language="en"):
-    """Queue (or with peek, only check) texts for a voice; returns the clips."""
+    """Queue (or with peek, only check) strings or utterance objects; returns the clips."""
     clips = []
     for i in range(0, len(texts), 20):
-        body = {"lines": [{"speakerId": "narrator", "text": t} for t in texts[i:i + 20]], "peek": peek,
+        body = {"lines": [{"speakerId": "narrator", "text": t} if isinstance(t, str) else dict(t)
+                          for t in texts[i:i + 20]], "peek": peek,
                 "language": language, "priority": "background"}
         if voice != "default":
             body["voiceId"] = voice
@@ -56,13 +114,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--wait", action="store_true", help="wait until every line is voiced")
     args = parser.parse_args()
-    audio = ROOT / "prototype" / "audio"
     # The same parent voice reads both books. The server voices the newest request first, so the Korean
     # book (queued last) is voiced before the English one.
-    books = {"en": ([line["text"] for line in json.loads((audio / "lines.json").read_text(encoding="utf-8"))],
-                    FILLERS + [CHOICE_PROMPT["en"]]),
-             "ko": ([line["text"] for line in json.loads((audio / "lines.ko.json").read_text(encoding="utf-8"))],
-                    FILLERS_KO + [CHOICE_PROMPT["ko"]])}
+    books = {"en": (authored_book("en"), FILLERS + [CHOICE_PROMPT["en"]]),
+             "ko": (authored_book("ko"), FILLERS_KO + [CHOICE_PROMPT["ko"]])}
     voices = ["default"] + [v["id"] for v in call("/api/voices")["voices"]]
     names = {v["id"]: v["name"] for v in call("/api/voices")["voices"]}
     for voice in voices:

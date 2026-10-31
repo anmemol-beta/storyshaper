@@ -1,5 +1,7 @@
 """Provider-side shape constraints; semantic validation stays in the engine."""
 
+from .dialogue import EMOTIONS, SPEAKERS, TONES
+
 
 def _object(properties):
     return {"type": "object", "properties": properties, "required": list(properties),
@@ -14,7 +16,13 @@ _MATERIAL = _object({
         "light_flexible", "loose_pieces", "edible", "melts", "rigid"]},
 })
 _CANDIDATE = _object({
-    "lines": {"type": "array", "items": _object({"speakerId": _STRING, "text": _STRING})},
+    "lines": {"type": "array", "minItems": 1, "maxItems": 12, "items": _object({
+        "speakerId": {"type": "string", "enum": list(SPEAKERS)},
+        "text": _STRING,
+        "kind": {"type": "string", "enum": ["narration", "dialogue"]},
+        "tone": {"type": "string", "enum": list(TONES)},
+        "emotion": {"type": "string", "enum": list(EMOTIONS)},
+    })},
     "questionText": {"type": ["string", "null"]},
 })
 TURN_SCHEMA = _object({

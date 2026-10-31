@@ -27,7 +27,7 @@ def main():
     args = parser.parse_args()
     run = ROOT / "voice" / "finetune-runs" / args.run
     trained = json.loads((run / "train.json").read_text())
-    if trained.get("tokenizer") != "en":
+    if trained.get("tokenizer") != "en" or trained.get("scope", {}).get("language", "en") != "en":
         sys.exit("Only English-tokenizer runs can be merged for the narration server.")
     profile = ROOT / "voice" / "profiles" / args.voice
     meta_path = profile / "meta.json"
@@ -52,6 +52,7 @@ def main():
     save_file(state, str(out))
     evaluation = run / "eval" / "eval.json"
     meta["finetune"] = {"run": args.run, "file": out.name, "mergedAt": int(time.time()), "enabled": args.enable,
+                        "scope": trained.get("scope"),
                         "sentences": trained.get("data") and len((Path(trained["data"]) / "metadata.csv").read_text().splitlines()),
                         "eval": json.loads(evaluation.read_text())["summary"] if evaluation.exists() else None}
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))

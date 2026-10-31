@@ -126,7 +126,8 @@ class AdaptiveTests(unittest.TestCase):
         built = engine.answer(engine.start('process'), 'ice cream')
 
         def result_only(result):
-            result['candidate']['lines'] = [{'speakerId': 'narrator', 'text': 'The ice cream melted.'}]
+            dialogue = [line for line in result['candidate']['lines'] if line['speakerId'] != 'narrator']
+            result['candidate']['lines'] = [{'speakerId': 'narrator', 'text': 'The ice cream melted.'}] + dialogue
             return result
 
         provider.change, provider.review = result_only, False

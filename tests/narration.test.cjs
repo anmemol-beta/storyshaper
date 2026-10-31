@@ -9,7 +9,7 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
   const played = [];
   const timers = [];
   const posted = [];
-  const clips = [], spoken = [], pauses = [], storage = new Map();
+  const clips = [], spoken = [], pauses = [], storage = new Map(), beacons = [];
   class Audio {
     constructor(src) { this.src = src; clips.push(this); this.events = {}; }
     play() { played.push(this.src); return refusePlay ? Promise.reject(new Error('NotAllowedError')) : Promise.resolve(); }   // "ends" only when the test calls finish()
@@ -21,7 +21,7 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
     URLSearchParams, JSON, Math, Promise, Blob, AbortController, queueMicrotask,
     location: {search: ''},
     localStorage: {getItem: key => storage.get(key) || null, setItem:(key,value) => storage.set(key,value), removeItem:key => storage.delete(key)},
-    navigator: {},
+    navigator: {sendBeacon(url, body) { beacons.push({url, body}); return true; }},
     fetch: async (url, options) => {
       const body = JSON.parse(options.body);
       posted.push(body);
@@ -41,7 +41,7 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../prototype/narration.js'), 'utf8') + '\n;this.Narration = Narration;', sandbox);
   const runTimer = ms => { const t = timers.find(t => t.fn && t.ms === ms); assert.ok(t, `a ${ms} ms timer`); const fn = t.fn; t.fn = null; fn(); };
-  return {Narration: sandbox.Narration, played, posted, runTimer, timers, clips, spoken, pauses, storage,
+  return {Narration: sandbox.Narration, played, posted, runTimer, timers, clips, spoken, pauses, storage, beacons,
     setFetch: fn => { sandbox.fetch = fn; }, nativeSpeech: sandbox.speechSynthesis};
 }
 const tick = () => new Promise(r => setImmediate(r));
@@ -88,6 +88,40 @@ test('long lines are voiced sentence by sentence; short ones and tiny pieces sta
     ['Oh! The little pig looked up at the sky and saw a big gray cloud.']);
   assert.deepEqual(s('But the wolf came back. "Whoo… whoo… CRASH!" The wood house tumbled down.'),
     ['But the wolf came back. "Whoo… whoo… CRASH!"', 'The wood house tumbled down.']);   // the sound effect stays with the sentence before it
+});
+
+test('split dialogue keeps its speaker and delivery metadata without voicing the directions', async () => {
+  const h = load();
+  const line = {speakerId:'wolf', kind:'dialogue', tone:'playful', emotion:'confident',
+    text:'I will puff at this little house until the walls wobble! Here comes my biggest puff!'};
+  const highlights = [];
+  const reading = h.Narration.speak([line], {key:'dialogue', onLine:i => highlights.push(i)});
+  await tick();
+  const texts = Array.from(h.Narration.sentences(line.text));
+  assert.equal(texts.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted[0].lines)), texts.map(text => ({...line, text})));
+  assert.equal(h.posted[0].lines.some(part => 'line' in part), false, 'Playback indexes are not model inputs');
+  for (let i = 0; i < texts.length; i++) { h.clips.at(-1).onended(); await tick(); }
+  await reading;
+  assert.deepEqual(highlights, [0, -1], 'Sentence splitting keeps one highlighted dialogue line');
+  assert.equal(h.spoken.length, 0);
+});
+
+test('preparation, prefetch, readiness and voice-ahead preserve dialogue metadata', async () => {
+  const h = load();
+  const line = {speakerId:'pig2', kind:'dialogue', tone:'eager', emotion:'hopeful', text:'Let us build together!'};
+  await h.Narration.prepare([line], {language:'ko'});
+  await h.Narration.prefetch([line], {language:'ko'});
+  await h.Narration.readyCount([line], {language:'ko'});
+  for (const request of h.posted) {
+    assert.deepEqual(JSON.parse(JSON.stringify(request.lines)), [line]);
+    assert.equal(request.language, 'ko');
+  }
+  assert.equal(h.Narration.voiceAhead([line], {language:'ko'}), true);
+  const ahead = JSON.parse(await h.beacons[0].body.text());
+  assert.deepEqual(ahead.lines, [line]);
+  assert.equal(ahead.language, 'ko');
+  assert.equal(h.played.length, 0, 'Warming a voice does not read the passage');
 });
 
 test('unready parent clips are waited for; only a line still not voiced after 30 s is read by the browser', async () => {

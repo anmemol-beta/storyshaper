@@ -35,16 +35,21 @@ class MediaPlayground(Playground):
         self.media.activate(result)
         return result
 
+    def advance(self, body):
+        result = super().advance(body)
+        self.media.activate(result)
+        self.media.cancel_session(result['sessionId'], through_version=result['version'])
+        return result
+
     def media_snapshot(self, session_id):
         if not isinstance(session_id, str):
             raise APIError(400, 'invalid_request', 'Send a sessionId.')
         with self.lock:
             session = self.sessions.get(session_id)
-        if session is None:
-            raise APIError(404, 'session_not_found', 'Start a story session.')
-        with session.lock:
-            if time.monotonic() - session.touched >= SESSION_TTL:
+            if session is None or time.monotonic() - session.touched >= SESSION_TTL:
                 raise APIError(404, 'session_not_found', 'Start a story session.')
+            # Story commits and manual session replacement use this short lock;
+            # reading approved state must not wait for an in-flight model call.
             return deepcopy(session.snapshot)
 
     def media_request(self, body):
@@ -53,9 +58,14 @@ class MediaPlayground(Playground):
                 or ('retryOf' in body and (not isinstance(body['retryOf'], str) or not body['retryOf']))):
             raise APIError(400, 'invalid_request', 'Send sessionId, sceneId, version and an optional retryOf job ID.')
         snapshot = self.media_snapshot(body['sessionId'])
-        if (body['version'], body['sceneId']) != (snapshot['version'], snapshot['sceneId']):
-            raise APIError(409, 'stale_snapshot', 'Use the current story snapshot.')
-        return self.media.request(snapshot, retry_of=body.get('retryOf'))
+        with self.lock:
+            # Navigation can replace the session while a media request arrives.
+            snapshot = self.sessions[body['sessionId']].snapshot
+            if (body['version'], body['sceneId']) != (snapshot['version'], snapshot['sceneId']):
+                raise APIError(409, 'stale_snapshot', 'Use the current story snapshot.')
+            if snapshot['diagnostics'].get('manualNavigation', {}).get('skippedPicture'):
+                return {'status': 'no_new_media', 'jobId': None, 'apply': False, 'reason': 'manual_navigation'}
+            return self.media.request(snapshot, retry_of=body.get('retryOf'))
 
     def media_status(self, job_id, session_id, cancel=False):
         self.media.activate(self.media_snapshot(session_id))

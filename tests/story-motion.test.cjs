@@ -61,6 +61,20 @@ test('a cue plays the event once per reading; a new reading of the page plays it
   assert.deepEqual(played, ['read-1', 'read-2']);
 });
 
+test('a page whose narration is already past the event line catches up instead of skipping it', () => {
+  const StoryMotion = load();
+  const motion = new StoryMotion({}, {reducedMotion: () => false});
+  const played = [];
+  motion.play = active => { active.played = true; played.push(active.cueKey); };
+  motion.active = {cue: 1, played: false, cueKey: null, video: false};
+  motion.cue(0, 'back', {catchUp: true});
+  assert.deepEqual(played, [], 'not before its line');
+  motion.cue(2, 'back', {catchUp: true});
+  assert.deepEqual(played, ['back']);
+  motion.cue(1, 'back');
+  assert.deepEqual(played, ['back'], 'the same reading does not play it twice');
+});
+
 test('a reviewed video clip shows the event instead of the preset', () => {
   const StoryMotion = load();
   const motion = new StoryMotion({}, {reducedMotion: () => false});

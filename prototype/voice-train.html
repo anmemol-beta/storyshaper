@@ -71,16 +71,24 @@
   </header>
   <div>
     <h1 id="title">Teach the story voice</h1>
-    <p class="lead" data-t>Read each sentence aloud, the way you would at bedtime. About 100 short sentences (10 minutes) make the stories sound much more like you. You can stop and come back any time.</p>
+    <p class="lead" data-t>Story practice recordings need a listening check before training. Recording a line does not start model training.</p>
   </div>
   <p class="error" id="error" hidden></p>
+  <div class="row">
+    <label><span data-t>Practice</span> <select id="practiceMode"><option value="story" data-t>Story characters</option><option value="general" data-t>Usual voice · English</option></select></label>
+    <label id="speakerFilterLabel"><span data-t>Character</span> <select id="speakerFilter"><option value="all" data-t>All characters</option><option value="narrator" data-t>Narrator</option><option value="pig1" data-t>Oldest pig</option><option value="pig2" data-t>Middle pig</option><option value="pig3" data-t>Youngest pig</option><option value="wolf" data-t>Wolf</option></select></label>
+  </div>
   <div class="progress"><div class="meter"><i id="meter"></i></div><p id="count"></p></div>
   <section class="card" id="card">
     <span class="num" id="num"></span>
+    <p class="hint" id="performanceDirection" hidden></p>
+    <p class="hint" id="personality" hidden></p>
     <p class="sentence" id="sentence"></p>
     <button class="rec" id="rec" type="button" aria-label="Record">●</button>
     <p class="hint" id="hint"></p>
     <p class="result" id="result" role="status"></p>
+    <button class="btn" id="reviewPerformance" type="button" hidden data-t>I listened: the role and emotion match</button>
+    <p class="hint" id="performanceReview" hidden></p>
     <div class="row">
       <button class="btn" id="prev" type="button" data-t>‹ Back</button>
       <button class="btn" id="listen" type="button" hidden data-t>▶ Listen</button>

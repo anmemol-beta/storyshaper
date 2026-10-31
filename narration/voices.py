@@ -272,7 +272,7 @@ class VoiceLibrary:
                 print(f"transcribe failed: {exc}", flush=True)
                 return None
 
-    def add_training_clip(self, voice_id, n, text, data):
+    def add_training_clip(self, voice_id, n, text, data, *, performance=None):
         """Store one read-aloud sentence for fine-tuning (train/NNN.wav) with its text, quality and transcript."""
         folder = self.folder(voice_id) / "train"
         folder.mkdir(exist_ok=True)
@@ -293,6 +293,14 @@ class VoiceLibrary:
         clip = {"n": n, "file": path.name, "source": "read", "text": text, "seconds": round(len(samples) / sr, 1), "heard": heard,
                 "match": None if heard is None else round(1 - text_error(text, heard), 2),
                 "snrDb": quality["snrDb"]}
+        if performance is not None:
+            clip["source"] = "script"
+            clip["language"] = performance["language"]
+            clip["desiredPerformance"] = {
+                "scriptLineId": performance["id"], "revision": performance["revision"],
+                **{key: performance[key] for key in ("speakerId", "tone", "emotion", "personality", "speechStyle", "sceneIds")},
+            }
+            clip["performanceReview"] = "unreviewed"
         clips = self._training_clips(voice_id)
         clips[str(n)] = clip
         (folder / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -312,9 +320,11 @@ class VoiceLibrary:
                 raise VoiceError(400, "audio_unreadable", "No audio could be read from this file.")
             samples, sr = read_wav(wav)
         clips = self._training_clips(voice_id)
-        next_n = max([int(k) for k in clips if int(k) > 1000] + [1000]) + 1
+        next_n = max([int(k) for k in clips if 1000 < int(k) < 2000] + [1000]) + 1
         added, skipped = [], 0
         for start, end in split_utterances(samples, sr):
+            if next_n >= 2000:
+                break                              # reserve script-practice IDs
             part = samples[int(start * sr): int(end * sr)]
             if clip_quality(part, sr, samples)["snrDb"] < 12:
                 skipped += 1
@@ -334,7 +344,7 @@ class VoiceLibrary:
         return {"added": len(added), "skipped": skipped, "seconds": round(sum(c["seconds"] for c in added), 1),
                 "clips": added}
 
-    def update_training_clip(self, voice_id, n, text=None, excluded=None):
+    def update_training_clip(self, voice_id, n, text=None, excluded=None, performance_reviewed=None):
         """Correct a clip's text (a mistranscribed home-video clip) or leave it out of training."""
         clips = self._training_clips(voice_id)
         clip = clips.get(str(n))
@@ -344,8 +354,15 @@ class VoiceLibrary:
             if not isinstance(text, str) or not 0 < len(text.strip()) <= 300:
                 raise VoiceError(400, "invalid_text", "Give the clip's words, up to 300 characters.")
             clip["text"], clip["edited"] = text.strip(), True
+            if clip.get("desiredPerformance"):
+                clip["performanceReview"] = "unreviewed"
         if excluded is not None:
             clip["excluded"] = bool(excluded)
+        if performance_reviewed is not None:
+            from .practice import current_performance
+            if type(performance_reviewed) is not bool or not current_performance(clip):
+                raise VoiceError(400, "invalid_performance_review", "Review the unchanged current story recording.")
+            clip["performanceReview"] = "confirmed" if performance_reviewed else "unreviewed"
         (self.folder(voice_id) / "train" / "clips.json").write_text(json.dumps(clips, ensure_ascii=False, indent=1), encoding="utf-8")
         return clip
 
@@ -439,10 +456,12 @@ class VoiceLibrary:
         shutil.rmtree(self.folder(voice_id))
         voice_dir = self.root.parent
         shutil.rmtree(voice_dir / "finetune-data" / voice_id, ignore_errors=True)
+        for dataset in (voice_dir / "finetune-data").glob(voice_id + "-*"):
+            shutil.rmtree(dataset, ignore_errors=True)
         for run in (voice_dir / "finetune-runs").glob("*/train.json"):
             try:
                 data = json.loads(run.read_text(encoding="utf-8")).get("data", "")
             except ValueError:
                 continue
-            if Path(data).name == voice_id:
+            if Path(data).name == voice_id or Path(data).name.startswith(voice_id + "-"):
                 shutil.rmtree(run.parent, ignore_errors=True)

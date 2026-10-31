@@ -58,7 +58,8 @@ class StoryMotion {
 
   // A new page is on screen. action: mediaPlan.action; narrated: its lines will be read aloud (cue() starts the event),
   // otherwise the event starts by itself; video: a reviewed clip plays the event instead.
-  scene({action = null, lines = [], narrated = true, video = false} = {}) {
+  // heard: {key, index} of the line already being voiced when the picture arrives late (a page reached by navigation).
+  scene({action = null, lines = [], narrated = true, video = false, heard = null} = {}) {
     this.stop({settle: false});
     if (this.reducedMotion()) return;
     const image = this.current();
@@ -78,16 +79,18 @@ class StoryMotion {
       if (record) this.useRegions(active, record);
       this.idle(active);
       if (!narrated && !video) this.after(active, 0.9, () => this.play(active));
+      else if (narrated && heard) this.cue(heard.index, heard.key, {catchUp: true});
     });
   }
 
   // Called when the narration actually starts voicing a line (Narration.speak onSpeak). key: one reading of the page;
   // reading the page again (Play after it ended, read aloud switched on) plays the event again.
-  cue(index, key = null) {
+  // catchUp: the reading may already be past the event's line; play it now rather than skip it.
+  cue(index, key = null, {catchUp = false} = {}) {
     const active = this.active;
     if (!active || active.video || active.cue === null) return;
     if (key !== active.cueKey) { active.cueKey = key; active.played = false; }
-    if (index === active.cue && !active.played) this.play(active);
+    if ((catchUp ? index >= active.cue : index === active.cue) && !active.played) this.play(active);
   }
 
   // Play the event now, without waiting for its line (read aloud was switched off).

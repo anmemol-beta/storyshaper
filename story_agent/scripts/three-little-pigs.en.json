@@ -1,0 +1,5748 @@
+{
+  "schemaVersion": "2.0",
+  "storyId": "three-little-pigs",
+  "language": "en",
+  "title": "The Three Little Pigs",
+  "lesson": "Think about materials, learn from what happens, and solve problems together.",
+  "fixedCharacters": [
+    "narrator",
+    "pig1",
+    "pig2",
+    "pig3",
+    "wolf"
+  ],
+  "fixedEvents": [
+    "first_house_cannot_shelter",
+    "second_house_cannot_shelter",
+    "third_house_stands",
+    "pigs_safe_together",
+    "wolf_leaves"
+  ],
+  "fixedEnding": "The three pigs are safe together in a strong house, and the wolf leaves unharmed.",
+  "characters": {
+    "narrator": {
+      "name": "Narrator",
+      "role": "narrator",
+      "personality": [
+        "warm",
+        "observant",
+        "encouraging"
+      ],
+      "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+      "defaultTone": "warm",
+      "defaultEmotion": "calm",
+      "imageNotes": "Describe approved actions and visible changes; do not add a visible narrator to the picture."
+    },
+    "pig1": {
+      "name": "The oldest pig",
+      "role": "oldest_brother",
+      "personality": [
+        "eager",
+        "imaginative",
+        "quick to try"
+      ],
+      "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+      "defaultTone": "lively",
+      "defaultEmotion": "excited",
+      "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance."
+    },
+    "pig2": {
+      "name": "The middle pig",
+      "role": "middle_brother",
+      "personality": [
+        "playful",
+        "friendly",
+        "helpful"
+      ],
+      "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+      "defaultTone": "playful",
+      "defaultEmotion": "happy",
+      "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance."
+    },
+    "pig3": {
+      "name": "The youngest pig",
+      "role": "youngest_brother",
+      "personality": [
+        "thoughtful",
+        "patient",
+        "cooperative"
+      ],
+      "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+      "defaultTone": "thoughtful",
+      "defaultEmotion": "confident",
+      "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance."
+    },
+    "wolf": {
+      "name": "Wolf",
+      "role": "comic_challenger",
+      "personality": [
+        "boastful",
+        "persistent",
+        "comical"
+      ],
+      "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+      "defaultTone": "playful",
+      "defaultEmotion": "confident",
+      "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries."
+    }
+  },
+  "narrationDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "warm",
+    "emotion": "calm"
+  },
+  "questionDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "curious",
+    "emotion": "curious"
+  },
+  "source": "story_agent/story.json",
+  "canonicalPrefix": [
+    "straw",
+    "wood",
+    "brick"
+  ],
+  "sceneSelection": "Select one scriptId for the active house, approved material and stage; branches are alternatives.",
+  "scenes": [
+    {
+      "scriptId": "house1_choose",
+      "sceneId": "house1_choose",
+      "houseId": "house1",
+      "material": null,
+      "outcome": null,
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "Once upon a time, three little pigs set out to build homes.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig is ready to build a little house in a sunny meadow.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I can't wait to build my own little house!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        }
+      ],
+      "question": {
+        "id": "house1_choose",
+        "text": "What material could the oldest pig use for a little house?",
+        "intent": "choose_material",
+        "choices": [
+          {
+            "id": "paper",
+            "label": "Paper",
+            "answer": "Build with paper"
+          },
+          {
+            "id": "straw",
+            "label": "Straw",
+            "answer": "Build with straw"
+          },
+          {
+            "id": "cookie",
+            "label": "Cookie",
+            "answer": "Build with cookie"
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "What material could the oldest pig use for a little house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "action": "choose_material",
+        "fromStage": "choose",
+        "toStage": "choose",
+        "allPigsSafe": true,
+        "allowedMaterials": [
+          "paper",
+          "straw",
+          "wood",
+          "cookie",
+          "icecream"
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_paper_predict",
+      "sceneId": "house1_predict",
+      "houseId": "house1",
+      "material": "paper",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig gets ready to build a paper house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with paper!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The paper walls are light and carefully folded.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house1_predict",
+        "text": "The wolf is about to puff at the light paper house. What do you think will happen?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Blow away",
+            "answer": "The light walls might blow away."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf is about to puff at the light paper house. What do you think will happen?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "paper",
+        "materialLabel": "paper",
+        "outcome": "blown_away",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_predict",
+        "cause": "light walls and wind"
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_paper_reflect",
+      "sceneId": "house1_reflect",
+      "houseId": "house1",
+      "material": "paper",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the paper walls fluttered back and forth.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "Their loosely joined edges came free.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows, and the light paper walls blow away. The pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! There go the light walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ],
+      "question": {
+        "id": "house1_reflect",
+        "text": "The light paper walls blew away in the wind. What did we notice about those light walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Light walls",
+            "answer": "The light walls moved in the wind."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Loose edges",
+            "answer": "The walls were not firmly joined."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe as the walls blew away."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The light paper walls blew away in the wind. What did we notice about those light walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "surprised",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.06
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "paper",
+        "materialLabel": "paper",
+        "outcome": "blown_away",
+        "action": "blown_away",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_reflect",
+        "cause": "light walls and wind",
+        "process": [
+          "The wolf puffed, and the paper walls fluttered back and forth.",
+          "Their loosely joined edges came free."
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_straw_predict",
+      "sceneId": "house1_predict",
+      "houseId": "house1",
+      "material": "straw",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig gets ready to build a straw house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with straw!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The straw walls are light bundles tied together.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house1_predict",
+        "text": "The wolf is about to puff at the light straw house. What do you think will happen?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Blow away",
+            "answer": "The light walls might blow away."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf is about to puff at the light straw house. What do you think will happen?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "straw",
+        "materialLabel": "straw",
+        "outcome": "blown_away",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_predict",
+        "cause": "light walls and wind"
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_straw_reflect",
+      "sceneId": "house1_reflect",
+      "houseId": "house1",
+      "material": "straw",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the straw walls shook.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "Loose bits of straw started to come apart.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows, and the light straw walls blow away. The pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! There go the light walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ],
+      "question": {
+        "id": "house1_reflect",
+        "text": "The light straw walls blew away in the wind. What did we notice about those light walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Light walls",
+            "answer": "The light walls moved in the wind."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Loose edges",
+            "answer": "The walls were not firmly joined."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe as the walls blew away."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The light straw walls blew away in the wind. What did we notice about those light walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "surprised",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.06
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "straw",
+        "materialLabel": "straw",
+        "outcome": "blown_away",
+        "action": "blown_away",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_reflect",
+        "cause": "light walls and wind",
+        "process": [
+          "The wolf puffed, and the straw walls shook.",
+          "Loose bits of straw started to come apart."
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_wood_predict",
+      "sceneId": "house1_predict",
+      "houseId": "house1",
+      "material": "wood",
+      "outcome": "collapsed",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig gets ready to build a wood house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with wood!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig stacks wooden logs loosely, leaving the joints unfastened.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Ho ho! Let's see what my puff can do!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house1_predict",
+        "text": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Fall down",
+            "answer": "The loose walls might tumble down."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "wood",
+        "materialLabel": "wood",
+        "outcome": "collapsed",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_predict",
+        "cause": "loosely stacked unfastened wood"
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_wood_reflect",
+      "sceneId": "house1_reflect",
+      "houseId": "house1",
+      "material": "wood",
+      "outcome": "collapsed",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the loosely stacked wood wobbled.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The logs slipped apart because they were not fastened together.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf's puff shakes the loosely stacked wood. The walls tumble down, and the pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Oh! Those loose pieces came apart!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ],
+      "question": {
+        "id": "house1_reflect",
+        "text": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Loose joints",
+            "answer": "The loose wood joints came apart."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Unfastened logs",
+            "answer": "The logs were not fastened together."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs moved safely away from the walls."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "surprised",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.06
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "wood",
+        "materialLabel": "wood",
+        "outcome": "collapsed",
+        "action": "collapsed",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_reflect",
+        "cause": "loosely stacked unfastened wood",
+        "process": [
+          "The wolf puffed, and the loosely stacked wood wobbled.",
+          "The logs slipped apart because they were not fastened together."
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_cookie_predict",
+      "sceneId": "house1_predict",
+      "houseId": "house1",
+      "material": "cookie",
+      "outcome": "eaten",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig gets ready to build a cookie house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with cookie!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig makes cookie walls. The hungry wolf notices their sweet smell.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Sniff, sniff! Those walls smell like a snack!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "curious"
+        }
+      ],
+      "question": {
+        "id": "house1_predict",
+        "text": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Get eaten",
+            "answer": "The hungry wolf might eat the walls."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "curious",
+          "exaggeration": 0.71,
+          "cfg_weight": 0.4,
+          "tempo": 0.93
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "cookie",
+        "materialLabel": "cookie",
+        "outcome": "eaten",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_predict",
+        "cause": "hungry wolf eats edible walls"
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_cookie_reflect",
+      "sceneId": "house1_reflect",
+      "houseId": "house1",
+      "material": "cookie",
+      "outcome": "eaten",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The hungry wolf sniffed the cookie walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "He took little nibbles, leaving bigger and bigger gaps.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf nibbles the cookie walls until the house cannot shelter the pigs. The pigs walk safely to the next building place.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Munch, munch! Now there are gaps in the walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ],
+      "question": {
+        "id": "house1_reflect",
+        "text": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Food smell",
+            "answer": "Food walls can tempt a hungry wolf."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Nibbling",
+            "answer": "The wolf nibbled the cookie walls."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe while the walls were eaten."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "surprised",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.06
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "cookie",
+        "materialLabel": "cookie",
+        "outcome": "eaten",
+        "action": "eaten",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_reflect",
+        "cause": "hungry wolf eats edible walls",
+        "process": [
+          "The hungry wolf sniffed the cookie walls.",
+          "He took little nibbles, leaving bigger and bigger gaps."
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_icecream_predict",
+      "sceneId": "house1_predict",
+      "houseId": "house1",
+      "material": "icecream",
+      "outcome": "melted",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig gets ready to build a ice cream house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with ice cream!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig shapes an ice cream house under the warm sun.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The warm sun shines down on the walls.",
+          "kind": "narration",
+          "tone": "gentle",
+          "emotion": "calm"
+        }
+      ],
+      "question": {
+        "id": "house1_predict",
+        "text": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Melt",
+            "answer": "The ice cream might melt in the warm sun."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "excited",
+            "expression": "Bright wide eyes and an eager smile.",
+            "gesture": "Perked ears and a lively, slightly forward-leaning posture."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "excited",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.1
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "gentle",
+          "emotion": "calm",
+          "exaggeration": 0.41,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "icecream",
+        "materialLabel": "ice cream",
+        "outcome": "melted",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_predict",
+        "cause": "warm sunshine"
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house1_icecream_reflect",
+      "sceneId": "house1_reflect",
+      "houseId": "house1",
+      "material": "icecream",
+      "outcome": "melted",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "In the warm sunshine, drops dripped down the ice cream walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The walls grew thinner and softer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The warm sun melts the ice cream walls into a puddle. The pigs stay safe and look for a stronger home.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pigs watch from a safe place.",
+          "kind": "narration",
+          "tone": "reassuring",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ],
+      "question": {
+        "id": "house1_reflect",
+        "text": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Warm sunshine",
+            "answer": "Ice cream melts in warm sunshine."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Soft walls",
+            "answer": "The ice cream walls did not stay firm."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe while the walls melted."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "reassuring",
+          "emotion": "calm",
+          "exaggeration": 0.43,
+          "cfg_weight": 0.5,
+          "tempo": 0.96
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "surprised",
+          "exaggeration": 0.85,
+          "cfg_weight": 0.4,
+          "tempo": 1.06
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house1",
+        "material": "icecream",
+        "materialLabel": "ice cream",
+        "outcome": "melted",
+        "action": "melted",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house1_reflect",
+        "cause": "warm sunshine",
+        "process": [
+          "In the warm sunshine, drops dripped down the ice cream walls.",
+          "The walls grew thinner and softer."
+        ]
+      },
+      "priorHouses": []
+    },
+    {
+      "scriptId": "house2_choose",
+      "sceneId": "house2_choose",
+      "houseId": "house2",
+      "material": null,
+      "outcome": null,
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The pigs think about what they noticed and help one another try again.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The brothers reach the middle pig's building place beside the forest.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Come here, brother! Let's try building a house together!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "question": {
+        "id": "house2_choose",
+        "text": "What material could the middle pig try for this house?",
+        "intent": "choose_material",
+        "choices": [
+          {
+            "id": "wood",
+            "label": "Wood",
+            "answer": "Build with wood"
+          },
+          {
+            "id": "cookie",
+            "label": "Cookie",
+            "answer": "Build with cookie"
+          },
+          {
+            "id": "icecream",
+            "label": "Ice cream",
+            "answer": "Build with ice cream"
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "What material could the middle pig try for this house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "curious",
+            "expression": "Attentive eyes and gently raised eyebrows.",
+            "gesture": "A small head tilt toward the approved scene action."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "action": "choose_material",
+        "fromStage": "choose",
+        "toStage": "choose",
+        "allPigsSafe": true,
+        "allowedMaterials": [
+          "paper",
+          "straw",
+          "wood",
+          "cookie",
+          "icecream"
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_paper_predict",
+      "sceneId": "house2_predict",
+      "houseId": "house2",
+      "material": "paper",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The middle pig gets ready to build a paper house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Let's try paper for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The paper walls are light and carefully folded.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house2_predict",
+        "text": "The wolf is about to puff at the light paper house. What do you think will happen?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Blow away",
+            "answer": "The light walls might blow away."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf is about to puff at the light paper house. What do you think will happen?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "paper",
+        "materialLabel": "paper",
+        "outcome": "blown_away",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_predict",
+        "cause": "light walls and wind"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_paper_reflect",
+      "sceneId": "house2_reflect",
+      "houseId": "house2",
+      "material": "paper",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the paper walls fluttered back and forth.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "Their loosely joined edges came free.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows, and the light paper walls blow away. The pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! There go the light walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ],
+      "question": {
+        "id": "house2_reflect",
+        "text": "The light paper walls blew away in the wind. What did we notice about those light walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Light walls",
+            "answer": "The light walls moved in the wind."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Loose edges",
+            "answer": "The walls were not firmly joined."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe as the walls blew away."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The light paper walls blew away in the wind. What did we notice about those light walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "gentle",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "gentle",
+          "emotion": "worried",
+          "exaggeration": 0.65,
+          "cfg_weight": 0.4,
+          "tempo": 0.959
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "paper",
+        "materialLabel": "paper",
+        "outcome": "blown_away",
+        "action": "blown_away",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_reflect",
+        "cause": "light walls and wind",
+        "process": [
+          "The wolf puffed, and the paper walls fluttered back and forth.",
+          "Their loosely joined edges came free."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_straw_predict",
+      "sceneId": "house2_predict",
+      "houseId": "house2",
+      "material": "straw",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The middle pig gets ready to build a straw house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Let's try straw for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The straw walls are light bundles tied together.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house2_predict",
+        "text": "The wolf is about to puff at the light straw house. What do you think will happen?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Blow away",
+            "answer": "The light walls might blow away."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf is about to puff at the light straw house. What do you think will happen?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "straw",
+        "materialLabel": "straw",
+        "outcome": "blown_away",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_predict",
+        "cause": "light walls and wind"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_straw_reflect",
+      "sceneId": "house2_reflect",
+      "houseId": "house2",
+      "material": "straw",
+      "outcome": "blown_away",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the straw walls shook.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "Loose bits of straw started to come apart.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows, and the light straw walls blow away. The pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! There go the light walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ],
+      "question": {
+        "id": "house2_reflect",
+        "text": "The light straw walls blew away in the wind. What did we notice about those light walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Light walls",
+            "answer": "The light walls moved in the wind."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Loose edges",
+            "answer": "The walls were not firmly joined."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe as the walls blew away."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The light straw walls blew away in the wind. What did we notice about those light walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "gentle",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "gentle",
+          "emotion": "worried",
+          "exaggeration": 0.65,
+          "cfg_weight": 0.4,
+          "tempo": 0.959
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "straw",
+        "materialLabel": "straw",
+        "outcome": "blown_away",
+        "action": "blown_away",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_reflect",
+        "cause": "light walls and wind",
+        "process": [
+          "The wolf puffed, and the straw walls shook.",
+          "Loose bits of straw started to come apart."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_wood_predict",
+      "sceneId": "house2_predict",
+      "houseId": "house2",
+      "material": "wood",
+      "outcome": "collapsed",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The middle pig gets ready to build a wood house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Let's try wood for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig stacks wooden logs loosely, leaving the joints unfastened.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Ho ho! Let's see what my puff can do!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "question": {
+        "id": "house2_predict",
+        "text": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Fall down",
+            "answer": "The loose walls might tumble down."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wooden logs are loosely stacked. What might happen to the wood house when the wolf puffs?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "confident",
+          "exaggeration": 0.73,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "wood",
+        "materialLabel": "wood",
+        "outcome": "collapsed",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_predict",
+        "cause": "loosely stacked unfastened wood"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_wood_reflect",
+      "sceneId": "house2_reflect",
+      "houseId": "house2",
+      "material": "wood",
+      "outcome": "collapsed",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed, and the loosely stacked wood wobbled.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The logs slipped apart because they were not fastened together.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf's puff shakes the loosely stacked wood. The walls tumble down, and the pigs step safely away.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Oh! Those loose pieces came apart!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ],
+      "question": {
+        "id": "house2_reflect",
+        "text": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Loose joints",
+            "answer": "The loose wood joints came apart."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Unfastened logs",
+            "answer": "The logs were not fastened together."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs moved safely away from the walls."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The loosely stacked wood house tumbled down. What did we notice about its loose joints?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "gentle",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "gentle",
+          "emotion": "worried",
+          "exaggeration": 0.65,
+          "cfg_weight": 0.4,
+          "tempo": 0.959
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "wood",
+        "materialLabel": "wood",
+        "outcome": "collapsed",
+        "action": "collapsed",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_reflect",
+        "cause": "loosely stacked unfastened wood",
+        "process": [
+          "The wolf puffed, and the loosely stacked wood wobbled.",
+          "The logs slipped apart because they were not fastened together."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_cookie_predict",
+      "sceneId": "house2_predict",
+      "houseId": "house2",
+      "material": "cookie",
+      "outcome": "eaten",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The middle pig gets ready to build a cookie house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Let's try cookie for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig makes cookie walls. The hungry wolf notices their sweet smell.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Sniff, sniff! Those walls smell like a snack!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "curious"
+        }
+      ],
+      "question": {
+        "id": "house2_predict",
+        "text": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Get eaten",
+            "answer": "The hungry wolf might eat the walls."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The hungry wolf smells the cookie walls. What do you think he might do with the cookie house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "curious",
+          "exaggeration": 0.71,
+          "cfg_weight": 0.4,
+          "tempo": 0.93
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "cookie",
+        "materialLabel": "cookie",
+        "outcome": "eaten",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_predict",
+        "cause": "hungry wolf eats edible walls"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_cookie_reflect",
+      "sceneId": "house2_reflect",
+      "houseId": "house2",
+      "material": "cookie",
+      "outcome": "eaten",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The hungry wolf sniffed the cookie walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "He took little nibbles, leaving bigger and bigger gaps.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf nibbles the cookie walls until the house cannot shelter the pigs. The pigs walk safely to the next building place.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Munch, munch! Now there are gaps in the walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ],
+      "question": {
+        "id": "house2_reflect",
+        "text": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Food smell",
+            "answer": "Food walls can tempt a hungry wolf."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Nibbling",
+            "answer": "The wolf nibbled the cookie walls."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe while the walls were eaten."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The wolf ate the cookie walls while the pigs stayed safe. What did we notice about food used for walls?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "gentle",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "playful",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "surprised",
+          "exaggeration": 0.77,
+          "cfg_weight": 0.4,
+          "tempo": 0.921
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "gentle",
+          "emotion": "worried",
+          "exaggeration": 0.65,
+          "cfg_weight": 0.4,
+          "tempo": 0.959
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "cookie",
+        "materialLabel": "cookie",
+        "outcome": "eaten",
+        "action": "eaten",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_reflect",
+        "cause": "hungry wolf eats edible walls",
+        "process": [
+          "The hungry wolf sniffed the cookie walls.",
+          "He took little nibbles, leaving bigger and bigger gaps."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_icecream_predict",
+      "sceneId": "house2_predict",
+      "houseId": "house2",
+      "material": "icecream",
+      "outcome": "melted",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The middle pig gets ready to build a ice cream house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Let's try ice cream for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pig shapes an ice cream house under the warm sun.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The warm sun shines down on the walls.",
+          "kind": "narration",
+          "tone": "gentle",
+          "emotion": "calm"
+        }
+      ],
+      "question": {
+        "id": "house2_predict",
+        "text": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Melt",
+            "answer": "The ice cream might melt in the warm sun."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The warm sun shines on the ice cream house. What do you think will happen to the ice cream?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "gentle",
+          "emotion": "calm",
+          "exaggeration": 0.41,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "icecream",
+        "materialLabel": "ice cream",
+        "outcome": "melted",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_predict",
+        "cause": "warm sunshine"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house2_icecream_reflect",
+      "sceneId": "house2_reflect",
+      "houseId": "house2",
+      "material": "icecream",
+      "outcome": "melted",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "In the warm sunshine, drops dripped down the ice cream walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The walls grew thinner and softer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The warm sun melts the ice cream walls into a puddle. The pigs stay safe and look for a stronger home.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pigs watch from a safe place.",
+          "kind": "narration",
+          "tone": "reassuring",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ],
+      "question": {
+        "id": "house2_reflect",
+        "text": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Warm sunshine",
+            "answer": "Ice cream melts in warm sunshine."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Soft walls",
+            "answer": "The ice cream walls did not stay firm."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Safe pigs",
+            "answer": "The pigs stayed safe while the walls melted."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The ice cream walls melted in the warm sun. What did we notice about ice cream in warm sunshine?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "gentle",
+            "emotion": "worried",
+            "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.",
+            "gesture": "A gentle, close posture beside the other approved characters."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "reassuring",
+          "emotion": "calm",
+          "exaggeration": 0.43,
+          "cfg_weight": 0.5,
+          "tempo": 0.96
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "gentle",
+          "emotion": "worried",
+          "exaggeration": 0.65,
+          "cfg_weight": 0.4,
+          "tempo": 0.959
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house2",
+        "material": "icecream",
+        "materialLabel": "ice cream",
+        "outcome": "melted",
+        "action": "melted",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house2_reflect",
+        "cause": "warm sunshine",
+        "process": [
+          "In the warm sunshine, drops dripped down the ice cream walls.",
+          "The walls grew thinner and softer."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house3_choose",
+      "sceneId": "house3_choose",
+      "houseId": "house3",
+      "material": null,
+      "outcome": null,
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The pigs think about what they noticed and help one another try again.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The three pigs join the youngest pig and plan a strong house together.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Let's take our time and join the walls firmly.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'll help carry the pieces!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "And I'll help put them in place!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "question": {
+        "id": "house3_choose",
+        "text": "What strong material should the pigs use for their last house?",
+        "intent": "choose_material",
+        "choices": [
+          {
+            "id": "brick",
+            "label": "Brick",
+            "answer": "Build with brick"
+          },
+          {
+            "id": "stone",
+            "label": "Stone",
+            "answer": "Build with stone"
+          },
+          {
+            "id": "brick_team",
+            "label": "Teamwork",
+            "answer": "Build with bricks together"
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "What strong material should the pigs use for their last house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "determined",
+            "expression": "Focused eyes and a small resolute smile; never angry or menacing.",
+            "gesture": "A steady, attentive posture directed toward the approved task."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          },
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "thoughtful",
+            "emotion": "determined",
+            "expression": "Focused eyes and a small resolute smile; never angry or menacing.",
+            "gesture": "A steady, attentive posture directed toward the approved task."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "thoughtful",
+          "emotion": "determined",
+          "exaggeration": 0.54,
+          "cfg_weight": 0.45,
+          "tempo": 0.931
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "lively",
+          "emotion": "determined",
+          "exaggeration": 0.8,
+          "cfg_weight": 0.4,
+          "tempo": 1.081
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "action": "choose_material",
+        "fromStage": "choose",
+        "toStage": "choose",
+        "allPigsSafe": true,
+        "allowedMaterials": [
+          "brick",
+          "stone"
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house3_brick_predict",
+      "sceneId": "house3_predict",
+      "houseId": "house3",
+      "material": "brick",
+      "outcome": "stood",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The youngest pig gets ready to build a brick house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Let's join the brick pieces firmly, one at a time.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pigs help one another firmly join the heavy bricks, one by one.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "I'll try my biggest puff this time!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "question": {
+        "id": "house3_predict",
+        "text": "The brick walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the brick house?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Stay strong",
+            "answer": "The strong walls might stay standing."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The brick walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the brick house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "thoughtful",
+            "emotion": "determined",
+            "expression": "Focused eyes and a small resolute smile; never angry or menacing.",
+            "gesture": "A steady, attentive posture directed toward the approved task."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "thoughtful",
+          "emotion": "determined",
+          "exaggeration": 0.54,
+          "cfg_weight": 0.45,
+          "tempo": 0.931
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "determined",
+          "exaggeration": 0.72,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "material": "brick",
+        "materialLabel": "brick",
+        "outcome": "stood",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house3_predict",
+        "cause": "heavy materials firmly joined and cooperation"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house3_brick_reflect",
+      "sceneId": "house3_reflect",
+      "houseId": "house3",
+      "material": "brick",
+      "outcome": "stood",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed hard at the brick walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The firmly joined bricks held one another in place.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows at the firmly joined brick house, but it stays standing. All three pigs are safe inside.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Phew! The walls are still standing!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Our walls held together! We're safe here together.",
+          "kind": "dialogue",
+          "tone": "reassuring",
+          "emotion": "relieved"
+        }
+      ],
+      "question": {
+        "id": "house3_reflect",
+        "text": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Strong walls",
+            "answer": "The heavy walls were firmly joined."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Teamwork",
+            "answer": "The pigs helped one another."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Careful plan",
+            "answer": "They planned carefully together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "reassuring",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "gentle",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "gentle",
+          "emotion": "surprised",
+          "exaggeration": 0.68,
+          "cfg_weight": 0.4,
+          "tempo": 0.893
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "reassuring",
+          "emotion": "relieved",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.45,
+          "tempo": 0.913
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "material": "brick",
+        "materialLabel": "brick",
+        "outcome": "stood",
+        "action": "stood",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house3_reflect",
+        "cause": "heavy materials firmly joined and cooperation",
+        "process": [
+          "The wolf puffed hard at the brick walls.",
+          "The firmly joined bricks held one another in place."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house3_stone_predict",
+      "sceneId": "house3_predict",
+      "houseId": "house3",
+      "material": "stone",
+      "outcome": "stood",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The youngest pig gets ready to build a stone house.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Let's join the stone pieces firmly, one at a time.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The pigs help one another firmly join the heavy stones, one by one.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "I'll try my biggest puff this time!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "question": {
+        "id": "house3_predict",
+        "text": "The stone walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the stone house?",
+        "intent": "predict_consequence",
+        "choices": [
+          {
+            "id": "predict_1",
+            "label": "Stay strong",
+            "answer": "The strong walls might stay standing."
+          },
+          {
+            "id": "predict_2",
+            "label": "Stay the same",
+            "answer": "The house might stay just as it is."
+          },
+          {
+            "id": "predict_3",
+            "label": "Watch together",
+            "answer": "Let's watch carefully and find out together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The stone walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the stone house?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "thoughtful",
+            "emotion": "determined",
+            "expression": "Focused eyes and a small resolute smile; never angry or menacing.",
+            "gesture": "A steady, attentive posture directed toward the approved task."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "thoughtful",
+          "emotion": "determined",
+          "exaggeration": 0.54,
+          "cfg_weight": 0.45,
+          "tempo": 0.931
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "playful",
+          "emotion": "determined",
+          "exaggeration": 0.72,
+          "cfg_weight": 0.4,
+          "tempo": 0.939
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "material": "stone",
+        "materialLabel": "stone",
+        "outcome": "stood",
+        "action": "build",
+        "fromStage": "choose",
+        "toStage": "predict",
+        "allPigsSafe": true,
+        "nextSceneId": "house3_predict",
+        "cause": "heavy materials firmly joined and cooperation"
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "house3_stone_reflect",
+      "sceneId": "house3_reflect",
+      "houseId": "house3",
+      "material": "stone",
+      "outcome": "stood",
+      "lines": [
+        {
+          "speakerId": "narrator",
+          "text": "The wolf puffed hard at the stone walls.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The firmly joined stones held one another in place.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf blows at the firmly joined stone house, but it stays standing. All three pigs are safe inside.",
+          "tone": "warm",
+          "emotion": "calm",
+          "kind": "narration"
+        },
+        {
+          "speakerId": "wolf",
+          "text": "Phew! The walls are still standing!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Our walls held together! We're safe here together.",
+          "kind": "dialogue",
+          "tone": "reassuring",
+          "emotion": "relieved"
+        }
+      ],
+      "question": {
+        "id": "house3_reflect",
+        "text": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?",
+        "intent": "reflect_on_cause",
+        "choices": [
+          {
+            "id": "reflect_1",
+            "label": "Strong walls",
+            "answer": "The heavy walls were firmly joined."
+          },
+          {
+            "id": "reflect_2",
+            "label": "Teamwork",
+            "answer": "The pigs helped one another."
+          },
+          {
+            "id": "reflect_3",
+            "label": "Careful plan",
+            "answer": "They planned carefully together."
+          }
+        ]
+      },
+      "questionLine": {
+        "speakerId": "narrator",
+        "kind": "narration",
+        "tone": "curious",
+        "emotion": "curious",
+        "text": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?"
+      },
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "lively",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "reassuring",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "wolf": {
+            "personality": [
+              "boastful",
+              "persistent",
+              "comical"
+            ],
+            "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+            "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries.",
+            "tone": "gentle",
+            "emotion": "surprised",
+            "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.",
+            "gesture": "Perked ears and a small change of balance within the approved action."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "gentle",
+          "emotion": "surprised",
+          "exaggeration": 0.68,
+          "cfg_weight": 0.4,
+          "tempo": 0.893
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "reassuring",
+          "emotion": "relieved",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.45,
+          "tempo": 0.913
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "curious",
+          "emotion": "curious",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.5,
+          "tempo": 0.97
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "material": "stone",
+        "materialLabel": "stone",
+        "outcome": "stood",
+        "action": "stood",
+        "fromStage": "predict",
+        "toStage": "reflect",
+        "allPigsSafe": true,
+        "nextSceneId": "house3_reflect",
+        "cause": "heavy materials firmly joined and cooperation",
+        "process": [
+          "The wolf puffed hard at the stone walls.",
+          "The firmly joined stones held one another in place."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    },
+    {
+      "scriptId": "ending",
+      "sceneId": "ending",
+      "houseId": "house3",
+      "material": "brick",
+      "outcome": "stood",
+      "lines": [
+        {
+          "speakerId": "wolf",
+          "text": "Phew, that house is too strong for my puff. I'm heading home!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "disappointed"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The wolf walks away unharmed. The three pigs stay safe together.",
+          "kind": "narration",
+          "tone": "reassuring",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "Thank you for helping me! Next time I'll join the walls firmly.",
+          "kind": "dialogue",
+          "tone": "warm",
+          "emotion": "relieved"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Building together feels good!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "We thought carefully and helped each other. There is room for everyone!",
+          "kind": "dialogue",
+          "tone": "reassuring",
+          "emotion": "happy"
+        },
+        {
+          "speakerId": "narrator",
+          "text": "The three little pigs share their safe home. The End.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        }
+      ],
+      "question": null,
+      "questionLine": null,
+      "visualPerformance": {
+        "revision": "29bbffb0fd014982",
+        "characters": {
+          "pig1": {
+            "personality": [
+              "eager",
+              "imaginative",
+              "quick to try"
+            ],
+            "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+            "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance.",
+            "tone": "warm",
+            "emotion": "relieved",
+            "expression": "Softened eyes and a small grateful smile.",
+            "gesture": "Relaxed shoulders and an open, comfortable posture."
+          },
+          "pig2": {
+            "personality": [
+              "playful",
+              "friendly",
+              "helpful"
+            ],
+            "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+            "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance.",
+            "tone": "playful",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          },
+          "pig3": {
+            "personality": [
+              "thoughtful",
+              "patient",
+              "cooperative"
+            ],
+            "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+            "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance.",
+            "tone": "reassuring",
+            "emotion": "happy",
+            "expression": "A warm smile and bright, friendly eyes.",
+            "gesture": "An open, welcoming posture within the approved scene."
+          }
+        }
+      },
+      "voiceDirections": [
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "wolf",
+          "personality": [
+            "boastful",
+            "persistent",
+            "comical"
+          ],
+          "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+          "tone": "gentle",
+          "emotion": "disappointed",
+          "exaggeration": 0.54,
+          "cfg_weight": 0.4,
+          "tempo": 0.88
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "reassuring",
+          "emotion": "calm",
+          "exaggeration": 0.43,
+          "cfg_weight": 0.5,
+          "tempo": 0.96
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig1",
+          "personality": [
+            "eager",
+            "imaginative",
+            "quick to try"
+          ],
+          "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+          "tone": "warm",
+          "emotion": "relieved",
+          "exaggeration": 0.66,
+          "cfg_weight": 0.4,
+          "tempo": 1.039
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig2",
+          "personality": [
+            "playful",
+            "friendly",
+            "helpful"
+          ],
+          "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+          "tone": "playful",
+          "emotion": "happy",
+          "exaggeration": 0.75,
+          "cfg_weight": 0.4,
+          "tempo": 1.051
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "pig3",
+          "personality": [
+            "thoughtful",
+            "patient",
+            "cooperative"
+          ],
+          "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+          "tone": "reassuring",
+          "emotion": "happy",
+          "exaggeration": 0.55,
+          "cfg_weight": 0.45,
+          "tempo": 0.941
+        },
+        {
+          "revision": "29bbffb0fd014982",
+          "speakerId": "narrator",
+          "personality": [
+            "warm",
+            "observant",
+            "encouraging"
+          ],
+          "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+          "tone": "warm",
+          "emotion": "calm",
+          "exaggeration": 0.46,
+          "cfg_weight": 0.5,
+          "tempo": 0.99
+        }
+      ],
+      "facts": {
+        "houseId": "house3",
+        "material": "brick",
+        "materialLabel": "brick",
+        "outcome": "stood",
+        "action": "safe_ending",
+        "fromStage": "reflect",
+        "toStage": "complete",
+        "allPigsSafe": true,
+        "nextSceneId": "ending",
+        "cause": "heavy materials firmly joined and cooperation",
+        "process": [
+          "The wolf puffed hard at the brick walls.",
+          "The firmly joined bricks held one another in place."
+        ]
+      },
+      "priorHouses": [
+        {
+          "houseId": "house1",
+          "material": "straw",
+          "outcome": "blown_away",
+          "resolved": true
+        },
+        {
+          "houseId": "house2",
+          "material": "wood",
+          "outcome": "collapsed",
+          "resolved": true
+        }
+      ]
+    }
+  ]
+}

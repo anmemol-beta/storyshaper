@@ -6,6 +6,7 @@
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0; color: var(--text-main); }
 .live-narrative { display: grid; align-content: start; flex: 1; gap: 9px; min-height: 0; overflow: auto; font-family: var(--font-story); color: var(--text-main); }
 .live-narrative p { margin: 0; font-size: clamp(16px, 3cqi, 24px); line-height: 1.55; }
+.live-narrative .line-speaker { font-size: .8em; font-weight: 700; color: var(--text-subtle); }
 .live-narrative .speaking, .live-question.speaking { background: var(--hl); border-radius: 7px; }
 .live-question { font-family: var(--font-story); font-weight: 700; font-size: clamp(17px, 3cqi, 25px); padding: 8px 0; color: var(--text-main); }
 .live-controls { display: flex; min-width: 0; gap: 6px; }
@@ -48,6 +49,22 @@
   pointer-events: auto;
 }
 .reader-app .bar > * { pointer-events: auto; }
+.page-navigation { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.picture-notice { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; padding: 24px 68px; text-align: center; color: var(--text-subtle); font-size: 18px; line-height: 1.6; }
+.page-navigation button {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 52px; height: 80px;
+  padding: 0; border: 0; border-radius: 12px; background: transparent;
+  color: #fff; opacity: .28; font: 400 34px/1 sans-serif;
+  text-shadow: 0 2px 8px #000b; cursor: pointer;
+  pointer-events: auto; touch-action: manipulation; transition: opacity 180ms ease;
+}
+.page-navigation #previousPage { left: 8px; }
+.page-navigation #nextPage { right: 8px; }
+.page-navigation button:is(:hover, :focus-visible, :active):not(:disabled) { opacity: 1; }
+.page-navigation button:disabled { opacity: .1; cursor: default; }
+@media (hover: none) { .page-navigation button:not(:disabled) { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .page-navigation button { transition: none; } }
 .reader-app .logo { grid-area: auto; padding: 0; font-size: clamp(20px, 2.5vw, 28px); }
 .reader-app .tools { grid-area: auto; justify-self: auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .reader-app .live-select { min-width: 0; font-size: 14px; }

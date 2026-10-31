@@ -38,6 +38,7 @@ class StoryMediaPlayer {
     this.active = null;
     this.picture.cancel();
     if (!active) return;
+    active.cancelServer = server;
     clearTimeout(active.timer);
     active.controller?.abort();
     if (server && active.jobId) {
@@ -75,7 +76,7 @@ class StoryMediaPlayer {
     try {
       let result = await this.request('/api/media/jobs', active, {
         method: 'POST', body: JSON.stringify(binding)});
-      if (this.active !== active) return;
+      if (this.active !== active) { this.cancelLateJob(active, result); return; }
       if (retry && result.apply === true && result.sessionId === binding.sessionId
           && result.sceneId === binding.sceneId && result.version === binding.version
           && result.status === 'failed' && result.generationRequested === true
@@ -85,7 +86,7 @@ class StoryMediaPlayer {
         this.onState({state: 'generating', retrying: true});
         result = await this.request('/api/media/jobs', active, {
           method: 'POST', body: JSON.stringify({...binding, retryOf: result.jobId})});
-        if (this.active !== active) return;
+        if (this.active !== active) { this.cancelLateJob(active, result); return; }
       }
       active.jobId = result.jobId;
       // Drop a failed hidden bitmap before reassigning the same URL. The
@@ -95,6 +96,13 @@ class StoryMediaPlayer {
     } catch (error) {
       this.fail(active, {reason: error.code, retryable: error.retryable});
     }
+  }
+
+  cancelLateJob(active, result) {
+    // The response may identify a job only after the user has already left.
+    if (active.cancelServer && result.jobId)
+      this.fetch('/api/media/cancel', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sessionId: active.binding.sessionId, jobId: result.jobId})}).catch(() => {});
   }
 
   async request(path, active, options = {}) {

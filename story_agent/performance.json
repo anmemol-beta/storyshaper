@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "method": "Authored direction presets, not learned emotion weights or measured performance labels.",
+  "speakers": {
+    "narrator": {"exaggeration": 0.5, "cfg_weight": 0.5, "tempo": 1.0},
+    "pig1": {"exaggeration": 0.72, "cfg_weight": 0.4, "tempo": 1.06},
+    "pig2": {"exaggeration": 0.68, "cfg_weight": 0.4, "tempo": 1.03},
+    "pig3": {"exaggeration": 0.55, "cfg_weight": 0.45, "tempo": 0.96},
+    "wolf": {"exaggeration": 0.65, "cfg_weight": 0.4, "tempo": 0.93}
+  },
+  "tones": {
+    "warm": {"label": {"en": "warm", "ko": "다정하게"}, "exaggerationDelta": 0.0, "tempoFactor": 1.0},
+    "lively": {"label": {"en": "lively", "ko": "활기차게"}, "exaggerationDelta": 0.05, "tempoFactor": 1.02},
+    "thoughtful": {"label": {"en": "thoughtful", "ko": "차분히 생각하며"}, "exaggerationDelta": -0.04, "tempoFactor": 0.97},
+    "playful": {"label": {"en": "playful", "ko": "익살스럽게"}, "exaggerationDelta": 0.04, "tempoFactor": 1.01},
+    "gentle": {"label": {"en": "gentle", "ko": "부드럽게"}, "exaggerationDelta": -0.05, "tempoFactor": 0.98},
+    "curious": {"label": {"en": "curious", "ko": "궁금해하며"}, "exaggerationDelta": 0.03, "tempoFactor": 0.98},
+    "reassuring": {"label": {"en": "reassuring", "ko": "안심시키며"}, "exaggerationDelta": -0.03, "tempoFactor": 0.97}
+  },
+  "emotions": {
+    "calm": {"label": {"en": "calm", "ko": "차분함"}, "exaggerationDelta": -0.04, "tempoFactor": 0.99, "expression": "Soft eyes and a small relaxed smile.", "gesture": "Relaxed shoulders and a balanced, unhurried posture."},
+    "excited": {"label": {"en": "excited", "ko": "들뜸"}, "exaggerationDelta": 0.08, "tempoFactor": 1.02, "expression": "Bright wide eyes and an eager smile.", "gesture": "Perked ears and a lively, slightly forward-leaning posture."},
+    "curious": {"label": {"en": "curious", "ko": "궁금함"}, "exaggerationDelta": 0.02, "tempoFactor": 0.99, "expression": "Attentive eyes and gently raised eyebrows.", "gesture": "A small head tilt toward the approved scene action."},
+    "confident": {"label": {"en": "confident", "ko": "자신감"}, "exaggerationDelta": 0.04, "tempoFactor": 1.0, "expression": "A friendly, self-assured smile and focused eyes.", "gesture": "An upright, open posture without looming over anyone."},
+    "surprised": {"label": {"en": "surprised", "ko": "놀람"}, "exaggerationDelta": 0.08, "tempoFactor": 0.98, "expression": "Round eyes and a slightly open mouth; surprised rather than terrified.", "gesture": "Perked ears and a small change of balance within the approved action."},
+    "worried": {"label": {"en": "worried", "ko": "걱정"}, "exaggerationDelta": 0.02, "tempoFactor": 0.95, "expression": "Slightly raised inner eyebrows and a small concerned mouth; no tears or terror.", "gesture": "A gentle, close posture beside the other approved characters."},
+    "relieved": {"label": {"en": "relieved", "ko": "안도"}, "exaggerationDelta": -0.06, "tempoFactor": 0.98, "expression": "Softened eyes and a small grateful smile.", "gesture": "Relaxed shoulders and an open, comfortable posture."},
+    "happy": {"label": {"en": "happy", "ko": "기쁨"}, "exaggerationDelta": 0.03, "tempoFactor": 1.01, "expression": "A warm smile and bright, friendly eyes.", "gesture": "An open, welcoming posture within the approved scene."},
+    "determined": {"label": {"en": "determined", "ko": "의욕"}, "exaggerationDelta": 0.03, "tempoFactor": 1.0, "expression": "Focused eyes and a small resolute smile; never angry or menacing.", "gesture": "A steady, attentive posture directed toward the approved task."},
+    "disappointed": {"label": {"en": "disappointed", "ko": "아쉬움"}, "exaggerationDelta": -0.06, "tempoFactor": 0.94, "expression": "A gently lowered smile and softened eyebrows; mild comic disappointment.", "gesture": "Slightly lowered shoulders without threatening or distressed gestures."}
+  },
+  "actionDefaults": {
+    "choose": "curious",
+    "choose_material": "curious",
+    "build": "excited",
+    "blown_away": "surprised",
+    "collapsed": "surprised",
+    "eaten": "worried",
+    "melted": "surprised",
+    "stood": "relieved",
+    "move_to_next_house": "determined",
+    "safe_ending": "happy"
+  }
+}
