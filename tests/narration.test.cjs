@@ -5,14 +5,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 // narration.js in a sandbox: fetch answers that every line is ready, Audio records what plays, timers are manual.
-function load({ready = true, autoEnd = true, hang = false, stallAudio = false, autoPlay = true} = {}) {
+function load({ready = true, autoEnd = true, hang = false, stallAudio = false, autoPlay = true, refusePlay = false} = {}) {
   const played = [];
   const timers = [];
   const posted = [];
   const clips = [], spoken = [], pauses = [], storage = new Map(), beacons = [];
   class Audio {
     constructor(src) { this.src = src; clips.push(this); this.events = {}; }
-    play() { played.push(this.src); return Promise.resolve(); }   // "ends" only when the test calls finish()
+    play() { played.push(this.src); if (refusePlay) return Promise.reject(new Error('NotAllowedError'));
+      queueMicrotask(() => this.events.playing?.()); return Promise.resolve(); }   // "ends" only when the test calls finish()
     pause() { pauses.push(this); }
     addEventListener(name, fn) { this.events[name] = fn; }
     load() { if (ready && !stallAudio && autoPlay) queueMicrotask(() => this.events.canplay?.()); }
@@ -33,7 +34,8 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
     Audio,
     SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } },
     speechSynthesis: {paused:false, current:null,
-      speak(utterance) { this.current = utterance; spoken.push(utterance); if (autoEnd && !this.paused) queueMicrotask(() => { if (this.current === utterance) utterance.onend?.(); }); },
+      speak(utterance) { this.current = utterance; spoken.push(utterance);
+        queueMicrotask(() => { if (this.current === utterance) { utterance.onstart?.(); if (autoEnd && !this.paused) utterance.onend?.(); } }); },
       cancel() { this.current = null; }, pause() {this.paused = true; pauses.push('browser');},
       resume() {this.paused = false; pauses.push('resume'); if (autoEnd && this.current) {const utterance = this.current; queueMicrotask(() => {if (this.current === utterance) utterance.onend?.();});}}},
   };
@@ -163,6 +165,51 @@ test('ready parent clips still use the selected parent voice', async () => {
   assert.equal(h.played.length, 1);
   assert.equal(h.spoken.length, 0);
   h.clips.at(-1).onended(); await reading;
+});
+
+test('onSpeak reports a line when its voice is heard, once per line, not when it is queued', async () => {
+  const h = load({autoPlay:false});
+  const lines = [], heard = [], sentences = [];
+  const reading = h.Narration.speak([{text:'The wolf took a very deep breath. Then he puffed at the walls.'}, {text:'Whoosh!'}],
+    {key:'cue', onLine: i => lines.push(i), onSpeak: i => heard.push(i),
+      onSentence: (i, text) => sentences.push([i, text])});
+  await tick();
+  assert.deepEqual(lines, [0]);
+  assert.deepEqual(heard, [], 'nothing is heard while the clip is still being voiced');
+  h.clips.at(-1).events.canplay(); await tick();
+  assert.deepEqual(heard, [0]);
+  assert.deepEqual(sentences, [[0, 'The wolf took a very deep breath.']]);
+  h.clips.at(-1).onended(); await tick();
+  h.clips.at(-1).events.canplay(); await tick();     // the second sentence of the same line
+  assert.deepEqual(heard, [0]);
+  assert.deepEqual(sentences[1], [0, 'Then he puffed at the walls.']);
+  h.clips.at(-1).onended(); await tick();
+  h.clips.at(-1).events.canplay(); await tick();
+  assert.deepEqual(heard, [0, 1]);
+  h.clips.at(-1).onended(); await reading;
+});
+
+test('a clip the browser refuses to play is not reported as heard; the browser voice that reads it is', async () => {
+  const h = load({refusePlay:true, autoEnd:false});
+  const heard = [];
+  const reading = h.Narration.speak([{text:'Autoplay is blocked here.'}], {key:'cue-refused', onSpeak: i => heard.push(i)});
+  await tick();
+  assert.equal(h.played.length, 1, 'the parent clip was tried');
+  assert.equal(h.spoken.length, 1, 'the browser voice took over');
+  assert.deepEqual(heard, [0], 'reported once, when the browser voice started');
+  h.nativeSpeech.current.onend(); await reading;
+});
+
+test('onSpeak fires once when the browser voice reads a line whose clip failed', async () => {
+  const h = load({stallAudio:true});
+  const heard = [];
+  const reading = h.Narration.speak([{text:'The file is missing.'}], {key:'cue-broken', onSpeak: i => heard.push(i)});
+  await tick();
+  assert.deepEqual(heard, []);
+  h.runTimer(800); await tick();
+  assert.deepEqual(heard, [0]);
+  assert.equal(h.spoken.length, 1);
+  await reading;
 });
 
 test('a stalled voice service gets a bounded fallback instead of a silent pending fetch', async () => {
