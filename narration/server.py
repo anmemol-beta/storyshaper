@@ -278,7 +278,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def guarded(self):
         port = self.server.server_port
-        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
+        # NARRATION_PUBLIC_HOSTS: the hosted address (deploy/modal_voice.py); pages still have to be local.
+        public = {h.strip() for h in os.environ.get("NARRATION_PUBLIC_HOSTS", "").split(",") if h.strip()}
+        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"} | public:
             self.error(403, "invalid_host", "Use the local server address.")
             return False
         origin = self.headers.get("Origin")
@@ -625,6 +627,7 @@ def lazy_synthesizer(factory=chatterbox_synthesizer):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8100)
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 when hosted (deploy/modal_voice.py)")
     args = parser.parse_args()
     api_key = load_api_key()
     print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
@@ -639,7 +642,7 @@ def main():
     for language in LANGUAGES:
         narrator.submit([{"text": "Hello."}], "_preload", language=language)
     library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
-    with Server(("127.0.0.1", args.port), narrator, library) as server:
+    with Server((args.host, args.port), narrator, library) as server:
         print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)
         try:
             server.serve_forever()
