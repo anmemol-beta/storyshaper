@@ -12,7 +12,7 @@ const LINES = [
 
 // The server voices scene sentences in order; a sentence that is not voiced yet answers 504 after its wait.
 // voice(k) makes sentence k answer with audio. Blob URLs play at once; play() "ends" when the test calls end().
-function sceneHarness({voiced = [0]} = {}) {
+function sceneHarness({voiced = [0], pack = null, missingFiles = []} = {}) {
   const played = [], spoken = [], audios = [], requests = [], timers = [], revoked = [];
   const ready = new Set(voiced), waiting = new Map();
   const storage = new Map();
@@ -38,6 +38,13 @@ function sceneHarness({voiced = [0]} = {}) {
     navigator: {sendBeacon() { return true; }},
     fetch: async (url, options = {}) => {
       requests.push(String(url));
+      if (String(url) === 'audio/pack/manifest.json') {
+        return pack ? {ok: true, json: async () => ({voices: pack})} : {ok: false, status: 404};
+      }
+      if (String(url).startsWith('audio/pack/')) {
+        if (missingFiles.includes(String(url))) return {ok: false, status: 404};
+        return {ok: true, status: 200, blob: async () => Object.assign(new Blob(['ID3']), {line: 'app'})};
+      }
       if (String(url).includes('/api/voice/lines')) {
         const lines = JSON.parse(options.body).lines;
         return {ok: true, json: async () => ({clips: lines.map((line, k) => ({url: `/audio/default/line${k}.mp3`, ready: ready.has(k)}))})};
@@ -157,4 +164,43 @@ test('only a few scenes are kept for going back', async () => {
   for (let i = 1; i <= 6; i++) await h.Narration.prepareScene([{speakerId: 'narrator', text: `Scene ${i}.`}], {language: 'en'});
   assert.equal(h.Narration.getPreparedScene([{speakerId: 'narrator', text: 'Scene 0.'}], {language: 'en'}), null);
   assert.equal(first.invalid, true);
+});
+
+test('fixed lines in the storybook voice play from the app without asking the server', async () => {
+  const pack = {default: {'en|narrator||||The first sentence is ready.': 'a.mp3', 'en|pig1||||The next sentence is still being made.': 'b.mp3'}};
+  const h = sceneHarness({voiced: [], pack});
+  const prepared = await h.Narration.prepareScene(LINES, {language: 'en'});
+  await tick();
+  const reading = h.Narration.speak(LINES, {scene: true, prepared, key: 'packed', language: 'en'});
+  await tick(); h.playing().end(); await tick(); h.playing().end();
+  await reading;
+  assert.deepEqual(h.played, ['blob:app-1', 'blob:app-2']);
+  assert.deepEqual(h.requests, ['audio/pack/manifest.json', 'audio/pack/a.mp3', 'audio/pack/b.mp3']);
+});
+
+test('only the lines the app does not have are sent to the server, and a missing app file is voiced there', async () => {
+  const pack = {default: {'en|narrator||||The first sentence is ready.': 'a.mp3'}};
+  const h = sceneHarness({voiced: [0], pack, missingFiles: ['audio/pack/a.mp3']});
+  await h.Narration.prepareScene(LINES, {language: 'en'});
+  const queued = h.requests.filter(url => url.endsWith('/api/voice/lines'));
+  assert.equal(queued.length, 2, 'the missing sentence first, then the app file that was not found');
+  assert.ok(h.requests.some(url => url.endsWith('/audio/default/line0.mp3?wait=30')));
+});
+
+test("a parent's voice never plays the storybook voice's app files", async () => {
+  const pack = {default: {'en|narrator||||The first sentence is ready.': 'a.mp3'}};
+  const h = sceneHarness({voiced: [0, 1], pack});
+  h.storage.set('story-voice', 'abcdef123456');
+  await h.Narration.prepareScene(LINES, {language: 'en'});
+  assert.ok(!h.requests.some(url => url.startsWith('audio/pack/') && url.endsWith('.mp3')));
+});
+
+test("the built-in male narrator reads from its own app files and shares the characters' files", async () => {
+  const pack = {default: {'en|narrator||||The first sentence is ready.': 'a.mp3', 'en|pig1||||The next sentence is still being made.': 'b.mp3'},
+    '000000007127': {'en|narrator||||The first sentence is ready.': 'm.mp3'}};
+  const h = sceneHarness({voiced: [], pack});
+  h.storage.set('story-voice', '000000007127');
+  await h.Narration.prepareScene(LINES, {language: 'en'});
+  await tick();
+  assert.deepEqual(h.requests, ['audio/pack/manifest.json', 'audio/pack/m.mp3', 'audio/pack/b.mp3']);
 });

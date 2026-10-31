@@ -86,6 +86,13 @@ VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|previe
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text(encoding="utf-8"))}
 
 
+def builtin_ref(voice_id):
+    """A built-in narrator's reference, relative to the repository like casting.json, so its cache keys (and the
+    app's audio pack) are the same on every machine."""
+    ref = BUILTIN_VOICES[voice_id]["ref"]
+    return f"{ref}#{hashlib.sha1((ROOT / ref).read_bytes()).hexdigest()[:8]}"
+
+
 class Narrator:
     """Queues lines and generates them one at a time on a single worker thread."""
 
@@ -319,7 +326,9 @@ class Handler(BaseHTTPRequestHandler):
         so the first pages are ready by the time the parent presses Save."""
         if voice_id in (None, "default"):
             return "default", None
-        ref = ROOT / BUILTIN_VOICES[voice_id]["ref"] if voice_id in BUILTIN_VOICES else self.server.library.ref(voice_id)
+        if voice_id in BUILTIN_VOICES:
+            return voice_id, builtin_ref(voice_id)
+        ref = self.server.library.ref(voice_id)
         return voice_id, f"{ref}#{hashlib.sha1(ref.read_bytes()).hexdigest()[:8]}"
 
     def finetuned(self, voice_id):

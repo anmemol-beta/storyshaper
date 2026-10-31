@@ -452,6 +452,36 @@ process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(s
         for read, ahead in zip(json.loads(result.stdout), pages):
             self.assertIn(read, ahead)
 
+    def test_the_app_ships_every_fixed_line_in_the_current_storybook_voices(self):
+        """Fails when the story script or voice settings changed: run python -m narration.pack again."""
+        from narration.pack import PACK, fixed_lines
+        from narration.server import BUILTIN_VOICES, builtin_ref
+        voices = json.loads((PACK / "manifest.json").read_text(encoding="utf-8"))["voices"]
+        self.assertEqual(set(voices), {"default", *BUILTIN_VOICES})
+        with tempfile.TemporaryDirectory() as cache:
+            n = Narrator(FakeVoice(), cache)
+            for voice, manifest in voices.items():
+                ref = None if voice == "default" else builtin_ref(voice)
+                expected = {}
+                for language in ("en", "ko"):
+                    lines = {i: line for i, line in fixed_lines(language).items()
+                             if voice == "default" or line.get("speakerId", "narrator") == "narrator"}
+                    clips = n.submit(list(lines.values()), voice, ref, enqueue=False, language=language)
+                    expected.update({i: f"{clip['key']}.mp3" for i, clip in zip(lines, clips)})
+                with self.subTest(voice=voice):
+                    self.assertEqual(sorted(set(expected) - set(manifest)), [], "lines missing from the app")
+                    self.assertEqual(sorted(set(manifest) - set(expected)), [], "lines the story no longer says")
+                    self.assertEqual([i for i in expected if manifest[i] != expected[i]], [], "lines voiced with old settings")
+        used = {name for manifest in voices.values() for name in manifest.values()}
+        self.assertEqual(sorted(f.name for f in PACK.glob("*.mp3")), sorted(used))
+
+    def test_app_line_keys_match_the_reader(self):
+        # The same keys are pinned for packKey() in tests/scene-narration.test.cjs.
+        from narration.pack import pack_key
+        self.assertEqual(pack_key({"speakerId": "narrator", "text": "The first sentence is ready."}, "en"),
+                         "en|narrator||||The first sentence is ready.")
+        self.assertEqual(pack_key({"text": "Hi!", "tone": "playful"}, "ko"), "ko|narrator||playful||Hi!")
+
     def test_main_queues_and_checks_the_current_authored_roles_in_both_languages(self):
         from narration import warm
         wolf = {"speakerId": "wolf", "text": "One big puff!", "kind": "dialogue",

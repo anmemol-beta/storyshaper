@@ -8,6 +8,7 @@
    Narration.interject() says a short "let's see…" line in the parent's voice right away, to fill the wait after an answer.
    Narration.prepare(lines) only returns clip URLs, for pages that play audio themselves (the picture book).
    Narration.stop() cuts everything, e.g. when the child starts talking or the page changes.
+   Fixed lines in the storybook voices play from files shipped with the app (audio/pack); only the rest go to the server.
    The parent's voice and "every character in this voice" come from voice.html (localStorage). */
 const Narration = (() => {
   "use strict";
@@ -213,6 +214,35 @@ const Narration = (() => {
     return body.clips;
   }
 
+  // Fixed lines in the storybook voice and the built-in male narrator ship with the app (prototype/audio/pack, made by
+  // narration/pack.py), so they play without asking the server. A parent's voice is always voiced by the server.
+  // A built-in narrator's characters sound the same as the storybook voice's, so they share its files.
+  const PACK = "audio/pack/";
+  let pack = null;
+  const packKey = (line, language) => [language, line.speakerId || "narrator", line.kind || "", line.tone || "",
+    line.emotion || "", line.text].join("|");
+  function packed(lines, language) {
+    if (allRoles()) return Promise.resolve(lines.map(() => null));
+    pack ||= fetch(PACK + "manifest.json").then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    return pack.then(({voices = {}}) => lines.map(line => {
+      const own = voices[voiceId() || "default"];
+      const key = packKey(line, language);
+      const file = own && (own[key] || ((line.speakerId || "narrator") !== "narrator" && voices.default?.[key]));
+      return file ? PACK + file : null;
+    }));
+  }
+
+  // Clips for these lines, in order: the app's own file where there is one ({packed: true}), the server for the rest.
+  async function clipsFor(lines, options) {
+    const files = await packed(lines, options.language);
+    const missing = lines.filter((_, k) => !files[k]);
+    const clips = missing.length ? await queue(missing, options) : [];
+    if (!Array.isArray(clips) || clips.length !== missing.length) throw new Error("invalid_scene_audio");
+    let i = 0;
+    return files.map(file => file ? {url: file, ready: true, packed: true} : clips[i++]);
+  }
+  const clipUrl = (clip, wait) => clip.packed ? clip.url : `${server}${clip.url}?wait=${wait}`;
+
   const asLines = lines => lines.map(line => {
     if (typeof line === "string") return {speakerId: "narrator", text: line};
     const spoken = {speakerId: line.speakerId || "narrator", text: line.text};
@@ -288,10 +318,10 @@ const Narration = (() => {
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
     let clip;
-    try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language, background: true}); } catch { return; }
+    try { [clip] = await clipsFor([{speakerId: "narrator", text: list[lastFiller]}], {language, background: true}); } catch { return; }
     if (!clip.ready || !waiting) return;
     if (filler) filler.end();
-    const sound = new Audio(`${server}${clip.url}`);
+    const sound = new Audio(clipUrl(clip, 0));
     let resolve;
     const current = {audio: sound, done: new Promise(r => { resolve = r; }), end: () => { resolve(); if (filler === current) filler = null; }};
     filler = current;
@@ -303,7 +333,7 @@ const Narration = (() => {
   // Every language unless one is given.
   function warm(language = null) {
     for (const lang of language ? [language] : LANGUAGES) {
-      queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang, background: true}).catch(() => {});
+      clipsFor(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang, background: true}).catch(() => {});
     }
   }
 
@@ -365,6 +395,15 @@ const Narration = (() => {
     throw new Error("scene_line_timeout");
   }
 
+  async function fetchPacked(url, signal) {
+    const response = await abortable(fetch(url, {signal}), signal);
+    if (!response.ok) throw new Error(`packed_line_${response.status}`);
+    const blob = await abortable(response.blob(), signal);
+    if (!blob.size) throw new Error("invalid_packed_line");
+    cancelled(signal);
+    return URL.createObjectURL(blob);
+  }
+
   // Resolves once the first sentence is downloaded. The rest keep downloading in order on the asset's own
   // controller, so they survive the caller moving on and stop only when the asset is discarded.
   async function prepareScene(lines, {language = "en", signal, retry = false, onProgress = () => {}} = {}) {
@@ -380,11 +419,16 @@ const Narration = (() => {
     signal?.addEventListener("abort", abort, {once: true});
     const asset = {signature, parts, urls: [], controller, loads: []};
     try {
-      const clips = await queue(asLines(parts), {language, signal: controller.signal, timeout: REQUEST_MS});
+      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: REQUEST_MS});
       if (!Array.isArray(clips) || clips.length !== parts.length) throw new Error("invalid_scene_audio");
       if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
       let previous = Promise.resolve();
-      asset.loads = clips.map((clip, k) => previous = previous.then(() => fetchLine(clip.url, controller.signal)).then(url => {
+      asset.loads = clips.map((clip, k) => previous = previous.then(() => clip.packed
+        ? fetchPacked(clip.url, controller.signal).catch(error => {
+          if (controller.signal.aborted) throw error;     // a missing app file: the server voices it instead
+          return queue(asLines([parts[k]]), {language, signal: controller.signal}).then(([c]) => fetchLine(c.url, controller.signal));
+        })
+        : fetchLine(clip.url, controller.signal)).then(url => {
         asset.urls[k] = url;
         onProgress({ready: k + 1, total: clips.length});
         return url;
@@ -463,7 +507,7 @@ const Narration = (() => {
     const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({...line, text, line: i})));
     let clips = null;
     if (LANGUAGES.includes(language)) {
-      try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}
+      try { clips = await clipsFor(asLines(parts), {language, signal: readingController.signal}); } catch {}
     }
     if (my !== token) return;
     let heard = -1;
@@ -477,7 +521,7 @@ const Narration = (() => {
       if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
       const clip = clips?.[k];
       const wait = clip?.ready ? 0 : LINE_WAIT;
-      const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS,
+      const played = clip ? await playClip(clipUrl(clip, wait), my, wait * 1000 + CLIP_LOAD_MS,
         k === 0 ? firstLineReady : null, () => announce(parts[k])) : false;
       if (my !== token) return;
       if (!played) {
