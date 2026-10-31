@@ -5,12 +5,16 @@ POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?
                                    interactive newest first ("priority":"background" for warmup;
                                    "peek": only report which are ready)
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
+POST   /api/voice/ahead            {"language", "storyState"?, "voiceId"?, "allRoles"?, "peek"?}  voice the authored
+                                   pages that can open next (the opening page without a state), every page's first
+                                   sentence first; {"book": true}: the whole book in reading order, as warmup.
+                                   Replies {"pages", "lines", "ready"}
 POST   /api/voice/scene            prepare all scene lines and its question as one complete audio file
 GET    /audio/<voice>/scene-<key>.wav  complete PCM scene; never streams a partially prepared scene
 GET    /api/voice/config           roles and languages
 
 Parent voices (narration/voices.py)
-GET    /api/voices                 saved voices
+GET    /api/voices                 built-in narrators ("builtin": true), then saved voices
 POST   /api/voices[?recorded=1]    raw recording or video body -> draft voice with suggested clips
                                    (recorded=1: also check that the consent sentence was read)
 GET    /api/voices/<id>/full.wav   the draft's whole audio, to listen to the suggested clips
@@ -56,7 +60,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CASTING = json.loads((Path(__file__).with_name("casting.json")).read_text(encoding="utf-8"))
 CACHE = ROOT / "voice" / "cache"
 PROFILES = ROOT / "voice" / "profiles"
-PARENT_ROLES = ("narrator", "pig")          # roles read in the parent's voice
+# Built-in narrators a reader can choose instead of the default one; they read like a saved parent voice.
+BUILTIN_VOICES = {"000000007127": {"name": "Storybook voice (male)", "ref": "voice/characters/narrator_libritts_7127.wav"}}
+PARENT_ROLES = ("narrator",)               # the parent reads the narration; every character keeps its own voice (10/31)
 # The preview is the picture book's first line, so the book can start the moment the voice is saved.
 PREVIEW_TEXT = {"en": "Once upon a time, a mother pig lived with her three little pigs.",
                 "ko": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요."}
@@ -70,12 +76,21 @@ MAX_TEXT = 500
 # Korean was chosen by ear on 10/30 (voice/korean.html): the parent's English clip. Since 10/31 it uses the English
 # settings too, to be checked by ear later.
 LANGUAGES = ("en", "ko")
+# Queue ranks: the page being opened, the pages that can open next, then the rest of the book.
+PRIORITIES = ("interactive", "ahead", "background")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
 SCENE_AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/scene-([0-9a-f]{16})\.wav$")
 VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune|sample)(?:/(\d{1,4})(\.wav)?)?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text(encoding="utf-8"))}
+
+
+def builtin_ref(voice_id):
+    """A built-in narrator's reference, relative to the repository like casting.json, so its cache keys (and the
+    app's audio pack) are the same on every machine."""
+    ref = BUILTIN_VOICES[voice_id]["ref"]
+    return f"{ref}#{hashlib.sha1((ROOT / ref).read_bytes()).hexdigest()[:8]}"
 
 
 class Narrator:
@@ -95,8 +110,6 @@ class Narrator:
 
     def role(self, speaker_id):
         speaker_id = str(speaker_id or "narrator")
-        if speaker_id.startswith("pig"):
-            return "pig"
         return speaker_id if speaker_id in self.casting else "narrator"
 
     def settings(self, role, parent_ref=None, all_roles=False):
@@ -106,7 +119,7 @@ class Narrator:
         if role in PARENT_ROLES or all_roles:
             settings["ref"] = str(parent_ref) if parent_ref is not None else self.casting["narrator"]["ref"]
         from story_agent.performance import voice_direction
-        direction = voice_direction({"speakerId": "pig1" if role == "pig" else role, "text": "."})
+        direction = voice_direction({"speakerId": role, "text": "."})
         settings.update({key: direction[key] for key in ("exaggeration", "cfg_weight", "tempo")})
         settings["exclaim_exaggeration"] = direction["exaggeration"]
         settings["performance"] = direction
@@ -137,14 +150,14 @@ class Narrator:
 
     def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None,
                priority="interactive", t3_scope=None):
-        """Queue interactive passages before warmup, newest request first within each priority.
+        """Queue interactive passages, then pages ahead, then warmup; newest request first within each priority.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
         enqueue=False only reports which lines are ready (for progress). t3: a fine-tuned T3 file for the
         parent roles in English (narration/finetune_merge.py); it is part of the cache key.
         Repeated warmup shares the pending or active job instead of changing its position."""
         batch = -next(self.batch)
-        rank = 1 if priority == "background" else 0
+        rank = PRIORITIES.index(priority)
         clips = []
         with self.cond:
             self.dropped.discard(voice)
@@ -164,9 +177,9 @@ class Narrator:
                 job_key = (voice, key)
                 if not ready and enqueue and self.queued.get(job_key) != self.active.get(job_key, -1):
                     previous = self.pending.get(job_key)
-                    # Warmup never demotes a passage or moves repeated warmup ahead. A passage can
-                    # promote an existing warmup job; an in-flight job is always reused.
-                    promote = previous and (rank < previous[0] or rank == previous[0] == 0 and batch < previous[1])
+                    # Warmup never demotes a passage or moves repeated warmup ahead. A passage or a page
+                    # ahead can promote an earlier job; an in-flight job is always reused.
+                    promote = previous and (rank < previous[0] or rank == previous[0] < 2 and batch < previous[1])
                     if previous is None or promote:
                         if previous is not None:
                             self.queue.remove(previous)
@@ -278,7 +291,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def guarded(self):
         port = self.server.server_port
-        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
+        # NARRATION_PUBLIC_HOSTS: the hosted address (deploy/modal_voice.py); pages still have to be local.
+        public = {h.strip() for h in os.environ.get("NARRATION_PUBLIC_HOSTS", "").split(",") if h.strip()}
+        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"} | public:
             self.error(403, "invalid_host", "Use the local server address.")
             return False
         origin = self.headers.get("Origin")
@@ -311,12 +326,14 @@ class Handler(BaseHTTPRequestHandler):
         so the first pages are ready by the time the parent presses Save."""
         if voice_id in (None, "default"):
             return "default", None
+        if voice_id in BUILTIN_VOICES:
+            return voice_id, builtin_ref(voice_id)
         ref = self.server.library.ref(voice_id)
         return voice_id, f"{ref}#{hashlib.sha1(ref.read_bytes()).hexdigest()[:8]}"
 
     def finetuned(self, voice_id):
         """The voice's merged fine-tune ("path#mtime") when it is switched on, else None."""
-        if voice_id in (None, "default"):
+        if voice_id in (None, "default") or voice_id in BUILTIN_VOICES:
             return None
         finetune = self.server.library.meta(voice_id).get("finetune") or {}
         path = self.server.library.folder(voice_id) / str(finetune.get("file", ""))
@@ -325,7 +342,7 @@ class Handler(BaseHTTPRequestHandler):
         return f"{path}#{int(path.stat().st_mtime)}"
 
     def finetune_scope(self, voice_id):
-        if voice_id in (None, "default"):
+        if voice_id in (None, "default") or voice_id in BUILTIN_VOICES:
             return None
         return (self.server.library.meta(voice_id).get("finetune") or {}).get("scope")
 
@@ -369,7 +386,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise VoiceError(400, "invalid_language", "Language must be en or ko.")
             return self.reply(200, training_catalog(language))
         if url.path == "/api/voices":
-            return self.reply(200, {"voices": self.server.library.saved()})
+            builtin = [{"id": voice_id, "name": voice["name"], "builtin": True} for voice_id, voice in BUILTIN_VOICES.items()]
+            return self.reply(200, {"voices": builtin + self.server.library.saved()})
         route = VOICE_ROUTE.match(url.path)
         if route and route.group(2) == "train" and route.group(4):
             return self.reply(200, self.server.library.training_audio(route.group(1), int(route.group(3))), "audio/wav")
@@ -439,6 +457,27 @@ class Handler(BaseHTTPRequestHandler):
                                                              enqueue=body.get("peek") is not True, language=language,
                                                              t3=self.finetuned(body.get("voiceId")), priority=priority,
                                                              t3_scope=self.finetune_scope(body.get("voiceId")))})
+        if path == "/api/voice/ahead":
+            from .warm import book_pages, pages_ahead
+            body = self.json_body()
+            language = body.get("language", "en")
+            if language not in LANGUAGES:
+                raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
+            try:
+                pages = book_pages(language) if body.get("book") is True else pages_ahead(language, body.get("storyState"))
+            except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+                raise VoiceError(400, "invalid_story_state", "Send the story state of the page being read.")
+            if body.get("book") is True:          # the whole book in reading order
+                lines = [line for page in pages for line in page]
+            else:                                 # every next page's first sentence before the rest of any page
+                lines = [page[0] for page in pages] + [line for page in pages for line in page[1:]]
+            voice, ref = self.parent_ref(body.get("voiceId"))
+            clips = narrator.submit(lines, voice, ref, body.get("allRoles") is True, enqueue=body.get("peek") is not True,
+                                    language=language, t3=self.finetuned(body.get("voiceId")),
+                                    priority="background" if body.get("book") is True else "ahead",
+                                    t3_scope=self.finetune_scope(body.get("voiceId")))
+            ready = {clip["key"] for clip in clips if clip["ready"]}
+            return self.reply(200, {"pages": len(pages), "lines": len({clip["key"] for clip in clips}), "ready": len(ready)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -625,6 +664,7 @@ def lazy_synthesizer(factory=chatterbox_synthesizer):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8100)
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 when hosted (deploy/modal_voice.py)")
     args = parser.parse_args()
     api_key = load_api_key()
     print("Muse Voice Transcribe: " + ("configured" if api_key else "no MODEL_API_KEY; clips are not transcribed"),
@@ -639,7 +679,7 @@ def main():
     for language in LANGUAGES:
         narrator.submit([{"text": "Hello."}], "_preload", language=language)
     library = VoiceLibrary(PROFILES, muse_transcriber(api_key) if api_key else lambda wav: None)
-    with Server(("127.0.0.1", args.port), narrator, library) as server:
+    with Server((args.host, args.port), narrator, library) as server:
         print(f"Narration server: http://127.0.0.1:{server.server_port}", flush=True)
         try:
             server.serve_forever()

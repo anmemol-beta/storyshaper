@@ -253,7 +253,8 @@
 
   function voiceOptions() {
     const selected = typeof Narration !== "undefined" ? Narration.voiceId?.() || "" : "";
-    const options = [{id: "", name: t("Storybook voice", "기본 목소리")}, ...savedVoices];
+    const options = [{id: "", name: t("Storybook voice", "기본 목소리")},
+      ...savedVoices.map(voice => voice.builtin ? {...voice, name: t("Storybook voice (male)", "기본 목소리 (남성)")} : voice)];
     // Keep the selected name while a service error prevents refreshing the list.
     if (selected && !options.some(voice => voice.id === selected))
       options.push({id: selected, name: Narration.voiceName?.() || selected});
@@ -279,7 +280,7 @@
       const selected = Narration.voiceId?.();
       if (selected && !savedVoices.some(voice => voice.id === selected)) chooseVoice("");
       voiceOptions();
-      ui.voiceSelectStatus.textContent = savedVoices.length ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
+      ui.voiceSelectStatus.textContent = savedVoices.some(voice => !voice.builtin) ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
         : t("No saved voices yet. Add a parent's voice.", "저장된 목소리가 없어요. 부모 목소리를 추가해 주세요.");
     } catch {
       if (request !== voiceListRequest || ui.readerSettings.hidden) return;
@@ -297,6 +298,7 @@
     Narration.selectVoice?.(id || null, voice?.name || "");
     reader();
     voiceOptions();
+    if (!snapshot) voiceNextPages();
     if (displayed && !pending && activity === "idle" && ui.readAloud.checked) {
       replay++;
       preparePresentation(displayed, {remember: false, image: displayedImage});
@@ -389,7 +391,7 @@
     preparation.failed = true;
     preparation.controller?.abort();
     ui.loading.hidden = false;
-    ui.loadingText.textContent = t("The whole page's voice isn't ready yet.", "장면 전체의 목소리를 아직 준비하지 못했어요.");
+    ui.loadingText.textContent = t("This page's voice isn't ready yet.", "이 장면의 목소리를 아직 준비하지 못했어요.");
     ui.retryMedia.textContent = t("Prepare voice again", "목소리 다시 준비하기");
     ui.retryMedia.hidden = false;
     ui.retryMedia.disabled = false;
@@ -405,8 +407,8 @@
     const attempt = ++preparation.attempt;
     ui.retryMedia.hidden = true;
     ui.retryMedia.disabled = true;
-    ui.loadingText.textContent = t("Preparing every voice for this page…", "이 장면의 목소리를 모두 준비하고 있어요…");
-    say(t("The next page opens when its whole narration is ready.", "장면의 낭독이 모두 준비되면 다음 장면이 열려요."));
+    ui.loadingText.textContent = t("Preparing the voice…", "목소리를 준비하고 있어요…");
+    say(t("The next page opens as soon as its first line is voiced.", "첫 문장의 목소리가 준비되면 바로 다음 장면이 열려요."));
     preparation.timer = setTimeout(() => narrationFailed(preparation), 180000);
     try {
       const options = {language: preparation.state.language, signal: preparation.controller.signal,
@@ -414,8 +416,7 @@
           if (!preparationLive(preparation) || preparation.failed || preparation.audioReady
               || attempt !== preparation.attempt || !Number.isInteger(ready) || !Number.isInteger(total)
               || total < 1 || ready < 0 || ready > total) return;
-          ui.loadingText.textContent = t(`Preparing page voices (${ready}/${total})…`,
-            `이 장면의 목소리를 준비하고 있어요 (${ready}/${total})…`);
+          ui.loadingText.textContent = t(`Preparing the voice (${ready}/${total})…`, `목소리를 준비하고 있어요 (${ready}/${total})…`);
         }};
       const operation = (!retry && Narration.getPreparedScene?.(passageLines(preparation.state), options))
         || Narration.prepareScene(passageLines(preparation.state), options);
@@ -493,8 +494,15 @@
     ui.pictureNotice.textContent = t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
   }
 
+  // Voice the pages a tapped choice can open, once this page is showing (so they never delay its own lines).
+  function voiceNextPages() {
+    if (typeof Narration === "undefined" || !ui.readAloud.checked) return;
+    Narration.ahead?.(snapshot?.storyState || null, snapshot?.language || selectedLanguage);
+  }
+
   function render(state, {remember = true} = {}) {
     displayed = state;
+    if (state === snapshot && state.question) voiceNextPages();
     if (remember) { rememberPage(state, displayedImage); pageIndex = pages.length - 1; }
     pictureVisibility();
     if (state.choiceMode) choiceLocks.add(questionKey(state));
@@ -965,6 +973,7 @@
       localStorage.setItem("story-language", language);
       labels();
       syncControls();
+      voiceNextPages();
       return;
     }
     cancelWork({server: false});
@@ -1013,6 +1022,7 @@
   labels();
   syncControls();
   if (typeof Narration !== "undefined") Narration.warm?.(selectedLanguage);
+  voiceNextPages();
   api("/api/config").then(data => {
     config = data;
     media.configure(data);

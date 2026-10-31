@@ -97,6 +97,62 @@ def authored_book(language="en"):
     return book
 
 
+FIELDS = ("speakerId", "text", "kind", "tone", "emotion")
+
+
+def _page(lines, question):
+    """A page as live.html reads it (passageLines in prototype/live-book.js), one entry per voiced sentence."""
+    if question:
+        lines = [*lines, {"speakerId": "narrator", "text": question["text"], "kind": "narration",
+                          "tone": "curious", "emotion": "curious"}]
+    return [{**{field: line[field] for field in FIELDS if field in line}, "text": text}
+            for line in lines if line["text"].strip() for text in _sentences(line["text"].strip())]
+
+
+def _next_states(engine, state, tapped=False):
+    """States after this page. tapped: only the materials of the three choices a child can tap."""
+    if state["stage"] == "complete":
+        return []
+    from story_agent.engine import STORIES, _materials_in
+    house = STORIES[state["language"]]["houses"][state["houseIndex"] - 1]
+    materials = house["allowedMaterials"] if state["stage"] == "choose" else [None]
+    if tapped and state["stage"] == "choose":
+        materials = [_materials_in(choice["answer"])[0] for choice in engine._question(state)["choices"]]
+    return [engine._transition(state, material)[0] for material in materials]
+
+
+def pages_ahead(language, story_state=None):
+    """The authored pages that can open next: the opening page without a state, otherwise the page each
+    of the three choices leads to. A tapped choice is read exactly as written; a typed answer is rewritten
+    by the model, so its page cannot be voiced ahead."""
+    from story_agent.engine import MockProvider, StoryEngine
+
+    engine = StoryEngine(MockProvider(), language)
+    if story_state is None:
+        states = [engine.start("voice-ahead")["storyState"]]
+    else:
+        StoryEngine._validate_snapshot({"storyState": story_state, "language": language, "version": 0, "attempts": 0,
+                                        "sceneId": StoryEngine._scene_id(story_state)})
+        states = _next_states(engine, story_state, tapped=True)
+    return [_page(engine._authored_lines(state), engine._question(state)) for state in states]
+
+
+def book_pages(language):
+    """Every authored page once, nearest the opening first (breadth-first over the choices)."""
+    from story_agent.engine import MockProvider, StoryEngine
+
+    engine = StoryEngine(MockProvider(), language)
+    states, pages, seen = [engine.start("voice-book")["storyState"]], [], set()
+    for state in states:                     # grows while it is walked
+        page = _page(engine._authored_lines(state), engine._question(state))
+        key = json.dumps(page, sort_keys=True)
+        if key not in seen:
+            seen.add(key)
+            pages.append(page)
+        states += _next_states(engine, state)
+    return pages
+
+
 def lines_for(voice, texts, peek=False, language="en"):
     """Queue (or with peek, only check) strings or utterance objects; returns the clips."""
     clips = []

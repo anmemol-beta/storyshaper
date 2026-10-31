@@ -5,7 +5,19 @@
 (() => {
   "use strict";
 
-  const server = new URLSearchParams(location.search).get("voiceServer") || "http://127.0.0.1:8100";
+  // The voice server: Modal (deploy/modal_voice.py) unless ?voiceServer= names another, e.g. http://127.0.0.1:8100 for
+  // the server on this Mac. The choice is remembered so links between pages keep it; ?voiceServer=modal goes back.
+  // Same in narration.js, voice-setup.js and voice-train.js.
+  const server = (() => {
+    const MODAL = "https://shj0213--storyshaper-voice.us-east.modal.run";
+    const asked = new URLSearchParams(location.search).get("voiceServer");
+    const chosen = asked && asked !== "modal" ? asked.replace(/\/$/, "") : null;
+    try {
+      if (asked === "modal") localStorage.removeItem("voice-server");
+      else if (chosen) localStorage.setItem("voice-server", chosen);
+      return chosen || localStorage.getItem("voice-server") || MODAL;
+    } catch { return chosen || MODAL; }
+  })();
   const $ = id => document.getElementById(id);
   const KO = {
     "Voice Practice · StoryShaper": "목소리 연습 · StoryShaper",
