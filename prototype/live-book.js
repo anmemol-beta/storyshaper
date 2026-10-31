@@ -8,7 +8,7 @@
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
     "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
     "narrationControls", "playNarration", "pauseNarration", "narrationStatus",
-    "pageNavigation", "previousPage", "nextPage"];
+    "pageNavigation", "previousPage", "nextPage", "pictureNotice"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -20,11 +20,39 @@
   let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
   let savedVoices = [], voiceListLoading = false, voiceListRequest = 0;
   let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
+  let advancePayload = null;
+  let scenePreparation = null, preparedPassage = null, stagedPicture = null, pictureSerial = 0;
   let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
   ui.mode.value = selectedMode;
 
-  const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState});
+  const picture = new StoryImageTransition(ui.imgCur, ui.imgNext);
+  // Decode the next picture while the full passage is voiced, but keep the
+  // current bitmap visible until that passage is ready to play in one piece.
+  const stagedTransition = {
+    get current() { return picture.current; }, get next() { return picture.next; },
+    cancel() { pictureSerial++; stagedPicture = null; picture.cancel(); },
+    show(url, options = {}) {
+      const preparation = scenePreparation;
+      if (!preparation) return picture.show(url, options);
+      const staged = {serial: ++pictureSerial, preparation, ready: false, reveal: null};
+      stagedPicture = staged;
+      const live = () => staged.serial === pictureSerial;
+      staged.reveal = () => {
+        if (!live() || !staged.ready || !preparation.audioReady) return;
+        if (preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
+        stagedPicture = null;
+        if (typeof picture.reveal === "function") picture.reveal(options.onComplete);
+        else picture.show(url, options);
+      };
+      if (typeof picture.prepare === "function") picture.prepare(url, {
+        onReady: () => { if (live()) { staged.ready = true; staged.reveal(); } },
+        onError: () => { if (live()) options.onError?.(); }
+      });
+      else { staged.ready = true; staged.reveal(); }
+    }
+  };
+  const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState, transition: stagedTransition});
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
   const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
@@ -55,12 +83,11 @@
     ui.cover.disabled = !configured || activity !== "idle" || Boolean(pending);
     ui.restart.disabled = !configured;
     ui.book.setAttribute("aria-busy", String(Boolean(pending) || ["request", "navigation"].includes(activity)));
-    ui.book.dataset.state = !snapshot ? "COVER" : pending ? "DRAWING"
+    ui.book.dataset.state = !snapshot ? "COVER" : pending ? scenePreparation && !scenePreparation.audioReady ? "VOICING" : "DRAWING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
-    const navigating = !configured || activity !== "idle" || Boolean(pending);
-    ui.previousPage.disabled = navigating || pageIndex <= 0;
-    ui.nextPage.disabled = navigating || (Boolean(snapshot) && !reviewing() && !snapshot.question);
+    ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0);
+    ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question);
     syncPlayback();
   }
 
@@ -71,7 +98,9 @@
     ui.playNarration.textContent = playback === "paused" ? t("▶ Resume", "▶ 이어 듣기") : t("▶ Play", "▶ 재생");
     ui.pauseNarration.textContent = t("Ⅱ Pause", "Ⅱ 일시정지");
     const browserVoice = typeof Narration !== "undefined" && Narration.voiceSource?.() === "browser";
-    ui.narrationStatus.textContent = !displayed ? "" : playback === "paused" ? t("Paused", "일시정지했어요")
+    ui.narrationStatus.textContent = scenePreparation && !scenePreparation.audioReady
+      ? t("Preparing the whole page's voice…", "장면 전체의 목소리를 준비하고 있어요…")
+      : !displayed ? "" : playback === "paused" ? t("Paused", "일시정지했어요")
       : playback === "loading" ? t("Preparing narration…", "낭독을 준비하고 있어요…")
       : playback === "playing" ? browserVoice ? t("Reading with the browser voice", "기본 음성으로 읽는 중")
         : t("Reading aloud", "소리 내어 읽는 중")
@@ -113,6 +142,13 @@
     cancelInput();
     stopNarration();
     stopVideo();
+    if (scenePreparation) {
+      scenePreparation.cancelled = true;
+      clearTimeout(scenePreparation.timer);
+      scenePreparation.controller?.abort();
+      scenePreparation = null;
+    }
+    preparedPassage = null;
     media.cancel({server});
     pending = null;
     ui.loading.hidden = true;
@@ -217,7 +253,10 @@
     Narration.selectVoice?.(id || null, voice?.name || "");
     reader();
     voiceOptions();
-    if (displayed && !pending && activity === "idle" && ui.readAloud.checked) { replay++; narrate(); }
+    if (displayed && !pending && activity === "idle" && ui.readAloud.checked) {
+      replay++;
+      preparePresentation(displayed, {remember: false, image: displayedImage});
+    }
   }
 
   function reader() {
@@ -237,6 +276,133 @@
     ui.question.classList.toggle("speaking", index === ui.narrative.children.length);
   }
 
+  function passageLines(state) {
+    return state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text,
+      kind: "narration", tone: "curious", emotion: "curious"}] : state.lines;
+  }
+
+  function passageKey(state) {
+    return JSON.stringify([state.sessionId, state.sceneId, state.version, state.language,
+      typeof Narration === "undefined" ? null : Narration.voiceId?.() || null,
+      localStorage.getItem("story-voice-all"), passageLines(state)]);
+  }
+
+  function preparationLive(preparation) {
+    return scenePreparation === preparation && preparation.epoch === epoch && !preparation.cancelled
+      && preparation.key === passageKey(preparation.state);
+  }
+
+  function finishPresentation(preparation) {
+    if (scenePreparation === preparation && preparation.epoch === epoch && !preparation.cancelled
+        && preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
+    if (!preparationLive(preparation) || !preparation.audioReady || (preparation.waitForImage && !preparation.imageReady)) return;
+    clearTimeout(preparation.timer);
+    scenePreparation = null;
+    pending = null;
+    ui.loading.hidden = true;
+    ui.retryMedia.hidden = true;
+    preparedPassage = preparation.asset ? {key: preparation.key, asset: preparation.asset} : null;
+    displayedImage = preparation.image;
+    render(preparation.state, {remember: preparation.remember});
+    preparation.after?.();
+    const video = preparation.video;
+    if (video?.url?.startsWith("/prototype/video/")) {
+      ui.storyVideo.src = video.url;
+      ui.storyVideo.hidden = false;
+      ui.storyVideo.onended = ui.storyVideo.onerror = stopVideo;
+      ui.storyVideo.play().catch(stopVideo);
+    }
+  }
+
+  function narrationReady(preparation, asset) {
+    if (scenePreparation !== preparation || preparation.epoch !== epoch || preparation.cancelled) return;
+    if (preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
+    if (!asset) return narrationFailed(preparation);
+    clearTimeout(preparation.timer);
+    preparation.asset = asset;
+    preparation.audioReady = true;
+    preparation.failed = false;
+    if (stagedPicture?.preparation === preparation) stagedPicture.reveal();
+    if (!preparation.waitForImage) finishPresentation(preparation);
+    else if (preparation.imageFailure) mediaState(preparation.imageFailure);
+    else {
+      ui.loadingText.textContent = t("Loading your picture…", "그림을 불러오고 있어요…");
+      syncControls();
+    }
+  }
+
+  function narrationFailed(preparation) {
+    if (scenePreparation !== preparation || preparation.epoch !== epoch || preparation.cancelled) return;
+    const currentKey = passageKey(preparation.state);
+    if (preparation.key !== currentKey) {
+      preparation.key = currentKey;
+      preparation.audioReady = false;
+      preparation.asset = null;
+    } else if (preparation.audioReady) return;
+    clearTimeout(preparation.timer);
+    preparation.failed = true;
+    preparation.controller?.abort();
+    ui.loading.hidden = false;
+    ui.loadingText.textContent = t("The whole page's voice isn't ready yet.", "장면 전체의 목소리를 아직 준비하지 못했어요.");
+    ui.retryMedia.textContent = t("Prepare voice again", "목소리 다시 준비하기");
+    ui.retryMedia.hidden = false;
+    ui.retryMedia.disabled = false;
+    say(t("Retry the voice, or turn off Read aloud in settings to continue without sound.",
+      "목소리를 다시 준비하거나, 낭독 설정에서 소리 내어 읽기를 끄면 소리 없이 이어갈 수 있어요."));
+    syncControls();
+  }
+
+  function prepareAudio(preparation, {retry = false} = {}) {
+    preparation.controller?.abort();
+    preparation.controller = new AbortController();
+    preparation.failed = false;
+    const attempt = ++preparation.attempt;
+    ui.retryMedia.hidden = true;
+    ui.retryMedia.disabled = true;
+    ui.loadingText.textContent = t("Preparing every voice for this page…", "이 장면의 목소리를 모두 준비하고 있어요…");
+    say(t("The next page opens when its whole narration is ready.", "장면의 낭독이 모두 준비되면 다음 장면이 열려요."));
+    preparation.timer = setTimeout(() => narrationFailed(preparation), 180000);
+    try {
+      const options = {language: preparation.state.language, signal: preparation.controller.signal,
+        key: preparation.key, retry, onProgress: ({ready, total}) => {
+          if (!preparationLive(preparation) || preparation.failed || preparation.audioReady
+              || attempt !== preparation.attempt || !Number.isInteger(ready) || !Number.isInteger(total)
+              || total < 1 || ready < 0 || ready > total) return;
+          ui.loadingText.textContent = t(`Preparing page voices (${ready}/${total})…`,
+            `이 장면의 목소리를 준비하고 있어요 (${ready}/${total})…`);
+        }};
+      const operation = (!retry && Narration.getPreparedScene?.(passageLines(preparation.state), options))
+        || Narration.prepareScene(passageLines(preparation.state), options);
+      if (!operation?.then) narrationReady(preparation, operation);
+      else operation.then(asset => {
+        if (attempt === preparation.attempt && !preparation.failed) narrationReady(preparation, asset);
+      }, () => { if (attempt === preparation.attempt) narrationFailed(preparation); });
+    } catch { narrationFailed(preparation); }
+    syncControls();
+  }
+
+  function preparePresentation(state, {remember = true, image = displayedImage, waitForImage = false,
+    after = null, deferAudio = false} = {}) {
+    if (scenePreparation) {
+      scenePreparation.cancelled = true;
+      clearTimeout(scenePreparation.timer);
+      scenePreparation.controller?.abort();
+    }
+    stopNarration();
+    const preparation = {state, remember, image, waitForImage, after, epoch, key: passageKey(state),
+      audioReady: !ui.readAloud.checked || typeof Narration === "undefined" || !Narration.prepareScene,
+      imageReady: !waitForImage, asset: null, failed: false, attempt: 0, cancelled: false};
+    scenePreparation = preparation;
+    preparedPassage = null;
+    pending = state;
+    ui.loading.hidden = false;
+    ui.retryMedia.hidden = true;
+    if (preparation.audioReady) finishPresentation(preparation);
+    else if (!deferAudio) prepareAudio(preparation);
+    syncControls();
+    return preparation;
+  }
+
   function narrate() {
     if (!displayed || pending || !ui.readAloud.checked || typeof Narration === "undefined") return;
     const state = displayed;
@@ -247,21 +413,40 @@
     const lines = choices ? [
       {speakerId: "narrator", text: t("Tap one of these three words.", "세 가지 중 하나를 톡 골라 줘!")},
       ...state.question.choices.map(choice => ({speakerId: "narrator", text: choice.label}))
-    ] : state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text,
-      kind: "narration", tone: "curious", emotion: "curious"}] : state.lines;
-    Promise.resolve(Narration.speak(lines, {key, language: state.language,
-      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {});
+    ] : passageLines(state);
+    const prepared = choices ? null : Narration.getPreparedScene
+      ? Narration.getPreparedScene(lines, {language: state.language})
+      : preparedPassage?.key === passageKey(state) ? preparedPassage.asset : null;
+    if (!choices && Narration.prepareScene && !prepared) {
+      spokenKey = null;
+      preparePresentation(state, {remember: false, image: displayedImage});
+      return;
+    }
+    Promise.resolve(Narration.speak(lines, {key, language: state.language, ...(!choices ? {scene: true, prepared} : {}),
+      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {
+      if (choices || spokenKey !== key || displayed !== state || pending) return;
+      const preparation = preparePresentation(state, {remember: false, image: displayedImage, deferAudio: true});
+      narrationFailed(preparation);
+    });
+  }
+
+  function rememberPage(state, image) {
+    const page = {state, image};
+    const last = pages.at(-1)?.state;
+    if (last?.sessionId === state.sessionId && last.sceneId === state.sceneId) pages[pages.length - 1] = page;
+    else pages.push(page);
+  }
+
+  function pictureVisibility() {
+    ui.imgCur.hidden = ui.imgNext.hidden = !displayedImage;
+    ui.pictureNotice.hidden = Boolean(displayedImage);
+    ui.pictureNotice.textContent = t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
   }
 
   function render(state, {remember = true} = {}) {
     displayed = state;
-    if (remember) {
-      const page = {state, image: displayedImage};
-      const last = pages.at(-1)?.state;
-      if (last?.sessionId === state.sessionId && last.sceneId === state.sceneId) pages[pages.length - 1] = page;
-      else pages.push(page);
-      pageIndex = pages.length - 1;
-    }
+    if (remember) { rememberPage(state, displayedImage); pageIndex = pages.length - 1; }
+    pictureVisibility();
     if (state.choiceMode) choiceLocks.add(questionKey(state));
     ui.cover.hidden = true;
     ui.narrative.replaceChildren(...state.lines.map(line => {
@@ -304,28 +489,45 @@
 
   function receive(state) {
     if (!valid(state)) throw new Error("Invalid story state");
-    if (typeof Narration !== "undefined" && ui.readAloud.checked)
-      Narration.prefetch?.(state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text,
-        kind: "narration", tone: "curious", emotion: "curious"}] : state.lines,
-        {language: state.language});
     const translationOnly = state.diagnostics?.languageChanged === true
       && displayed?.sessionId === state.sessionId && displayed?.sceneId === state.sceneId;
     snapshot = state;
     activity = "idle";
+    // A recovery choice belongs to the same question, rather than a new page.
+    // Its touch handlers must work immediately even while voice generation is slow.
+    if (!state.mediaPlan && state.question && choiceOnly(state) && questionKey(displayed) === questionKey(state)) {
+      if (scenePreparation) {
+        scenePreparation.cancelled = true;
+        clearTimeout(scenePreparation.timer);
+        scenePreparation.controller?.abort();
+        scenePreparation = null;
+      }
+      stopNarration();
+      pending = null;
+      preparedPassage = null;
+      ui.loading.hidden = ui.retryMedia.hidden = true;
+      render(state);
+      return;
+    }
+    if (state.diagnostics?.manualNavigation?.skippedPicture) {
+      preparePresentation(state, {image: null, after: () => say(ui.pictureNotice.textContent)});
+      return;
+    }
     if (!translationOnly && state.mediaPlan && ["accept", "complete"].includes(state.decision)) {
-      pending = state;
-      ui.loading.hidden = false;
-      ui.retryMedia.hidden = true;
-      ui.loadingText.textContent = t("Drawing your next page…", "다음 그림을 그리고 있어요…");
-      say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
+      preparePresentation(state, {waitForImage: true});
+      if (scenePreparation?.audioReady) {
+        ui.loadingText.textContent = t("Drawing your next page…", "다음 그림을 그리고 있어요…");
+        say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
+      }
       syncControls();
       media.update(state);
-    } else render(state);
+    } else preparePresentation(state);
   }
 
   function mediaState(result) {
     if (!pending) return;
     if (["generating", "loading"].includes(result.state)) {
+      if (scenePreparation && !scenePreparation.audioReady) return;
       ui.retryMedia.hidden = true;
       ui.retryMedia.disabled = true;
       ui.loadingText.textContent = result.retrying
@@ -337,25 +539,24 @@
     const ready = pending.providerMode === "live"
       ? result.state === "generated" || (prepared && result.source === "prepared_choice") : prepared;
     if (ready) {
-      const state = pending;
-      pending = null;
-      ui.loading.hidden = true;
-      ui.retryMedia.hidden = true;
-      displayedImage = result.image?.url || displayedImage;
-      render(state);
-      if (result.video?.url?.startsWith("/prototype/video/")) {
-        ui.storyVideo.src = result.video.url;
-        ui.storyVideo.hidden = false;
-        ui.storyVideo.onended = ui.storyVideo.onerror = stopVideo;
-        ui.storyVideo.play().catch(stopVideo);
-      }
+      const preparation = scenePreparation;
+      if (!preparation) return;
+      preparation.imageReady = true;
+      preparation.image = result.image?.url || displayedImage;
+      preparation.video = result.video;
+      finishPresentation(preparation);
     } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
+      if (scenePreparation) {
+        scenePreparation.imageFailure = result;
+        if (!scenePreparation.audioReady) return;
+      }
+      ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
       ui.loadingText.textContent = t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
       ui.retryMedia.hidden = result.retryable === false;
       ui.retryMedia.disabled = result.retryable === false;
       say(result.retryable === false
-        ? t("Couldn't finish the picture. Please restart the story.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
-        : t("Try loading the picture again.", "그림 다시 불러오기를 눌러 주세요."));
+        ? t("Couldn't finish the picture. Tap ▶ to keep reading.", "그림을 완성하지 못했어요. ▶를 누르면 계속 읽을 수 있어요.")
+        : t("Reload the picture, or tap ▶ to keep reading.", "그림을 다시 불러오거나 ▶를 눌러 계속 읽을 수 있어요."));
       syncControls(); // A failed live generation's substitute picture keeps the next turn locked.
     }
   }
@@ -381,6 +582,8 @@
     pages = [];
     pageIndex = -1;
     displayedImage = "img/intro.jpg";
+    pictureVisibility();
+    advancePayload = null;
     latestDraft = "";
     ui.language.value = selectedLanguage;
     labels();
@@ -408,49 +611,91 @@
     } finally { if (token === epoch) requestController = null; }
   }
 
-  function turnPage(offset) {
-    if (!configured || activity !== "idle" || pending) return;
-    const target = pageIndex + offset;
+  function showPage(target) {
     if (target < 0 || target >= pages.length) return;
-    if (!reviewing()) latestDraft = ui.answer.value;
-    cancelWork({server: false});
+    cancelWork({server: Boolean(pending)});
     const token = epoch, page = pages[target];
-    activity = "navigation";
-    ui.loading.hidden = false;
-    ui.loadingText.textContent = t("Loading this page…", "장면을 불러오고 있어요…");
-    syncControls();
+    pageIndex = target;
+    ui.language.value = page.state.language;
+    labels();
+    preparePresentation(page.state, {remember: false, image: null, after: () => {
+      if (!reviewing()) ui.answer.value = latestDraft;
+      if (!page.image) say(ui.pictureNotice.textContent);
+      else ui.pictureNotice.textContent = t("Loading this picture. You can still turn the page.", "그림을 불러오고 있어요. 기다리지 않고 넘길 수 있어요.");
+    }});
+    if (!page.image) return;
     media.picture.show(page.image, {
       onComplete: () => {
         if (token !== epoch) return;
         media.describePicture();
-        pageIndex = target;
         displayedImage = page.image;
-        ui.language.value = page.state.language;
-        labels();
-        ui.loading.hidden = true;
-        render(page.state, {remember: false});
-        if (!reviewing()) ui.answer.value = latestDraft;
+        pictureVisibility();
       },
       onError: () => {
         if (token !== epoch) return;
-        activity = "idle";
-        ui.loading.hidden = true;
-        say(t("Couldn't load this page. Tap the arrow to try again.", "장면을 불러오지 못했어요. 화살표를 다시 눌러 주세요."));
-        syncControls();
+        pictureVisibility();
+        say(t("Couldn't load this picture. You can keep reading.", "그림을 불러오지 못했어요. 이야기는 계속 읽을 수 있어요."));
       }
     });
   }
 
-  ui.previousPage.onclick = () => { if (!ui.previousPage.disabled) turnPage(-1); };
+  ui.previousPage.onclick = () => {
+    if (ui.previousPage.disabled) return;
+    if (pending) {
+      rememberPage(pending, null);
+      latestDraft = "";
+      showPage(pages.length - 2);
+    } else {
+      if (!reviewing()) latestDraft = ui.answer.value;
+      showPage(pageIndex - 1);
+    }
+  };
   ui.nextPage.onclick = () => {
     if (ui.nextPage.disabled) return;
     if (!snapshot) return begin();
-    if (reviewing()) turnPage(1);
-    else {
-      openChoices();
-      say(t("Choose an answer to turn the page.", "답을 고르면 다음 장면으로 넘어가요."));
+    if (pending) {
+      rememberPage(pending, null);
+      latestDraft = "";
+      return showPage(pages.length - 1);
     }
+    if (reviewing()) return showPage(pageIndex + 1);
+    return advancePage();
   };
+
+  async function advancePage() {
+    const state = snapshot;
+    cancelWork();
+    retryPayload = null;
+    const token = epoch;
+    if (!advancePayload || advancePayload.sessionId !== state.sessionId || advancePayload.version !== state.version)
+      advancePayload = {sessionId: state.sessionId, version: state.version, requestId: crypto.randomUUID()};
+    activity = "request";
+    say(t("Turning the page…", "다음 장면으로 넘어가요…"));
+    syncControls();
+    requestController = new AbortController();
+    try {
+      const next = await api("/api/advance", advancePayload, requestController.signal);
+      if (token !== epoch) return;
+      if (!valid(next)) throw new Error("Invalid story state");
+      snapshot = next;
+      const choice = next.diagnostics?.manualNavigation?.defaultChoice;
+      preparePresentation(next, {image: null, after: () => {
+        say(choice ? t(`Continuing with “${choice}”. Picture skipped.`, `“${choice}”로 이어가요. 그림은 건너뛰었어요.`)
+          : ui.pictureNotice.textContent);
+      }});
+      advancePayload = null;
+    } catch (error) {
+      if (token !== epoch) return;
+      if (valid(error.snapshot)) {
+        snapshot = error.snapshot;
+        preparePresentation(snapshot, {image: null});
+      } else {
+        activity = "idle";
+        say(t("Couldn't turn the page. Tap ▶ to retry.", "장면을 넘기지 못했어요. ▶를 다시 눌러 주세요."));
+        syncControls();
+      }
+    } finally { if (token === epoch) requestController = null; }
+  }
 
   async function answer(value, choiceId) {
     if (!canAnswer() || (choiceOnly() && !choiceId)) return;
@@ -579,6 +824,7 @@
 
   ui.retryMedia.onclick = () => {
     if (!pending || ui.retryMedia.disabled) return;
+    if (scenePreparation?.failed) return prepareAudio(scenePreparation, {retry: true});
     ui.retryMedia.hidden = true;
     ui.retryMedia.disabled = true;
     ui.loadingText.textContent = t("Loading the picture…", "그림을 다시 불러오고 있어요…");
@@ -601,7 +847,7 @@
     ui.readAloud.checked = true;
     localStorage.setItem("story-read-aloud", "1");
     if (playback === "paused") Narration.resume?.();
-    else { replay++; narrate(); }
+    else { replay++; preparePresentation(displayed, {remember: false, image: displayedImage}); }
   };
   ui.pauseNarration.onclick = () => {
     if (!ui.pauseNarration.disabled && typeof Narration !== "undefined") Narration.pause?.();
@@ -610,8 +856,25 @@
   ui.readAloud.checked = localStorage.getItem("story-read-aloud") !== "0";
   ui.readAloud.onchange = () => {
     localStorage.setItem("story-read-aloud", ui.readAloud.checked ? "1" : "0");
-    if (!ui.readAloud.checked) stopNarration();
-    else { replay++; narrate(); }
+    if (!ui.readAloud.checked) {
+      stopNarration();
+      const preparation = scenePreparation;
+      if (preparation) {
+        preparation.attempt++;
+        clearTimeout(preparation.timer);
+        preparation.controller?.abort();
+        preparation.audioReady = true;
+        preparation.failed = false;
+        preparation.asset = null;
+        if (stagedPicture?.preparation === preparation) stagedPicture.reveal();
+        if (!preparation.waitForImage) finishPresentation(preparation);
+        else if (preparation.imageFailure) mediaState(preparation.imageFailure);
+        else syncControls();
+      }
+    } else if (displayed && !pending) {
+      replay++;
+      preparePresentation(displayed, {remember: false, image: displayedImage});
+    }
   };
   ui.language.onchange = async () => {
     if (!configured || activity !== "idle" || pending || reviewing()) {
@@ -660,6 +923,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) return;
     stopNarration();
+    if (scenePreparation && !scenePreparation.audioReady) narrationFailed(scenePreparation);
     if (["opening_mic", "recording", "recognizing", "camera"].includes(activity)) {
       cancelInput();
       activity = "idle";

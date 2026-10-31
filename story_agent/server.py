@@ -129,8 +129,12 @@ class Playground:
                 # Cached answers are for the previous presentation/version. A
                 # delayed replay must receive the current localized snapshot.
                 session.requests.clear()
-            session.snapshot = deepcopy(result)
-            session.touched = time.monotonic()
+            with self.lock:
+                if self.sessions.get(session_id) is not session:
+                    raise APIError(409, "turn_cancelled", "This turn was interrupted by page navigation.",
+                                   deepcopy(self.sessions[session_id].snapshot))
+                session.snapshot = deepcopy(result)
+                session.touched = time.monotonic()
             return deepcopy(result)
         finally:
             session.lock.release()
@@ -177,14 +181,60 @@ class Playground:
                 raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")
             session.turns += 1
             result = session.engine.answer(current, answer, choice_id=choice)
-            session.snapshot = deepcopy(result)
-            session.touched = time.monotonic()
-            session.requests[request_id] = (fingerprint, deepcopy(result))
-            if len(session.requests) > 80:
-                session.requests.popitem(last=False)
+            with self.lock:
+                if self.sessions.get(session_id) is not session:
+                    raise APIError(409, "turn_cancelled", "This turn was interrupted by page navigation.",
+                                   deepcopy(self.sessions[session_id].snapshot))
+                session.snapshot = deepcopy(result)
+                session.touched = time.monotonic()
+                session.requests[request_id] = (fingerprint, deepcopy(result))
+                if len(session.requests) > 80:
+                    session.requests.popitem(last=False)
             return deepcopy(result)
         finally:
             session.lock.release()
+
+    def advance(self, body):
+        """Supersede a slow turn using one server-authored choice, never a model call.
+
+        Replacing the session detaches its in-flight engine and lock. Its late
+        result cannot commit, and the new page can immediately accept answers.
+        A stale version returns the already-approved next page without another turn.
+        """
+        session_id, version, request_id = body.get("sessionId"), body.get("version"), body.get("requestId")
+        if (not isinstance(session_id, str) or type(version) is not int or version < 0
+                or not isinstance(request_id, str) or not 1 <= len(request_id) <= 100):
+            raise APIError(400, "invalid_request", "Send a session, version and request ID.")
+        fingerprint = ("advance", version)
+        with self.lock:
+            session = self.sessions.get(session_id)
+            if session is None or time.monotonic() - session.touched >= SESSION_TTL:
+                raise APIError(404, "session_not_found", "Start a new story session.")
+            if request_id in session.requests:
+                prior, result = session.requests[request_id]
+                if prior != fingerprint:
+                    raise APIError(409, "request_id_conflict", "Use a new request ID for this page turn.")
+                return deepcopy(result)
+            current = deepcopy(session.snapshot)
+            if version > current["version"]:
+                raise APIError(409, "stale_question", "Use the current story page.", current)
+            engine = StoryEngine(session.engine.provider, current["language"], pipeline=session.engine.pipeline)
+            skip_question = version == current["version"] and current["question"] is not None
+            if skip_question:
+                if session.turns >= 60:
+                    raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")
+                choice = current["question"]["choices"][0]
+                current = engine.answer(current, choice["answer"], choice_id=choice["id"])
+            current["diagnostics"]["manualNavigation"] = {
+                "skippedPicture": True, "skippedQuestion": skip_question,
+                "defaultChoice": choice["label"] if skip_question else None}
+            replacement = Session(engine, deepcopy(current), requests=session.requests.copy(),
+                                  turns=session.turns + int(skip_question))
+            replacement.requests[request_id] = (fingerprint, deepcopy(current))
+            while len(replacement.requests) > 80:
+                replacement.requests.popitem(last=False)
+            self.sessions[session_id] = replacement
+            return current
 
 
 class Server(ThreadingHTTPServer):
@@ -272,6 +322,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.server.playground.create(body.get("mode", "mock"), body.get("language", "en"))
             elif path == "/api/answer":
                 result = self.server.playground.answer(body)
+            elif path == "/api/advance":
+                result = self.server.playground.advance(body)
             elif path == "/api/language":
                 result = self.server.playground.change_language(body)
             else:

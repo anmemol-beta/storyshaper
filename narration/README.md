@@ -35,7 +35,7 @@ scripts/demo.sh --wait     # ...and waits until all of it is voiced (before reco
 Or one at a time: `voice/.venv-chatterbox/bin/python -m narration.server` (port 8100), `python3 -m src.server` (port 8000), and `python3 -m narration.warm` to voice ahead.
 
 The agent page reads every new passage and question aloud and highlights the line being read.
-If the narration server is not running, the page uses the browser voice. The app is at `http://127.0.0.1:8000/`; a custom narration address can be set with `index.html?voiceServer=http://127.0.0.1:8101`.
+The current reader waits for complete scene audio before opening a passage. If the narration service is unavailable, it offers an explicit retry or turning off Read aloud, preserving the current page. Registration previews and immediate choice invitations retain their separate per-line fallback. The app is at `http://127.0.0.1:8000/`; a custom narration address can be set with `index.html?voiceServer=http://127.0.0.1:8101`.
 
 ## API
 
@@ -52,7 +52,7 @@ If the narration server is not running, the page uses the browser voice. The app
 | `404 not_found` | Line was never queued | Queue it first |
 
 Clips are cached in `voice/cache/` (git-ignored) by role settings and text, so a line is generated once; the second reading is instant.
-English and Korean can both use the parent's voice. The reader checks readiness: prepared clips play immediately; unready clips use the browser voice without waiting for generation. The status beside the image identifies browser narration. The metadata request is limited to 600 ms and a ready clip's initial load to 800 ms. These are fallback limits, not synthesis speed guarantees.
+English and Korean can both use the parent's voice. The current reader requires all passage/question clips, their joined WAV and its full local download to be ready before the scene transition. The earlier per-line API above remains for preview/choice helpers; its 600 ms metadata and 800 ms clip limits are helper fallback limits, not the current scene preparation policy or synthesis speed guarantees.
 Requests are accepted only on `127.0.0.1`/`localhost`, and only from local pages (CORS).
 
 ## Registering a parent's voice
@@ -80,11 +80,13 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 
 ## Languages
 
+The current reader prepares a complete scene before showing it: `POST /api/voice/scene` accepts the passage and its question with the same speaker/delivery fields, returns `pending` with no audio URL until every part is ready, then returns one PCM WAV and line timing segments. `Narration.prepareScene()` downloads the entire file and preloads playback before the page transition. Reading the scene makes no further per-line requests. Images and voice prepare in parallel; cold synthesis time is shown before entering the page. `retry:true` is an explicit recovery action, while polling never resubmits synthesis. The earlier `/api/voice/lines` helper remains for registration previews, warmup and immediate choice invitations. See [the current narration design](../docs/internal/narration-design.md).
+
 The parent records once, using the passage in their selected language, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. `narration.warm.authored_book()` collects the current engine's English and Korean dialogue, questions and choice keywords across all 50 authored material paths without a model call. Warmup preserves each speaker and delivery label and splits sentences like the reader, so the wolf uses its own role and the cached text matches playback. Newly generated wording and custom materials are still prepared as needed. The older `prototype/audio/lines*.json` files belong to the earlier fixed book. Korean fillers: `FILLERS_KO`.
 
 Current script sources and complete model input exports are documented in [the script guide](../story_agent/README.md). `kind`, `tone` and `emotion` stay outside spoken text. The server resolves character personality and these line labels into supported `exaggeration`, `cfg_weight` and tempo settings using `story_agent.performance.voice_direction()`. The existing reference voice mapping remains in place while the three pigs have different delivery presets. These directions and their revision are part of audio cache identity. They are authored controls, not proof that a categorical emotion has been learned or successfully expressed.
 
-On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes to play, so live Korean passages pause between lines; the picture book is fine once voiced ahead.
+Earlier Mac measurements put Korean synthesis at about 6–9 s per line. The current reader waits for the entire scene before page entry, so synthesis time is no longer an inter-line playback wait.
 
 ## Making a voice closer (fine-tuning, beta)
 
@@ -146,4 +148,4 @@ The reader prefetches approved lines while their picture loads and starts playba
 
 ## Speed (2026-10-31, Mac MPS)
 
-The server prepares each voice's reference analysis once per clip instead of on every line: English 3.1 → 2.5 s per line, Korean 6.3 → 4.7 s (interleaved, same seeds; `experiments/narration_speed.py`). Korean passages written live can still pause between long lines; a faster GPU is the remaining fix. T3 in float16 fails on MPS.
+The server prepares each voice's reference analysis once per clip instead of on every line: English 3.1 → 2.5 s per line, Korean 6.3 → 4.7 s (interleaved, same seeds; `experiments/narration_speed.py`). These are historical synthesis timings. The current whole-scene preparation moves that waiting before page entry and joins clips into one PCM file for uninterrupted playback. T3 in float16 fails on MPS.

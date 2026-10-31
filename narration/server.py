@@ -5,6 +5,8 @@ POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?
                                    interactive newest first ("priority":"background" for warmup;
                                    "peek": only report which are ready)
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
+POST   /api/voice/scene            prepare all scene lines and its question as one complete audio file
+GET    /audio/<voice>/scene-<key>.wav  complete PCM scene; never streams a partially prepared scene
 GET    /api/voice/config           roles and languages
 
 Parent voices (narration/voices.py)
@@ -61,6 +63,8 @@ PREVIEW_TEXT = {"en": "Once upon a time, a mother pig lived with her three littl
 MAX_BODY = 16384
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_LINES = 20
+MAX_SCENE_BODY = 65536
+MAX_SCENE_LINES = 64
 MAX_TEXT = 500
 # English uses Chatterbox; other languages use Chatterbox Multilingual with the same reference clips.
 # Korean was chosen by ear on 10/30 (voice/korean.html): the parent's English clip. Since 10/31 it uses the English
@@ -68,6 +72,7 @@ MAX_TEXT = 500
 LANGUAGES = ("en", "ko")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
+SCENE_AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/scene-([0-9a-f]{16})\.wav$")
 VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune|sample)(?:/(\d{1,4})(\.wav)?)?)?$")
 # Sentences a parent reads aloud to fine-tune their voice (voice-train.html, narration/finetune.py).
 TRAINING = {s["n"]: s["text"] for s in json.loads((ROOT / "prototype" / "audio" / "training-sentences.json").read_text(encoding="utf-8"))}
@@ -84,6 +89,8 @@ class Narrator:
         self.pending, self.active = {}, {}
         self.batch = itertools.count()
         self.seq = itertools.count()
+        from .scene_audio import SceneAudio
+        self.scenes = SceneAudio(self)
         threading.Thread(target=self._work, daemon=True).start()
 
     def role(self, speaker_id):
@@ -194,14 +201,18 @@ class Narrator:
 
     def forget(self, voice):
         """Drop a voice's queued lines and delete every clip already read with it."""
-        with self.cond:
-            self.dropped.add(voice)
-            self.queue = [item for item in self.queue if item[3] != voice]
-            heapq.heapify(self.queue)
-            self.queued = {k: v for k, v in self.queued.items() if k[0] != voice}
-            self.pending = {k: v for k, v in self.pending.items() if k[0] != voice}
-            shutil.rmtree(self.cache / voice, ignore_errors=True)
-            self.cond.notify_all()
+        # Scene and line invalidation share one order: scene lock, then line
+        # condition. A late join cannot recreate a deleted voice's WAV file.
+        with self.scenes.lock:
+            self.scenes.forget(voice)
+            with self.cond:
+                self.dropped.add(voice)
+                self.queue = [item for item in self.queue if item[3] != voice]
+                heapq.heapify(self.queue)
+                self.queued = {k: v for k, v in self.queued.items() if k[0] != voice}
+                self.pending = {k: v for k, v in self.pending.items() if k[0] != voice}
+                shutil.rmtree(self.cache / voice, ignore_errors=True)
+                self.cond.notify_all()
 
     def _work(self):
         while True:
@@ -257,7 +268,8 @@ class Handler(BaseHTTPRequestHandler):
         self.cors()
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "max-age=86400" if content_type == "audio/mpeg" else "no-store")
+        scene_wav = content_type == "audio/wav" and SCENE_AUDIO.match(urlsplit(self.path).path)
+        self.send_header("Cache-Control", "max-age=86400" if content_type == "audio/mpeg" or scene_wav else "no-store")
         self.end_headers()
         self.wfile.write(data)
 
@@ -284,9 +296,9 @@ class Handler(BaseHTTPRequestHandler):
             raise VoiceError(413, "body_size", f"Request must be between 1 and {limit} bytes.")
         return self.rfile.read(length)
 
-    def json_body(self):
+    def json_body(self, limit=MAX_BODY):
         try:
-            body = json.loads(self.body(MAX_BODY))
+            body = json.loads(self.body(limit))
         except (ValueError, UnicodeError):
             raise VoiceError(400, "invalid_json", "Send a JSON object.")
         if not isinstance(body, dict):
@@ -368,6 +380,13 @@ class Handler(BaseHTTPRequestHandler):
             if not full.exists():
                 raise VoiceError(404, "not_found", "The full recording is deleted once a voice is saved.")
             return self.reply(200, full.read_bytes(), "audio/wav")
+        scene = SCENE_AUDIO.match(url.path)
+        if scene:
+            voice, key = scene.groups()
+            audio = self.server.narrator.scenes.read(voice, key)
+            if audio is None:
+                raise VoiceError(404, "scene_not_ready", "Prepare the complete scene before playing it.")
+            return self.reply(200, audio, "audio/wav")
         match = AUDIO.match(url.path)
         if not match:
             raise VoiceError(404, "not_found", "Not found.")
@@ -386,14 +405,18 @@ class Handler(BaseHTTPRequestHandler):
     def _post(self):
         path = urlsplit(self.path).path
         library, narrator = self.server.library, self.server.narrator
-        if path == "/api/voice/lines":
-            body = self.json_body()
+        if path in {"/api/voice/lines", "/api/voice/scene"}:
+            scene_request = path == "/api/voice/scene"
+            body = self.json_body(MAX_SCENE_BODY if scene_request else MAX_BODY)
             lines = body.get("lines")
-            if (not isinstance(lines, list) or not 0 < len(lines) <= MAX_LINES
+            max_lines = MAX_SCENE_LINES if scene_request else MAX_LINES
+            if (not isinstance(lines, list) or not 0 < len(lines) <= max_lines
                     or not all(isinstance(l, dict) and isinstance(l.get("text"), str)
                                and 0 < len(l["text"].strip()) <= MAX_TEXT for l in lines)):
                 raise VoiceError(400, "invalid_lines",
-                                 f"Send 1-{MAX_LINES} lines, each with text up to {MAX_TEXT} characters.")
+                                 f"Send 1-{max_lines} lines, each with text up to {MAX_TEXT} characters.")
+            if scene_request and any(field in body and type(body[field]) is not bool for field in ("peek", "retry")):
+                raise VoiceError(400, "invalid_scene_option", "Scene peek and retry must be booleans.")
             language = body.get("language", "en")
             if language not in LANGUAGES:
                 raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
@@ -406,6 +429,12 @@ class Handler(BaseHTTPRequestHandler):
                     narrator.line_settings(line, ref, body.get("allRoles") is True, language)
             except (ValueError, TypeError, KeyError):
                 raise VoiceError(400, "invalid_delivery", "Use the story's speaker, tone and emotion labels.")
+            if scene_request:
+                return self.reply(200, narrator.scenes.submit(
+                    lines, voice, ref, body.get("allRoles") is True,
+                    language=language, t3=self.finetuned(body.get("voiceId")), priority=priority,
+                    t3_scope=self.finetune_scope(body.get("voiceId")),
+                    peek=body.get("peek") is True, retry=body.get("retry") is True))
             return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
                                                              enqueue=body.get("peek") is not True, language=language,
                                                              t3=self.finetuned(body.get("voiceId")), priority=priority,
