@@ -39,6 +39,18 @@
     "Making the voice…": "목소리를 만드는 중…",
     "Done. Stories now use sentences {list}. New pages will be read in this voice.": "완료! 이제 {list}번 문장으로 읽어요. 새로 읽는 페이지부터 이 목소리예요.",
     "Back to the first recording.": "처음 녹음으로 되돌렸어요.",
+    "Practice": "연습", "Story characters": "동화 배역", "Usual voice · English": "평소 목소리 · 영어",
+    "Character": "등장인물", "All characters": "모든 배역", "Narrator": "이야기꾼", "Oldest pig": "첫째 돼지",
+    "Middle pig": "둘째 돼지", "Youngest pig": "막내 돼지", "Wolf": "늑대",
+    "I listened: the role and emotion match": "들어 보니 배역과 감정에 맞아요",
+    "Listen before confirming the performance.": "녹음을 들어 본 다음 배역과 감정을 확인해 주세요.",
+    "Performance reviewed. Ready to include in the matching training dataset.": "연기를 확인했어요. 같은 배역·감정의 학습 자료에 넣을 수 있어요.",
+    "Performance reviewed; the transcript still needs a matching check.": "연기는 확인했지만, 읽은 문장이 대본과 맞는지 확인이 더 필요해요.",
+    "Personality: {traits}. {style}": "성격: {traits}. {style}",
+    "Story practice recordings need a listening check before training. Recording a line does not start model training.":
+      "동화 연습 녹음은 들어 보고 확인한 뒤 학습 자료에 넣어요. 녹음만으로 모델 학습이 시작되지는 않아요.",
+    "Recordings are saved. Listen and confirm each role and emotion before preparing training data.":
+      "녹음을 저장했어요. 학습 자료를 만들기 전에 각 배역과 감정을 들어 보고 확인해 주세요.",
   };
   let language = (() => {
     const asked = new URLSearchParams(location.search).get("lang");
@@ -52,10 +64,32 @@
   const voiceName = stored("story-voice-name");
 
   let sentences = [];
+  let generalSentences = [], storySamples = [], scriptRevision = null;
+  let practiceMode = "story", catalogRequest = 0, listened = new Set();
   let done = {};               // n -> clip info from the server
   let index = 0;               // position in sentences
   let recorder = null;
   let lastUrl = null;
+  let practiceAudio = null, listenRequest = 0, practiceBusy = false;
+
+  function stopPracticeAudio() {
+    listenRequest++;
+    if (practiceAudio) { practiceAudio.onended = null; practiceAudio.pause(); practiceAudio = null; }
+  }
+
+  function setPracticeBusy(busy) {
+    practiceBusy = busy;
+    for (const id of ["practiceMode", "speakerFilter", "skip", "listen", "media"]) $(id).disabled = busy;
+    $("prev").disabled = busy || index === 0;
+    $("rec").disabled = busy && !recorder;
+    $("reviewPerformance").disabled = busy || !listened.has(sentences[index]?.n);
+    document.querySelectorAll("[data-lang]").forEach(b => { b.disabled = busy; });
+  }
+
+  function recorded(s) {
+    const clip = done[s.n];
+    return !s.id || (clip?.desiredPerformance?.scriptLineId === s.id && clip?.desiredPerformance?.revision === s.revision && clip.text === s.text) ? clip : null;
+  }
 
   function error(message) { $("error").textContent = message; $("error").hidden = !message; }
 
@@ -70,7 +104,7 @@
 
   function showProgress() {
     const clips = Object.values(done);
-    const read = clips.filter(c => c.source !== "media").length;
+    const read = sentences.filter(s => recorded(s)).length;
     const secs = Math.round(clips.filter(c => !c.excluded).reduce((s, c) => s + c.seconds, 0));
     $("meter").style.width = `${Math.min(1, secs / 600) * 100}%`;          // ten minutes of speech fills the bar
     $("count").textContent = tr("{done} of {total} sentences · {minutes} min {seconds} s recorded",
@@ -80,59 +114,105 @@
   function show() {
     const s = sentences[index];
     if (!s) return;
-    $("num").textContent = tr("Sentence {n} of {total}", {n: s.n, total: sentences.length});
+    $("num").textContent = tr("Sentence {n} of {total}", {n: index + 1, total: sentences.length});
     $("sentence").textContent = s.text;
-    $("hint").textContent = done[s.n] ? tr("Already recorded. Record again to replace it.") : tr("Tap the button and read the sentence.");
+    const directed = Boolean(s.id);
+    $("performanceDirection").hidden = $("personality").hidden = !directed;
+    $("performanceDirection").textContent = s.recordingPrompt || "";
+    $("personality").textContent = directed ? tr("Personality: {traits}. {style}", {traits: s.personality.join(", "), style: s.speechStyle}) : "";
+    $("hint").textContent = recorded(s) ? tr("Already recorded. Record again to replace it.") : tr("Tap the button and read the sentence.");
     $("result").textContent = "";
     $("result").className = "result";
-    $("listen").hidden = !lastUrl || lastUrl.n !== s.n;
+    $("listen").hidden = !(lastUrl?.n === s.n || recorded(s));
+    const clip = recorded(s);
+    $("reviewPerformance").hidden = !directed || !clip || clip.performanceReview === "confirmed";
+    $("reviewPerformance").disabled = !listened.has(s.n);
+    $("performanceReview").hidden = !directed || !clip;
+    $("performanceReview").textContent = clip?.performanceReview === "confirmed"
+      ? tr(clip.match !== null && clip.match >= 0.8 ? "Performance reviewed. Ready to include in the matching training dataset."
+        : "Performance reviewed; the transcript still needs a matching check.")
+      : tr("Listen before confirming the performance.");
     $("prev").disabled = index === 0;
     showProgress();
+    setPracticeBusy(practiceBusy);
   }
 
   function next() {
-    const open = sentences.findIndex((s, i) => i > index && !done[s.n]);
+    stopPracticeAudio();
+    const open = sentences.findIndex((s, i) => i > index && !recorded(s));
     if (open >= 0) index = open;
-    else if (sentences.every(s => done[s.n])) { $("hint").textContent = tr("All sentences are recorded. Thank you! The voice can be trained now."); return; }
+    else if (sentences.every(s => recorded(s))) {
+      const reviewed = sentences.every(s => !s.id || (recorded(s).performanceReview === "confirmed" && recorded(s).match !== null && recorded(s).match >= 0.8));
+      $("hint").textContent = tr(reviewed ? "All sentences are recorded. Thank you! The voice can be trained now."
+        : "Recordings are saved. Listen and confirm each role and emotion before preparing training data."); return;
+    }
     else index = Math.min(index + 1, sentences.length - 1);
     show();
   }
 
   async function toggle() {
     if (recorder) return recorder.stop();
+    if (practiceBusy) return;
+    stopPracticeAudio();
+    setPracticeBusy(true);
     error("");
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}}); }
-    catch { return error(tr("The microphone is blocked. Allow it in the browser.")); }
+    catch { setPracticeBusy(false); return error(tr("The microphone is blocked. Allow it in the browser.")); }
     const chunks = [];
     const s = sentences[index];
     recorder = new MediaRecorder(stream);
+    setPracticeBusy(true);
     recorder.ondataavailable = e => chunks.push(e.data);
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       recorder = null;
+      setPracticeBusy(true);
       $("rec").classList.remove("on"); $("card").classList.remove("live");
       $("rec").textContent = "●"; $("rec").setAttribute("aria-label", tr("Record"));
       const blob = new Blob(chunks, {type: chunks[0]?.type || "audio/webm"});
       lastUrl = {n: s.n, url: URL.createObjectURL(blob)};
       $("hint").textContent = tr("Checking…");
       try {
-        const clip = await call(`/api/voices/${voiceId}/train/${s.n}`, {method: "POST", headers: {"Content-Type": blob.type.split(";")[0]}, body: blob});
+        const query = s.id ? `?scriptLineId=${encodeURIComponent(s.id)}&revision=${encodeURIComponent(s.revision)}` : "";
+        const clip = await call(`/api/voices/${voiceId}/train/${s.n}${query}`, {method: "POST", headers: {"Content-Type": blob.type.split(";")[0]}, body: blob});
         done[s.n] = clip;
+        listened.delete(s.n);
         showSample();
         const good = clip.match === null || clip.match >= 0.8;
-        if (good) { show(); $("result").textContent = tr("Saved. Next sentence."); setTimeout(next, 700); }
+        if (good) { show(); $("result").textContent = tr("Saved. Next sentence."); if (!s.id) setTimeout(next, 700); }
         else {
           show();
           $("result").className = "result bad";
           $("result").textContent = tr("Saved, but it may not match the sentence. Listen, and record again if needed.") + " " + tr("We heard: “{heard}”", {heard: clip.heard});
         }
       } catch (e) { error(e.message); show(); }
+      finally { setPracticeBusy(false); }
     };
     recorder.start();
     $("rec").classList.add("on"); $("card").classList.add("live");
     $("rec").textContent = "■"; $("rec").setAttribute("aria-label", tr("Stop"));
     $("hint").textContent = tr("Recording… tap again when you finish.");
+  }
+
+  function selectSentences() {
+    stopPracticeAudio();
+    const speaker = $("speakerFilter").value;
+    sentences = practiceMode === "general" ? generalSentences : storySamples.filter(s => speaker === "all" || s.speakerId === speaker);
+    $("speakerFilterLabel").hidden = practiceMode !== "story";
+    index = Math.max(0, sentences.findIndex(s => !recorded(s)));
+    lastUrl = null;
+    show();
+  }
+
+  async function loadScript() {
+    const request = ++catalogRequest;
+    const catalog = await call(`/api/voice/training-script?language=${language}`);
+    if (request !== catalogRequest) return;
+    if (scriptRevision !== catalog.revision) listened.clear();
+    scriptRevision = catalog.revision;
+    storySamples = catalog.samples.map(s => ({...s, revision: scriptRevision}));
+    selectSentences();
   }
 
   function applyCopy() {
@@ -214,18 +294,42 @@
     }
   };
   $("rec").onclick = toggle;
-  $("skip").onclick = () => { index = Math.min(index + 1, sentences.length - 1); lastUrl = null; show(); };
-  $("prev").onclick = () => { index = Math.max(0, index - 1); lastUrl = null; show(); };
-  $("listen").onclick = () => lastUrl && new Audio(lastUrl.url).play();
+  $("skip").onclick = () => { stopPracticeAudio(); index = Math.min(index + 1, sentences.length - 1); lastUrl = null; show(); };
+  $("prev").onclick = () => { stopPracticeAudio(); index = Math.max(0, index - 1); lastUrl = null; show(); };
+  $("listen").onclick = async () => {
+    const s = sentences[index];
+    if (!s || !(lastUrl?.n === s.n || recorded(s))) return;
+    stopPracticeAudio();
+    const request = listenRequest;
+    const audio = new Audio(lastUrl?.n === s.n ? lastUrl.url : `${server}/api/voices/${voiceId}/train/${s.n}.wav`);
+    practiceAudio = audio;
+    audio.onended = () => { if (request !== listenRequest || practiceAudio !== audio) return; practiceAudio = null; listened.add(s.n); show(); };
+    try { await audio.play(); } catch (e) { error(e.message); }
+  };
+  $("reviewPerformance").onclick = async () => {
+    const s = sentences[index];
+    if (!s?.id || !listened.has(s.n)) return;
+    try {
+      done[s.n] = await call(`/api/voices/${voiceId}/train/${s.n}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({performanceReviewed: true})});
+      show();
+    } catch (e) { error(e.message); }
+  };
+  $("practiceMode").onchange = () => { if (recorder) return; practiceMode = $("practiceMode").value; selectSentences(); };
+  $("speakerFilter").onchange = () => { if (!recorder) selectSentences(); };
   document.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); toggle(); } });
-  document.querySelectorAll("[data-lang]").forEach(b => { b.onclick = () => { language = b.dataset.lang; try { localStorage.setItem("story-language", language); } catch {} applyCopy(); }; });
+  document.querySelectorAll("[data-lang]").forEach(b => { b.onclick = async () => {
+    if (recorder) return;
+    language = b.dataset.lang; try { localStorage.setItem("story-language", language); } catch {}
+    applyCopy();
+    try { await loadScript(); } catch (e) { error(e.message); }
+  }; });
 
   (async () => {
-    try { sentences = await (await fetch("audio/training-sentences.json")).json(); } catch { sentences = []; }
+    try { generalSentences = await (await fetch("audio/training-sentences.json")).json(); } catch { generalSentences = []; }
     if (!voiceId) { applyCopy(); $("card").hidden = true; return error(tr("Save a parent's voice first, then come back here.")); }
     try { const status = await call(`/api/voices/${voiceId}/train`); for (const c of status.clips) done[c.n] = c; sample = status.sample; }
     catch (e) { error(e.message); }
-    index = Math.max(0, sentences.findIndex(s => !done[s.n]));
+    try { await loadScript(); } catch (e) { error(e.message); practiceMode = "general"; $("practiceMode").value = "general"; selectSentences(); }
     applyCopy();
     renderMedia();
     showSample();

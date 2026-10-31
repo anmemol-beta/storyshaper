@@ -340,6 +340,89 @@ class FillerListTest(unittest.TestCase):
         self.assertIn(f't("{CHOICE_PROMPT["en"]}", "{CHOICE_PROMPT["ko"]}")', page)
 
 
+class WarmBookTest(unittest.TestCase):
+    def test_warm_lines_preserve_roles_and_metadata_with_twenty_line_batches(self):
+        from narration.warm import lines_for
+        wolf = {"speakerId": "wolf", "text": "Here comes my biggest puff!", "kind": "dialogue",
+                "tone": "playful", "emotion": "confident"}
+        with patch("narration.warm.call", return_value={"clips": []}) as call:
+            lines_for("abcdef123456", [wolf] + ["A warmup line."] * 20, peek=True, language="ko")
+        bodies = [request.args[1] for request in call.call_args_list]
+        self.assertEqual([len(body["lines"]) for body in bodies], [20, 1])
+        self.assertEqual(bodies[0]["lines"][0], wolf)
+        self.assertEqual(bodies[0]["lines"][1], {"speakerId": "narrator", "text": "A warmup line."})
+        for body in bodies:
+            self.assertEqual((body["voiceId"], body["language"], body["priority"], body["peek"]),
+                             ("abcdef123456", "ko", "background", True))
+
+    def test_authored_book_covers_every_registered_material_and_character_without_model_calls(self):
+        from narration.warm import authored_book
+        from story_agent.engine import MockProvider, STORIES
+        for language in ("en", "ko"):
+            with self.subTest(language=language), patch.object(MockProvider, "complete", side_effect=AssertionError("model call")):
+                book = authored_book(language)
+                self.assertEqual(book, authored_book(language), "Preparation order must be deterministic")
+                self.assertEqual({line["speakerId"] for line in book}, set(STORIES[language]["fixedCharacters"]))
+                keys = [tuple(line[field] for field in ("speakerId", "text", "kind", "tone", "emotion")) for line in book]
+                self.assertEqual(len(keys), len(set(keys)))
+                for line in book:
+                    self.assertEqual(set(line), {"speakerId", "text", "kind", "tone", "emotion"})
+                    self.assertNotIn("{material}", line["text"])
+                for house in STORIES[language]["houses"]:
+                    for material in house["allowedMaterials"]:
+                        label = STORIES[language]["materials"][material]["label"]
+                        expected = house["buildLines"][0]["text"].replace("{material}", label)
+                        self.assertIn((house["pigId"], expected), [(line["speakerId"], line["text"]) for line in book])
+                    self.assertIn(house["question"], [line["text"] for line in book])
+
+    def test_warm_sentence_chunks_match_the_reader_for_both_authored_scripts(self):
+        from narration.warm import _sentences
+        from story_agent.engine import STORIES
+
+        def texts(value):
+            if isinstance(value, dict):
+                return ([value["text"]] if isinstance(value.get("text"), str) else []) + [
+                    text for child in value.values() for text in texts(child)]
+            if isinstance(value, list):
+                return [text for child in value for text in texts(child)]
+            return []
+
+        samples = texts(STORIES) + [
+            "Oh! The little pig looked up at the sky and saw a big gray cloud.",
+            'But the wolf came back. "Whoo… whoo… CRASH!" The wood house tumbled down.',
+            "늑대가 후 불자 종이 벽이 팔랑팔랑 흔들렸어요. 가벼운 종이 벽은 바람에 날아갔어요.",
+        ]
+        script = """const fs = require('node:fs'), vm = require('node:vm');
+const context = vm.createContext({URLSearchParams, location:{search:''}});
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8') + '\\nthis.sentences = Narration.sentences;', context);
+process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(text => context.sentences(text))));"""
+        source = Path(__file__).resolve().parent.parent / "prototype" / "narration.js"
+        result = subprocess.run(["node", "-e", script, str(source)], input=json.dumps(samples),
+                                capture_output=True, text=True, check=True)
+        self.assertEqual([_sentences(text) for text in samples], json.loads(result.stdout))
+
+    def test_main_queues_and_checks_the_current_authored_roles_in_both_languages(self):
+        from narration import warm
+        wolf = {"speakerId": "wolf", "text": "One big puff!", "kind": "dialogue",
+                "tone": "playful", "emotion": "confident"}
+
+        def fake_call(path, body=None):
+            if path == "/api/voices":
+                return {"voices": []}
+            return {"clips": [{"ready": True} for _ in body["lines"]]}
+
+        with patch("sys.argv", ["narration.warm", "--wait"]), patch.object(warm, "authored_book", return_value=[wolf]) as book, \
+                patch.object(warm, "call", side_effect=fake_call) as call, patch("builtins.print"):
+            warm.main()
+        self.assertEqual([request.args[0] for request in book.call_args_list], ["en", "ko"])
+        queued = [request.args[1] for request in call.call_args_list if request.args[0] == "/api/voice/lines"]
+        self.assertEqual({body["language"] for body in queued}, {"en", "ko"})
+        for language in ("en", "ko"):
+            for peek in (False, True):
+                self.assertTrue(any(body["language"] == language and body["peek"] is peek and wolf in body["lines"] for body in queued))
+        self.assertTrue(all(body["priority"] == "background" for body in queued))
+
+
 class FinetuneDatasetTest(unittest.TestCase):
     def test_dataset_uses_corrected_text_and_skips_excluded_and_misread_clips(self):
         import narration.finetune as ft

@@ -334,7 +334,8 @@
     // after cards are enabled. Do not start a competing passage narration.
     if (typeof Narration !== "undefined" && ui.choicePanel.hidden) {
       const paragraphs = [...ui.narrative.children];
-      const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text}] : next.lines;
+      const spoken = next.question ? [...next.lines, {speakerId: "narrator", text: next.question.text,
+        kind: "narration", tone: "curious", emotion: "curious"}] : next.lines;
       Narration.speak(spoken, {
         key: `${next.sessionId}:${next.version}:${AgentLanguage.language}`, language: AgentLanguage.language,
         onLine: i => paragraphs.forEach((p, k) => p.classList.toggle("speaking", k === i))

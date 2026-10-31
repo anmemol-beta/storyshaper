@@ -57,16 +57,18 @@ function preparedChoiceResult(snapshot, overrides = {}) {
 }
 
 async function harness(request = null, {withMotion = false} = {}) {
-  const elements = new Map(), calls = [], shows = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
+  const elements = new Map(), calls = [], shows = [], reveals = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
   element('readerSettings').hidden = true;
   element('imgCur').parentElement = element('art');
   element('imgCur').src = 'img/intro.jpg';
   const voiceSetupCalls = [];
-  const settings = {answer:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
+  const settings = {answer:null, advance:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
     transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper', voiceId:null,
-    voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null};
+    voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null, scenePreparation:null, speakError:null};
+  const preparedScenes = new Map();
+  const sceneKey = (lines, options) => JSON.stringify([settings.voiceId, options.language, lines]);
   const playbackCalls = [], prefetched = [], motionCalls = [];
   let playbackListener = () => {};
   const playback = state => { settings.playback = state; playbackListener(state); };
@@ -90,6 +92,11 @@ async function harness(request = null, {withMotion = false} = {}) {
       constructor(current, next) { this.current = current; this.next = next; }
       cancel() {}
       show(url, options) { shows.push({url, ...options}); }
+      prepare(url, options) {
+        this.prepared = url;
+        shows.push({url, onComplete:options.onReady, onError:options.onError});
+      }
+      reveal(onComplete) { reveals.push(this.prepared); onComplete?.(); }
     },
     VoiceInput:{supported:() => true, record:async () => {
       voiceCalls.push('record');
@@ -108,11 +115,24 @@ async function harness(request = null, {withMotion = false} = {}) {
       voiceId:() => settings.voiceId, voiceSource:() => settings.voiceSource,
       playbackState:() => settings.playback, subscribe:listener => { playbackListener = listener; listener(settings.playback); return () => {}; },
       pause() { playbackCalls.push('pause'); playback('paused'); }, resume() { playbackCalls.push('resume'); playback('playing'); },
-      selectVoice(id, name) { settings.voiceId = id; settings.voiceName = name; },
+      selectVoice(id, name) { preparedScenes.clear(); settings.voiceId = id; settings.voiceName = name; },
       listVoices:async () => { if (settings.voiceListError) throw settings.voiceListError; return settings.voiceList ? settings.voiceList.promise : settings.voices; },
-      prefetch:(lines, options) => prefetched.push({lines, options}), warm:() => voiceSetupCalls.push('warm'),
+      prefetch:(lines, options) => prefetched.push({lines, options}),
+      prepareScene:(lines, options) => {
+        prefetched.push({lines, options});
+        const key = sceneKey(lines, options);
+        if (settings.scenePreparation) return settings.scenePreparation.promise.then(asset => {
+          preparedScenes.set(key, asset); return asset;
+        });
+        const asset = {ready:true, key:options.key};
+        preparedScenes.set(key, asset);
+        return asset;
+      },
+      getPreparedScene:(lines, options) => preparedScenes.get(sceneKey(lines, options)) || null,
+      warm:() => voiceSetupCalls.push('warm'),
       interject:language => voiceSetupCalls.push(language), speak:(lines, options) => {
-      narrations.push({lines, options}); playback('playing'); return new Promise(() => {});
+      narrations.push({lines, options}); playback('playing');
+      return settings.speakError ? Promise.reject(settings.speakError) : new Promise(() => {});
     }},
     fetch:async (url, options = {}) => {
       const body = options.body ? JSON.parse(options.body) : null;
@@ -123,6 +143,8 @@ async function harness(request = null, {withMotion = false} = {}) {
         speechAvailable:true, visionAvailable:true};
       else if (url === '/api/sessions') data = settings.session || state(body.mode, {sessionId:`session-${calls.filter(c => c.url === url).length}`});
       else if (url === '/api/answer') data = settings.answer || accepted(body.mode);
+      else if (url === '/api/advance') data = settings.advance || accepted('live', {
+        diagnostics:{manualNavigation:{skippedPicture:true, skippedQuestion:true, defaultChoice:'Paper'}}});
       else if (url === '/api/language') data = settings.language;
       else if (url === '/api/media/cancel') data = {};
       else if (url.startsWith('/api/media/jobs')) data = settings.media || new Promise(() => {});
@@ -145,8 +167,8 @@ async function harness(request = null, {withMotion = false} = {}) {
     await flush();
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
-  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, motionCalls,
-    document, start, submit, playback, playbackCalls, prefetched};
+  return {element, calls, settings, shows, reveals, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, motionCalls,
+    document, start, submit, playback, playbackCalls, prefetched, expireSceneCache:() => preparedScenes.clear()};
 }
 
 test('illustration playback controls pause, resume and replay the displayed passage', async () => {
@@ -259,6 +281,35 @@ test('index is the child reader with offline/AI selection and no developer navig
   assert.match(html, /AI 버전/);
   assert.doesNotMatch(html, /agent\.html|agent\.js|diagnosticsJson/);
   assert.match(read('agent.html'), /diagnosticsJson/);
+});
+
+test('dialogue shows localized speakers and quotes while narration receives only the original lines', async () => {
+  const h = await harness();
+  const cast = ['pig1', 'pig2', 'pig3', 'wolf'];
+  const lines = [{speakerId:'narrator', kind:'narration', tone:'warm', emotion:'calm', text:'The pigs looked up.'},
+    ...cast.map(speakerId => ({speakerId, kind:'dialogue', tone:'lively', emotion:'excited', text:'Let us try!'}))];
+  h.settings.session = state('live', {lines});
+  await h.start();
+  const paragraphs = h.element('narrative').children;
+  assert.equal(paragraphs[0].textContent, lines[0].text, 'Narrator needs no character label');
+  for (const [i, label] of ['Oldest pig', 'Middle pig', 'Youngest pig', 'Wolf'].entries()) {
+    assert.equal(paragraphs[i + 1].children[0].textContent, `${label}: `);
+    assert.equal(paragraphs[i + 1].children[1].textContent, '“Let us try!”');
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(h.narrations.at(-1).lines.slice(0, lines.length))), lines);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.prefetched.at(-1).lines.slice(0, lines.length))), lines);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.narrations.at(-1).lines.at(-1))),
+    {speakerId:'narrator', text:'What material?', kind:'narration', tone:'curious', emotion:'curious'});
+
+  const korean = lines.map(line => ({...line, text:line.speakerId === 'narrator' ? '돼지들이 고개를 들었어요.' : '같이 해 보자!'}));
+  h.settings.language = state('live', {version:1, language:'ko', lines:korean, diagnostics:{languageChanged:true}});
+  h.element('language').value = 'ko'; await h.element('language').onchange();
+  for (const [i, label] of ['첫째 돼지', '둘째 돼지', '막내 돼지', '늑대'].entries()) {
+    assert.equal(h.element('narrative').children[i + 1].children[0].textContent, `${label}: `);
+    assert.equal(h.element('narrative').children[i + 1].children[1].textContent, '“같이 해 보자!”');
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(h.narrations.at(-1).lines.slice(0, korean.length))), korean,
+    'Display labels, quotation marks and delivery directions never enter the spoken words');
 });
 
 test('generated bytes do not open the next question until the image is displayed', async () => {
@@ -482,7 +533,7 @@ test('exhausted retries or missing generation cannot leave a useless retry butto
     await h.submit();
     assert.equal(h.element('retryMedia').hidden, true);
     assert.equal(h.element('retryMedia').disabled, true);
-    assert.match(h.element('status').textContent, /restart/i);
+    assert.match(h.element('status').textContent, /▶/);
     const count = h.calls.length;
     await h.element('retryMedia').onclick();
     assert.equal(h.calls.length, count);
@@ -612,7 +663,413 @@ test('language-only presentation changes keep the displayed image without genera
   assert.equal(h.element('mic').disabled, false);
 });
 
-test('an outcome picture stays behind the prior frame until its action sentence is spoken', async () => {
+test('page arrows revisit matching text and art without submitting old answers or generating again', async () => {
+  const h = await harness();
+  assert.equal(h.element('previousPage').disabled, true);
+  await h.element('nextPage').onclick(); await flush();
+  assert.equal(h.element('previousPage').disabled, true);
+  const oldChoice = h.element('choices').children[0];
+  const next = accepted('mock'); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  assert.equal(h.element('previousPage').disabled, false, 'Manual navigation can interrupt the picture gate');
+  h.shows.at(-1).onComplete();
+  h.element('answer').value = 'my unfinished prediction';
+  const calls = h.calls.length;
+  h.element('previousPage').onclick();
+  assert.equal(h.shows.at(-1).url, 'img/intro.jpg');
+  assert.equal(h.element('question').textContent, 'What material?', 'Manual navigation must not wait for decoding');
+  assert.equal(h.element('nextPage').disabled, false);
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('freeInput').hidden, true);
+  assert.equal(h.element('choices').hidden, true);
+  assert.equal(h.element('language').disabled, true);
+  assert.equal(h.narrations.at(-1).lines[0].text, 'The story begins.');
+  await h.submit('straw'); await oldChoice.onclick(); await h.element('mic').onclick();
+  assert.equal(h.calls.length, calls);
+  h.element('nextPage').onclick();
+  assert.equal(h.shows.at(-1).url, '/prototype/img/paper_house.jpg');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What will happen?');
+  assert.equal(h.element('answer').value, 'my unfinished prediction');
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.calls.length, calls, 'Revisiting must make no server requests');
+  h.settings.advance = accepted('mock', {version:2, sceneId:'house1_reflect',
+    question:{...next.question, id:'house1_reflect', text:'Why did it happen?'},
+    diagnostics:{manualNavigation:{skippedPicture:true, skippedQuestion:true, defaultChoice:'Blow away'}}});
+  await h.element('nextPage').onclick();
+  assert.equal(h.element('question').textContent, 'Why did it happen?');
+  assert.equal(h.calls.filter(call => call.url === '/api/advance').length, 1);
+});
+
+test('history preserves choice locks, keeps only one entry per scene and resets on restart', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit(); h.shows.at(-1).onComplete();
+  h.settings.recordError = new Error('denied'); await h.element('mic').onclick();
+  h.settings.language = {...next, version:2, language:'ko', diagnostics:{languageChanged:true}};
+  h.element('language').value = 'ko'; await h.element('language').onchange();
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What material?', 'Language changes do not add history pages');
+  assert.equal(h.element('language').value, 'en');
+  h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('language').value, 'ko');
+  assert.equal(h.element('choices').hidden, false);
+  assert.equal(h.element('freeInput').hidden, true);
+  assert.equal(h.element('nextPage')['aria-label'], '다음 장면');
+  h.element('previousPage').onclick();
+  const late = h.shows.at(-1);
+  await h.element('restart').onclick();
+  late.onComplete();
+  assert.equal(h.element('previousPage').disabled, true);
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.calls.filter(call => call.url === '/api/sessions').at(-1).body.language, 'ko');
+});
+
+test('page navigation handles image failure and ending boundaries without changing server progress', async () => {
+  const h = await harness(); await h.start();
+  const ending = accepted('live', {sceneId:'ending', question:null, decision:'complete'});
+  h.settings.answer = ending; h.settings.media = imageResult(ending);
+  await h.submit(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('nextPage').disabled, true);
+  h.element('previousPage').onclick();
+  h.shows.at(-1).onError();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('nextPage').disabled, false);
+  assert.equal(h.element('previousPage').disabled, true);
+  assert.equal(h.element('pictureNotice').hidden, false, 'Broken art is replaced by an explicit notice');
+  assert.equal(h.element('nextPage').disabled, false);
+  h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'The End');
+  assert.equal(h.element('nextPage').disabled, true);
+});
+
+test('next interrupts running or failed pictures and immediately opens the approved next page', async () => {
+  for (const failed of [false, true]) {
+    const h = await harness(); await h.start();
+    const next = accepted(); h.settings.answer = next;
+    h.settings.media = imageResult(next, {status:failed ? 'failed' : 'running', image:null, generated:false});
+    await h.submit();
+    assert.equal(h.element('nextPage').disabled, false, 'A picture must never trap manual navigation');
+    await h.element('nextPage').onclick(); await flush();
+    assert.equal(h.element('question').textContent, next.question.text);
+    assert.equal(h.element('loading').hidden, true);
+    assert.equal(h.element('send').disabled, false);
+    assert.equal(h.calls.filter(call => call.url === '/api/media/cancel').length, 1);
+    assert.match(h.element('status').textContent, /picture/i, 'Skipped art must be explained');
+  }
+});
+
+test('next cancels image decoding and ignores its late success without mixing text and pictures', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  const decoding = h.shows.at(-1);
+  await h.element('nextPage').onclick();
+  assert.equal(h.element('question').textContent, next.question.text);
+  assert.equal(h.element('imgCur').hidden, true);
+  assert.equal(h.element('pictureNotice').hidden, false);
+  decoding.onComplete();
+  assert.equal(h.element('imgCur').hidden, true, 'Cancelled bytes cannot replace the skipped picture');
+  assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 1);
+});
+
+test('previous can interrupt a pending first picture and revisit that skipped page without generating again', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next;
+  const waiting = deferred(); h.settings.media = waiting.promise;
+  await h.submit();
+  h.element('previousPage').onclick();
+  assert.equal(h.element('question').textContent, 'What material?');
+  const reads = h.narrations.length;
+  waiting.resolve(imageResult(next)); await flush();
+  assert.equal(h.narrations.length, reads);
+  h.element('nextPage').onclick();
+  assert.equal(h.element('question').textContent, next.question.text);
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 1);
+});
+
+test('next interrupts recording or transcription and prevents late recognized words from touching the new page', async () => {
+  for (const activity of ['recording', 'transcription']) {
+    const h = await harness(); await h.start();
+    const result = deferred();
+    if (activity === 'recording') h.settings.recording = {stop() {h.voiceCalls.push('stop');}, done:result.promise};
+    else h.settings.transcription = result;
+    const recording = h.element('mic').onclick(); await flush();
+    assert.equal(h.element('nextPage').disabled, false);
+    await h.element('nextPage').onclick();
+    result.resolve(activity === 'recording' ? {blob:{size:10}} : 'late words');
+    await recording;
+    assert.equal(h.element('question').textContent, 'What will happen?');
+    assert.equal(h.element('answer').value, '');
+    assert.equal(h.calls.filter(call => call.url === '/api/answer').length, 0);
+    assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 0);
+    assert.equal(h.element('send').disabled, false);
+  }
+});
+
+test('next supersedes a pending story answer, reuses rapid navigation requests and ignores late responses', async () => {
+  const h = await harness(); await h.start();
+  const slow = deferred(), fast = deferred();
+  h.settings.answer = slow.promise;
+  const answering = h.submit('cookies'); await flush();
+  const oldRequest = h.calls.find(call => call.url === '/api/answer');
+  h.settings.advance = fast.promise;
+  const first = h.element('nextPage').onclick();
+  const second = h.element('nextPage').onclick();
+  assert.equal(oldRequest.signal.aborted, true);
+  const turns = h.calls.filter(call => call.url === '/api/advance');
+  assert.equal(turns.length, 2);
+  assert.equal(turns[0].body.requestId, turns[1].body.requestId);
+  fast.resolve(accepted('live', {diagnostics:{manualNavigation:{skippedPicture:true, defaultChoice:'Paper'}}}));
+  await Promise.all([first, second]);
+  slow.resolve(accepted('live', {lines:[{text:'A late cookie house.'}]}));
+  await answering;
+  assert.equal(h.element('narrative').children[0].textContent, 'A new paper house.');
+  assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 0);
+  assert.equal(h.element('send').disabled, false);
+});
+
+test('the first page waits for every narration line and its question before displaying or speaking', async () => {
+  const h = await harness(), voice = deferred();
+  h.settings.scenePreparation = voice;
+  await h.start();
+  assert.equal(h.element('question').textContent, '');
+  assert.equal(h.narrations.length, 0);
+  assert.equal(h.element('send').disabled, true);
+  assert.equal(h.element('book').dataset.state, 'VOICING');
+  assert.equal(h.prefetched.at(-1).lines.at(-1).text, 'What material?');
+  const asset = {ready:true, allLines:true};
+  voice.resolve(asset); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.narrations.length, 1);
+  assert.equal(h.narrations[0].options.scene, true);
+  assert.equal(h.narrations[0].options.prepared, asset);
+});
+
+test('next picture decoding and whole-page voice prepare in parallel but reveal together', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted();
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  const reads = h.narrations.length;
+  await h.submit();
+  assert.equal(h.shows.at(-1).url, '/api/media/images/picture?sessionId=session-1');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.reveals.length, 0, 'Decoded image must stay hidden while a later voice line is pending');
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.narrations.length, reads);
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.reveals.length, 1);
+  assert.equal(h.element('question').textContent, 'What will happen?');
+  assert.equal(h.narrations.length, reads + 1);
+  assert.equal(h.narrations.at(-1).options.scene, true);
+});
+
+test('a ready complete voice still waits for the next picture before committing the page', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted();
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('send').disabled, true);
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What will happen?');
+});
+
+test('restart aborts a pending whole-page voice and rejects its late completion', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted();
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  const signal = h.prefetched.at(-1).options.signal;
+  const picture = h.shows.at(-1);
+  h.settings.scenePreparation = null;
+  await h.element('restart').onclick(); await flush();
+  assert.equal(signal.aborted, true);
+  const reads = h.narrations.length;
+  voice.resolve({ready:true}); picture.onComplete(); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.narrations.length, reads);
+});
+
+test('manual next skips a picture wait but still waits for the complete page voice', async () => {
+  const h = await harness(); await h.start();
+  const oldVoice = deferred(), next = accepted();
+  h.settings.scenePreparation = oldVoice;
+  h.settings.answer = next; h.settings.media = imageResult(next, {status:'running', image:null, generated:false});
+  await h.submit();
+  const voice = deferred(); h.settings.scenePreparation = voice;
+  await h.element('nextPage').onclick(); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('question').textContent, next.question.text);
+  const reads = h.narrations.length;
+  oldVoice.resolve({ready:true}); await flush();
+  assert.equal(h.narrations.length, reads);
+  assert.equal(h.calls.filter(call => call.url === '/api/advance').length, 0);
+});
+
+test('voice changes, translations and history prepare their own full passage', async () => {
+  const h = await harness(); await h.start();
+  h.settings.voices = [{id:'dad', name:'Dad'}];
+  await h.element('settingsButton').onclick();
+  let voice = deferred(); h.settings.scenePreparation = voice;
+  const reads = h.narrations.length;
+  h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
+  assert.equal(h.element('send').disabled, true);
+  assert.equal(h.narrations.length, reads);
+  voice.resolve({ready:true, voice:'dad'}); await flush();
+  assert.equal(h.narrations.at(-1).options.prepared.voice, 'dad');
+
+  voice = deferred(); h.settings.scenePreparation = voice;
+  h.settings.language = state('live', {version:1, language:'ko',
+    question:{...state().question, text:'무엇으로 지을까요?'}, diagnostics:{languageChanged:true}});
+  h.element('language').value = 'ko'; await h.element('language').onchange();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.prefetched.at(-1).options.language, 'ko');
+  voice.resolve({ready:true, language:'ko'}); await flush();
+  assert.equal(h.element('question').textContent, '무엇으로 지을까요?');
+
+  h.settings.scenePreparation = null;
+  const next = accepted('mock', {version:2, language:'ko'});
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit(); h.shows.at(-1).onComplete();
+  h.expireSceneCache();
+  voice = deferred(); h.settings.scenePreparation = voice;
+  h.element('previousPage').onclick();
+  assert.equal(h.element('question').textContent, 'What will happen?');
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('question').textContent, '무엇으로 지을까요?');
+});
+
+test('voice failure offers explicit retry and muting can release the pending page', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted();
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit(); h.shows.at(-1).onComplete();
+  voice.reject(new Error('voice failed')); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('retryMedia').hidden, false);
+  assert.match(h.element('retryMedia').textContent, /voice/i);
+  const retry = deferred(); h.settings.scenePreparation = retry;
+  h.element('retryMedia').onclick();
+  assert.equal(h.prefetched.at(-1).options.retry, true);
+  const reads = h.narrations.length;
+  h.element('readAloud').checked = false; h.element('readAloud').onchange();
+  assert.equal(h.element('question').textContent, 'What will happen?');
+  assert.equal(h.element('send').disabled, false);
+  retry.resolve({ready:true}); await flush();
+  assert.equal(h.narrations.length, reads, 'A late prepared voice never starts after muting');
+});
+
+test('replay asks the authoritative cache and prepares again after a page is evicted', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(); h.settings.scenePreparation = voice;
+  h.expireSceneCache(); h.playback('idle');
+  const reads = h.narrations.length;
+  h.element('playNarration').onclick();
+  assert.equal(h.narrations.length, reads);
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true, fresh:true}); await flush();
+  assert.equal(h.narrations.length, reads + 1);
+  assert.equal(h.narrations.at(-1).options.prepared.fresh, true);
+});
+
+test('a failed prepared playback exposes retry instead of leaving a silently idle page', async () => {
+  const h = await harness(); await h.start();
+  h.settings.speakError = new Error('local audio failed'); h.playback('idle');
+  h.element('playNarration').onclick(); await flush();
+  assert.equal(h.element('retryMedia').hidden, false);
+  assert.match(h.element('retryMedia').textContent, /voice/i);
+  assert.equal(h.element('send').disabled, true);
+  h.settings.speakError = null;
+  const voice = deferred(); h.settings.scenePreparation = voice;
+  h.element('retryMedia').onclick();
+  assert.equal(h.prefetched.at(-1).options.retry, true);
+  voice.resolve({ready:true, retried:true}); await flush();
+  assert.equal(h.narrations.at(-1).options.prepared.retried, true);
+  assert.equal(h.element('send').disabled, false);
+});
+
+test('whole-page progress and timeout belong only to the active preparation attempt', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted();
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  const options = h.prefetched.at(-1).options;
+  options.onProgress({ready:2, total:5});
+  assert.match(h.element('loadingText').textContent, /2\/5/);
+  const timer = [...h.timers.values()].find(entry => entry.ms === 180000);
+  assert.ok(timer);
+  timer.callback();
+  assert.equal(h.element('retryMedia').hidden, false);
+  assert.equal(options.signal.aborted, true);
+  const failureText = h.element('loadingText').textContent;
+  options.onProgress({ready:5, total:5});
+  assert.equal(h.element('loadingText').textContent, failureText);
+  h.settings.scenePreparation = null;
+  await h.element('restart').onclick(); await flush();
+  const newText = h.element('loadingText').textContent;
+  options.onProgress({ready:3, total:5});
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('loadingText').textContent, newText);
+});
+
+test('a recovery choice is touchable before speech is prepared but the resulting new page still waits', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(); h.settings.scenePreparation = voice;
+  const preparations = h.prefetched.length;
+  h.settings.answer = state('live', {version:1, decision:'clarify', choiceMode:true,
+    lines:[{speakerId:'narrator', text:'Tap one of the choices.'}]});
+  await h.submit('unclear');
+  assert.equal(h.prefetched.length, preparations, 'The same-question recovery never waits for a whole-page voice');
+  assert.equal(h.element('choices').hidden, false);
+  assert.ok(h.element('choices').children.every(button => !button.disabled));
+  assert.equal(h.narrations.at(-1).options.scene, undefined, 'Only the short choice invitation uses the legacy path');
+  const next = accepted('live', {version:2});
+  h.settings.answer = next; h.settings.media = preparedChoiceResult(next);
+  await h.element('choices').children[0].onclick(); await flush();
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('question').textContent, 'What will happen?');
+  assert.equal(h.narrations.at(-1).options.scene, true);
+});
+
+test('an external voice change turns both a stale success and failure into recoverable preparation', async () => {
+  for (const fail of [false, true]) {
+    const h = await harness(); await h.start();
+    const voice = deferred(), next = accepted();
+    h.settings.scenePreparation = voice;
+    h.settings.answer = next; h.settings.media = imageResult(next);
+    await h.submit(); h.shows.at(-1).onComplete();
+    const reads = h.narrations.length;
+    h.settings.voiceId = 'another-window-voice'; // the storage-backed getter changes without selectVoice()
+    if (fail) voice.reject(new Error('scene_voice_changed'));
+    else voice.resolve({ready:true, staleVoice:true});
+    await flush();
+    assert.equal(h.narrations.length, reads);
+    assert.equal(h.element('question').textContent, 'What material?');
+    assert.equal(h.element('retryMedia').hidden, false);
+    assert.match(h.element('retryMedia').textContent, /voice/i);
+    h.element('readAloud').checked = false; h.element('readAloud').onchange();
+    assert.equal(h.element('question').textContent, 'What will happen?');
+    assert.equal(h.element('send').disabled, false);
+  }
+});
+
+test('an outcome picture remains covered until its spoken action sentence starts', async () => {
   const h = await harness(null, {withMotion:true});
   await h.start('mock');
   const build = accepted('mock', {mediaPlan:{action:'build'}});
@@ -620,22 +1077,21 @@ test('an outcome picture stays behind the prior frame until its action sentence 
   h.settings.media = imageResult(build, {generated:false, generationRequested:false});
   await h.submit('paper');
   h.shows.at(-1).onComplete();
-  assert.equal(h.element('answer').disabled, false);
 
   const outcome = state('mock', {version:2, sceneId:'house1_reflect', decision:'accept',
     mediaPlan:{action:'eaten'}, lines:[{speakerId:'narrator', text:'The wolf smelled the cookie. Then he ate the wall.'}]});
   h.settings.answer = outcome;
   h.settings.media = imageResult(outcome, {generated:false, generationRequested:false});
   await h.submit('the wolf will eat it');
-  assert.ok(h.element('art').children.some(child => child.className === 'story-cue-cover'));
   h.shows.at(-1).onComplete();
-  assert.equal(h.element('answer').disabled, true, 'the outcome is still covered');
+  assert.ok(h.element('art').children.some(child => child.className === 'story-cue-cover'));
+  assert.equal(h.element('answer').disabled, true);
   const spoken = h.narrations.at(-1).options.onSentence;
   spoken(0, 'The wolf smelled the cookie.');
   assert.equal(h.element('answer').disabled, true);
   spoken(0, 'Then he ate the wall.');
   const fade = [...h.timers.values()].find(timer => timer.ms === 280);
-  assert.ok(fade, 'the result picture begins its reveal at the action sentence');
+  assert.ok(fade);
   fade.callback();
   assert.equal(h.element('answer').disabled, false);
   assert.equal(h.element('art').children.some(child => child.className === 'story-cue-cover'), false);

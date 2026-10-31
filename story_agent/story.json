@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "storyId": "three-little-pigs",
   "language": "en",
   "title": "The Three Little Pigs",
@@ -36,7 +37,41 @@
         "cookie"
       ],
       "intro": "The oldest pig is ready to build a little house in a sunny meadow.",
-      "question": "What material could the oldest pig use for a little house?"
+      "question": "What material could the oldest pig use for a little house?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "The oldest pig is ready to build a little house in a sunny meadow.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I can't wait to build my own little house!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig1",
+          "text": "I'm going to build a house with {material}!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig1",
+          "text": "Oh! I need another place to stay. I'll go to my brother!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ]
     },
     {
       "id": "house2",
@@ -55,7 +90,41 @@
         "icecream"
       ],
       "intro": "The brothers reach the middle pig's building place beside the forest.",
-      "question": "What material could the middle pig try for this house?"
+      "question": "What material could the middle pig try for this house?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "The brothers reach the middle pig's building place beside the forest.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "Come here, brother! Let's try building a house together!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig2",
+          "text": "Let's try {material} for our house!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig2",
+          "text": "Oh dear, we need another home. Let's go to our youngest brother!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ]
     },
     {
       "id": "house3",
@@ -71,7 +140,55 @@
         "brick_team"
       ],
       "intro": "The three pigs join the youngest pig and plan a strong house together.",
-      "question": "What strong material should the pigs use for their last house?"
+      "question": "What strong material should the pigs use for their last house?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "The three pigs join the youngest pig and plan a strong house together.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "Let's take our time and join the walls firmly.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "I'll help carry the pieces!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "And I'll help put them in place!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig3",
+          "text": "Let's join the {material} pieces firmly, one at a time.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig3",
+          "text": "Our walls held together! We're safe here together.",
+          "kind": "dialogue",
+          "tone": "reassuring",
+          "emotion": "relieved"
+        }
+      ]
     }
   ],
   "materials": {
@@ -90,6 +207,24 @@
       "process": [
         "The wolf puffed, and the paper walls fluttered back and forth.",
         "Their loosely joined edges came free."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! Loose paper pieces blew away from the roof!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "straw": {
@@ -108,6 +243,24 @@
       "process": [
         "The wolf puffed, and the straw walls shook.",
         "Loose bits of straw started to come apart."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Hee hee! I'll give those walls a great big puff!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Whoosh! Loose straw pieces blew away from the roof!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "wood": {
@@ -135,6 +288,24 @@
       "process": [
         "The wolf puffed, and the loosely stacked wood wobbled.",
         "The logs slipped apart because they were not fastened together."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Ho ho! Let's see what my puff can do!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Oh! Those loose pieces came apart!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "cookie": {
@@ -160,6 +331,24 @@
       "process": [
         "The hungry wolf sniffed the cookie walls.",
         "He took little nibbles, leaving bigger and bigger gaps."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Sniff, sniff! Those walls smell like a snack!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "curious"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Munch, munch! Now there are gaps in the walls!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "icecream": {
@@ -177,6 +366,24 @@
       "process": [
         "In the warm sunshine, drops dripped down the ice cream walls.",
         "The walls grew thinner and softer."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "narrator",
+          "text": "The warm sun shines down on the walls.",
+          "kind": "narration",
+          "tone": "gentle",
+          "emotion": "calm"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "narrator",
+          "text": "The pigs watch from a safe place.",
+          "kind": "narration",
+          "tone": "reassuring",
+          "emotion": "calm"
+        }
       ]
     },
     "brick": {
@@ -187,13 +394,31 @@
         "벽돌"
       ],
       "outcome": "stood",
-      "build": "The pigs carefully join heavy bricks with mortar and help one another.",
+      "build": "The pigs help one another firmly join the heavy bricks, one by one.",
       "event": "The wolf blows at the firmly joined brick house, but it stays standing. All three pigs are safe inside.",
       "predict": "The brick walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the brick house?",
       "reflect": "The firmly joined brick house stayed standing. How did strong materials and working together help the pigs?",
       "process": [
         "The wolf puffed hard at the brick walls.",
         "The firmly joined bricks held one another in place."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "I'll try my biggest puff this time!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Phew! The walls are still standing!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        }
       ]
     },
     "stone": {
@@ -208,28 +433,212 @@
         "바위"
       ],
       "outcome": "stood",
-      "build": "The pigs carefully join heavy stones with mortar and help one another.",
+      "build": "The pigs help one another firmly join the heavy stones, one by one.",
       "event": "The wolf blows at the firmly joined stone house, but it stays standing. All three pigs are safe inside.",
       "predict": "The stone walls are heavy and firmly joined. What do you think will happen when the wolf puffs at the stone house?",
       "reflect": "The firmly joined stone house stayed standing. How did strong materials and working together help the pigs?",
       "process": [
         "The wolf puffed hard at the stone walls.",
         "The firmly joined stones held one another in place."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "I'll try my biggest puff this time!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "Phew! The walls are still standing!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        }
       ]
     }
   },
   "endingLines": [
     {
+      "speakerId": "wolf",
+      "text": "Phew, that house is too strong for my puff. I'm heading home!",
+      "kind": "dialogue",
+      "tone": "gentle",
+      "emotion": "disappointed"
+    },
+    {
       "speakerId": "narrator",
-      "text": "The wolf sees that the strong house will stay standing and walks away unharmed."
+      "text": "The wolf walks away unharmed. The three pigs stay safe together.",
+      "kind": "narration",
+      "tone": "reassuring",
+      "emotion": "calm"
+    },
+    {
+      "speakerId": "pig1",
+      "text": "Thank you for helping me! Next time I'll join the walls firmly.",
+      "kind": "dialogue",
+      "tone": "warm",
+      "emotion": "relieved"
+    },
+    {
+      "speakerId": "pig2",
+      "text": "Building together feels good!",
+      "kind": "dialogue",
+      "tone": "playful",
+      "emotion": "happy"
     },
     {
       "speakerId": "pig3",
-      "text": "We thought carefully, built together, and made a safe home for everyone!"
+      "text": "We thought carefully and helped each other. There is room for everyone!",
+      "kind": "dialogue",
+      "tone": "reassuring",
+      "emotion": "happy"
     },
     {
       "speakerId": "narrator",
-      "text": "The three little pigs share their safe home. The End."
+      "text": "The three little pigs share their safe home. The End.",
+      "kind": "narration",
+      "tone": "warm",
+      "emotion": "calm"
     }
-  ]
+  ],
+  "characters": {
+    "narrator": {
+      "name": "Narrator",
+      "role": "narrator",
+      "personality": [
+        "warm",
+        "observant",
+        "encouraging"
+      ],
+      "speechStyle": "Clear, short sentences. Invite the child to notice what happens without grading their answer.",
+      "defaultTone": "warm",
+      "defaultEmotion": "calm",
+      "imageNotes": "Describe approved actions and visible changes; do not add a visible narrator to the picture."
+    },
+    "pig1": {
+      "name": "The oldest pig",
+      "role": "oldest_brother",
+      "personality": [
+        "eager",
+        "imaginative",
+        "quick to try"
+      ],
+      "speechStyle": "Lively first-person sentences; eager before building, surprised after an event, comfortable asking for help.",
+      "defaultTone": "lively",
+      "defaultEmotion": "excited",
+      "imageNotes": "Show eagerness or surprise with posture and expression. Preserve the existing oldest-pig reference appearance."
+    },
+    "pig2": {
+      "name": "The middle pig",
+      "role": "middle_brother",
+      "personality": [
+        "playful",
+        "friendly",
+        "helpful"
+      ],
+      "speechStyle": "Bouncy, friendly first-person sentences. Welcome a brother and offer to try together.",
+      "defaultTone": "playful",
+      "defaultEmotion": "happy",
+      "imageNotes": "Use welcoming gestures and expressive reactions. Preserve the existing middle-pig reference appearance."
+    },
+    "pig3": {
+      "name": "The youngest pig",
+      "role": "youngest_brother",
+      "personality": [
+        "thoughtful",
+        "patient",
+        "cooperative"
+      ],
+      "speechStyle": "Calm, practical sentences. Say what to do together, using familiar words instead of construction jargon.",
+      "defaultTone": "thoughtful",
+      "defaultEmotion": "confident",
+      "imageNotes": "Show careful work and reassuring gestures. Preserve the existing youngest-pig reference appearance."
+    },
+    "wolf": {
+      "name": "Wolf",
+      "role": "comic_challenger",
+      "personality": [
+        "boastful",
+        "persistent",
+        "comical"
+      ],
+      "speechStyle": "Playful, short boasts and gentle huffing sounds. Sound surprised when the house stands; never threaten to eat or hurt the pigs.",
+      "defaultTone": "playful",
+      "defaultEmotion": "confident",
+      "imageNotes": "A storybook wolf with comic expressions. Preserve the existing wolf reference; no frightening close-ups or injuries."
+    }
+  },
+  "lineFormat": {
+    "fields": {
+      "speakerId": "A fixedCharacters ID; never a display name.",
+      "text": "Only words to speak, without speaker labels or acting directions.",
+      "kind": "narration for narrator; dialogue for a character.",
+      "tone": "Delivery style; stable code independent of language.",
+      "emotion": "Feeling in this moment; stable code independent of language."
+    },
+    "tones": [
+      "warm",
+      "lively",
+      "thoughtful",
+      "playful",
+      "gentle",
+      "curious",
+      "reassuring"
+    ],
+    "emotions": [
+      "calm",
+      "excited",
+      "curious",
+      "confident",
+      "surprised",
+      "worried",
+      "relieved",
+      "happy",
+      "determined",
+      "disappointed"
+    ],
+    "templateVariables": {
+      "material": "Replace with the server-approved material label in the active language, including approved custom materials."
+    },
+    "sequence": {
+      "choose": [
+        "introLines"
+      ],
+      "predict": [
+        "buildLines",
+        "material.build",
+        "material.setupLines"
+      ],
+      "reflect": [
+        "material.process",
+        "material.event",
+        "material.eventLines",
+        "reactionLines"
+      ],
+      "complete": [
+        "endingLines"
+      ]
+    },
+    "consumers": {
+      "speech": "Use text as the transcript and speakerId as the voice identity; tone/emotion are conditioning labels, never spoken text. Templates are not recordings or training audio.",
+      "storyAgent": "Preserve the characters, their personalities, selected material, fixed events and safe ending. Keep setup before the prediction and process before the result.",
+      "image": "Use approved scene facts and character references. Personality, imageNotes and line emotion can inform expression; do not render dialogue or directions as text in the picture."
+    }
+  },
+  "narrationDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "warm",
+    "emotion": "calm"
+  },
+  "questionDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "curious",
+    "emotion": "curious"
+  }
 }

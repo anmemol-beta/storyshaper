@@ -411,6 +411,46 @@ class APITests(unittest.TestCase):
     def binding(self):
         return {key: self.state[key] for key in ('sessionId', 'sceneId', 'version')}
 
+    def test_manual_next_cancels_picture_and_its_replay_cannot_cancel_a_newer_job(self):
+        status, old_job = self.http('POST', '/api/media/jobs', self.binding())
+        self.assertEqual(status, 200)
+        body = {'sessionId': self.start['sessionId'], 'version': self.start['version'], 'requestId': 'manual-next'}
+        status, skipped = self.http('POST', '/api/advance', body)
+        self.assertEqual(status, 200)
+        self.assertEqual(skipped['version'], self.state['version'], 'The already approved page must not be skipped twice')
+        self.assertEqual(self.app.media.get(old_job['jobId'], self.start['sessionId'])['status'], 'cancelled')
+        status, no_media = self.http('POST', '/api/media/jobs', self.binding())
+        self.assertEqual(no_media['reason'], 'manual_navigation')
+        choice = skipped['question']['choices'][0]
+        status, newer = self.http('POST', '/api/answer', {'sessionId': skipped['sessionId'],
+            'version': skipped['version'], 'questionId': skipped['question']['id'],
+            'requestId': 'answer-after-skip', 'answer': '', 'choiceId': choice['id']})
+        self.assertEqual(status, 200)
+        status, new_job = self.http('POST', '/api/media/jobs',
+                                    {key: newer[key] for key in ('sessionId', 'sceneId', 'version')})
+        self.assertEqual(status, 200)
+        status, replay = self.http('POST', '/api/advance', body)
+        self.assertEqual(status, 200)
+        self.assertEqual(replay, skipped)
+        self.assertNotEqual(self.app.media.get(new_job['jobId'], skipped['sessionId'])['status'], 'cancelled')
+
+    def test_manual_next_can_finish_in_both_languages_without_any_images(self):
+        for language in ('en', 'ko'):
+            status, current = self.http('POST', '/api/sessions', {'mode': 'mock', 'language': language})
+            self.assertEqual(status, 200)
+            for turn in range(9):
+                status, current = self.http('POST', '/api/advance',
+                    {'sessionId': current['sessionId'], 'version': current['version'], 'requestId': f'next-{turn}'})
+                self.assertEqual(status, 200)
+                self.assertEqual(current['version'], turn + 1)
+                self.assertTrue(current['diagnostics']['manualNavigation']['skippedPicture'])
+                status, media = self.http('POST', '/api/media/jobs',
+                    {key: current[key] for key in ('sessionId', 'sceneId', 'version')})
+                self.assertEqual(status, 200)
+                self.assertEqual(media['status'], 'no_new_media')
+            self.assertEqual(current['sceneId'], 'ending')
+            self.assertIsNone(current['question'])
+
     def test_first_failure_touch_selection_reaches_media_job_with_server_owned_material(self):
         status, start = self.http('POST', '/api/sessions', {'mode': 'mock', 'language': 'ko'})
         self.assertEqual(status, 200)

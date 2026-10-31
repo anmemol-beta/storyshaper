@@ -219,6 +219,13 @@ class MediaJobs:
                 raise JobError('job_not_found')
             return self._view(job)
 
+    def cancel_session(self, session_id, *, through_version):
+        """Manual navigation abandons queued/running media, including superseded jobs."""
+        with self.lock:
+            for job in list(self.jobs.values()):
+                if job['spec'].session_id == session_id and job['spec'].version <= through_version:
+                    self.cancel(job['id'], session_id)
+
     def cancel(self, job_id, session_id):
         with self.lock:
             self.get(job_id, session_id)

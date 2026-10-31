@@ -52,6 +52,18 @@ test('one accepted answer posts only the binding and waits for image decode befo
   assert.equal(calls.length, 1, 'Rendering a snapshot again must not submit paid work again');
 });
 
+test('a job ID arriving after manual cancellation is cancelled without displaying or generating again', async () => {
+  const {player, calls, shows} = setup();
+  const state = snapshot();
+  const pending = player.update(state);
+  player.cancel();
+  calls[0].resolve(result(state)); await pending;
+  assert.equal(shows.length, 0);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].url, '/api/media/cancel');
+  assert.equal(JSON.parse(calls[1].options.body).jobId, 'job');
+});
+
 test('polling uses GET and never resubmits generation after failure', async () => {
   const {player, calls, timers, states} = setup();
   const state = snapshot();
@@ -278,6 +290,7 @@ test('restart while reattaching a failed job cannot trigger late paid regenerati
   const retry = player.retry(state);
   player.reset();
   calls[1].resolve(failed); await retry;
-  assert.equal(calls.length, 2);
+  assert.equal(calls.filter(call => call.url === '/api/media/jobs').length, 2, 'No paid regeneration after leaving');
+  assert.equal(calls.at(-1).url, '/api/media/cancel');
   assert.equal(shows.at(-1).url, 'img/intro.jpg');
 });
