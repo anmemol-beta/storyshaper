@@ -391,7 +391,7 @@
     preparation.failed = true;
     preparation.controller?.abort();
     ui.loading.hidden = false;
-    ui.loadingText.textContent = t("The whole page's voice isn't ready yet.", "장면 전체의 목소리를 아직 준비하지 못했어요.");
+    ui.loadingText.textContent = t("This page's voice isn't ready yet.", "이 장면의 목소리를 아직 준비하지 못했어요.");
     ui.retryMedia.textContent = t("Prepare voice again", "목소리 다시 준비하기");
     ui.retryMedia.hidden = false;
     ui.retryMedia.disabled = false;
@@ -407,8 +407,8 @@
     const attempt = ++preparation.attempt;
     ui.retryMedia.hidden = true;
     ui.retryMedia.disabled = true;
-    ui.loadingText.textContent = t("Preparing every voice for this page…", "이 장면의 목소리를 모두 준비하고 있어요…");
-    say(t("The next page opens when its whole narration is ready.", "장면의 낭독이 모두 준비되면 다음 장면이 열려요."));
+    ui.loadingText.textContent = t("Preparing the voice…", "목소리를 준비하고 있어요…");
+    say(t("The next page opens as soon as its first line is voiced.", "첫 문장의 목소리가 준비되면 바로 다음 장면이 열려요."));
     preparation.timer = setTimeout(() => narrationFailed(preparation), 180000);
     try {
       const options = {language: preparation.state.language, signal: preparation.controller.signal,
@@ -416,8 +416,7 @@
           if (!preparationLive(preparation) || preparation.failed || preparation.audioReady
               || attempt !== preparation.attempt || !Number.isInteger(ready) || !Number.isInteger(total)
               || total < 1 || ready < 0 || ready > total) return;
-          ui.loadingText.textContent = t(`Preparing page voices (${ready}/${total})…`,
-            `이 장면의 목소리를 준비하고 있어요 (${ready}/${total})…`);
+          ui.loadingText.textContent = t(`Preparing the voice (${ready}/${total})…`, `목소리를 준비하고 있어요 (${ready}/${total})…`);
         }};
       const operation = (!retry && Narration.getPreparedScene?.(passageLines(preparation.state), options))
         || Narration.prepareScene(passageLines(preparation.state), options);

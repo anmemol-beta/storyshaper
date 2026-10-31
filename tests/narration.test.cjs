@@ -216,7 +216,7 @@ test('a stalled voice service gets a bounded fallback instead of a silent pendin
   const h = load({hang:true});
   const reading = h.Narration.speak([{text:'Start reading.'}], {key:'slow'});
   await tick();
-  h.runTimer(600); await tick();
+  h.runTimer(4000); await tick();
   assert.equal(h.spoken.length, 1);
   await reading;
 });
