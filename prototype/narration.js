@@ -29,6 +29,8 @@ const Narration = (() => {
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
   // A hosted server (deploy/modal_voice.py) is ~1 s away from Korea; a server that is down fails at once anyway.
   const REQUEST_MS = 4000, CLIP_LOAD_MS = 800;
+  // A page's first ask may wake the hosted server (tens of seconds after a few idle minutes): wait for it.
+  const SCENE_QUEUE_MS = 60000;
   // Seconds a line that isn't voiced yet may wait before the browser voice reads it (the server's maximum). The parent
   // chose a pause over a machine voice (10/31); a line takes ~2.5 s to voice in English, ~5-9 s in Korean on a Mac.
   const LINE_WAIT = 30;
@@ -452,7 +454,7 @@ const Narration = (() => {
     signal?.addEventListener("abort", abort, {once: true});
     const asset = {signature, parts, urls: [], controller, loads: []};
     try {
-      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: REQUEST_MS});
+      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: SCENE_QUEUE_MS});
       if (!Array.isArray(clips) || clips.length !== parts.length) throw new Error("invalid_scene_audio");
       if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
       let previous = Promise.resolve();

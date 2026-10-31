@@ -9,7 +9,7 @@
     "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
     "narrationControls", "playNarration", "pauseNarration", "narrationStatus",
     "pageNavigation", "previousPage", "nextPage", "pictureNotice",
-    "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
+    "manageVoices", "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -390,6 +390,8 @@
     ui.addVoice.hidden = false;
     ui.addVoice.textContent = t("🎙 Add a parent's voice", "🎙 부모 목소리 추가");
     ui.addVoice.href = "voice.html?return=index.html&lang=" + ui.language.value;
+    ui.manageVoices.href = "voice.html?return=index.html&lang=" + ui.language.value + "#voices";
+    ui.manageVoices.textContent = t("Listen to or remove voices ›", "목소리 듣기·관리 ›");
   }
 
   function highlight(index) {
@@ -456,7 +458,16 @@
     }
   }
 
-  function narrationFailed(preparation) {
+  // Why a page's voice is missing decides what the parent is told: the voice server could not be reached,
+  // a line could not be made, or it is taking much longer than usual.
+  function voiceProblem(error) {
+    const message = String(error?.message || "");
+    if (/^scene_line_(timeout|504)$/.test(message)) return "slow";
+    if (/^scene_line_\d+$|^invalid_scene|^narration [45]\d\d$/.test(message)) return "failed";
+    return "unreachable";
+  }
+
+  function narrationFailed(preparation, problem = "failed") {
     if (scenePreparation !== preparation || preparation.epoch !== epoch || preparation.cancelled) return;
     const currentKey = passageKey(preparation.state);
     if (preparation.key !== currentKey) {
@@ -468,12 +479,19 @@
     preparation.failed = true;
     preparation.controller?.abort();
     ui.loading.hidden = false;
-    ui.loadingText.textContent = t("This page's voice isn't ready yet.", "이 장면의 목소리를 아직 준비하지 못했어요.");
-    ui.retryMedia.textContent = t("Prepare voice again", "목소리 다시 준비하기");
+    clearTimeout(preparation.tick);
+    const [text, button] = {
+      unreachable: [t("Couldn't reach the voice server. Check the connection and try again.", "목소리 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."),
+        t("Try the voice again", "목소리 다시 시도")],
+      failed: [t("This page's voice couldn't be made.", "이 장면의 목소리를 만들지 못했어요."), t("Make the voice again", "목소리 다시 만들기")],
+      slow: [t("The voice is taking much longer than usual.", "목소리를 만드는 데 평소보다 오래 걸리고 있어요."), t("Keep waiting for the voice", "목소리 계속 기다리기")],
+    }[problem] || [];
+    ui.loadingText.textContent = text;
+    ui.retryMedia.textContent = button;
     ui.retryMedia.hidden = false;
     ui.retryMedia.disabled = false;
-    say(t("Retry the voice, or turn off Read aloud in settings to continue without sound.",
-      "목소리를 다시 준비하거나, 낭독 설정에서 소리 내어 읽기를 끄면 소리 없이 이어갈 수 있어요."));
+    say(t("Or turn off Read aloud in ⚙ settings to keep reading without sound.",
+      "또는 ⚙ 설정에서 소리 내어 읽기를 끄면 소리 없이 이어 읽을 수 있어요."));
     syncControls();
   }
 
@@ -486,7 +504,18 @@
     ui.retryMedia.disabled = true;
     ui.loadingText.textContent = t("Preparing the voice…", "목소리를 준비하고 있어요…");
     say(t("The next page opens as soon as its first line is voiced.", "첫 문장의 목소리가 준비되면 바로 다음 장면이 열려요."));
-    preparation.timer = setTimeout(() => narrationFailed(preparation), 180000);
+    preparation.timer = setTimeout(() => narrationFailed(preparation, "slow"), 180000);
+    // Show that the voice is still being made: a new voice's first line, or a server waking up, takes a while.
+    const started = Date.now();
+    const tick = () => {
+      if (!preparationLive(preparation) || preparation.failed || preparation.audioReady || attempt !== preparation.attempt) return;
+      const seconds = Math.round((Date.now() - started) / 1000);
+      if (seconds >= 5) ui.loadingText.textContent = t(`Making the voice… ${seconds} s (the first line can take up to 30 s)`,
+        `목소리를 만들고 있어요… ${seconds}초 (첫 문장은 30초쯤 걸릴 수 있어요)`);
+      preparation.tick = setTimeout(tick, 1000);
+    };
+    clearTimeout(preparation.tick);
+    preparation.tick = setTimeout(tick, 1000);
     try {
       const options = {language: preparation.state.language, signal: preparation.controller.signal,
         key: preparation.key, retry, onProgress: ({ready, total}) => {
@@ -500,8 +529,8 @@
       if (!operation?.then) narrationReady(preparation, operation);
       else operation.then(asset => {
         if (attempt === preparation.attempt && !preparation.failed) narrationReady(preparation, asset);
-      }, () => { if (attempt === preparation.attempt) narrationFailed(preparation); });
-    } catch { narrationFailed(preparation); }
+      }, error => { if (attempt === preparation.attempt) narrationFailed(preparation, voiceProblem(error)); });
+    } catch (error) { narrationFailed(preparation, voiceProblem(error)); }
     syncControls();
   }
 
