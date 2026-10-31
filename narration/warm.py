@@ -28,8 +28,19 @@ FILLERS_KO = [
     "준비됐니? 자, 간다!",
 ]
 
-# Read when live.html offers three words instead of free answers (prototype/live-book.js; checked by tests).
-CHOICE_PROMPT = {"en": "Tap one of these three words.", "ko": "세 가지 중 하나를 톡 골라 줘!"}
+def choice_prompt(labels, language):
+    """The three choices read as one sentence when the reader offers them (Narration.choicePrompt in
+    prototype/narration.js; checked by tests). Words voiced one by one came out clipped and rushed."""
+    if language == "ko":
+        return f"{', '.join(labels)} 중에서 하나를 골라 줘!"
+    words = [label[:1].lower() + label[1:] for label in labels]
+    return f"Tap one: {', '.join(words[:-1])}, or {words[-1]}."
+
+
+def _choice_line(engine, state):
+    question = engine._question(state)
+    return question and {"speakerId": "narrator",
+                         "text": choice_prompt([choice["label"] for choice in question["choices"]], state["language"])}
 
 
 def call(path, body=None):
@@ -134,7 +145,10 @@ def pages_ahead(language, story_state=None):
         StoryEngine._validate_snapshot({"storyState": story_state, "language": language, "version": 0, "attempts": 0,
                                         "sceneId": StoryEngine._scene_id(story_state)})
         states = _next_states(engine, story_state, tapped=True)
-    return [_page(engine._authored_lines(state), engine._question(state)) for state in states]
+    pages = [_page(engine._authored_lines(state), engine._question(state)) for state in states]
+    # Last: this page's choices as one sentence, read only if the child needs them.
+    prompt = story_state is not None and _choice_line(engine, story_state)
+    return pages + [[prompt]] if prompt else pages
 
 
 def book_pages(language):
@@ -142,15 +156,18 @@ def book_pages(language):
     from story_agent.engine import MockProvider, StoryEngine
 
     engine = StoryEngine(MockProvider(), language)
-    states, pages, seen = [engine.start("voice-book")["storyState"]], [], set()
+    states, pages, seen, prompts = [engine.start("voice-book")["storyState"]], [], set(), []
     for state in states:                     # grows while it is walked
         page = _page(engine._authored_lines(state), engine._question(state))
         key = json.dumps(page, sort_keys=True)
         if key not in seen:
             seen.add(key)
             pages.append(page)
+        prompt = _choice_line(engine, state)
+        if prompt and prompt not in prompts:
+            prompts.append(prompt)
         states += _next_states(engine, state)
-    return pages
+    return pages + [prompts]                 # the choice sentences last
 
 
 def lines_for(voice, texts, peek=False, language="en"):
@@ -172,8 +189,7 @@ def main():
     args = parser.parse_args()
     # The same parent voice reads both books. The server voices the newest request first, so the Korean
     # book (queued last) is voiced before the English one.
-    books = {"en": (authored_book("en"), FILLERS + [CHOICE_PROMPT["en"]]),
-             "ko": (authored_book("ko"), FILLERS_KO + [CHOICE_PROMPT["ko"]])}
+    books = {"en": (authored_book("en"), FILLERS), "ko": (authored_book("ko"), FILLERS_KO)}
     voices = ["default"] + [v["id"] for v in call("/api/voices")["voices"]]
     names = {v["id"]: v["name"] for v in call("/api/voices")["voices"]}
     for voice in voices:

@@ -534,10 +534,9 @@
     const key = `${choices ? 'choices:' : ''}${state.sessionId}:${state.version}:${state.language}:${replay}`;
     if (spokenKey === key) return;
     spokenKey = key;
-    const lines = choices ? [
-      {speakerId: "narrator", text: t("Tap one of these three words.", "세 가지 중 하나를 톡 골라 줘!")},
-      ...state.question.choices.map(choice => ({speakerId: "narrator", text: choice.label}))
-    ] : passageLines(state);
+    const labels = choices ? state.question.choices.map(choice => choice.label) : [];
+    const lines = choices ? [{speakerId: "narrator", text: Narration.choicePrompt?.(labels, state.language)
+      || t(`Tap one: ${labels.join(", ")}.`, `${labels.join(", ")} 중에서 하나를 골라 줘!`)}] : passageLines(state);
     const prepared = choices ? null : Narration.getPreparedScene
       ? Narration.getPreparedScene(lines, {language: state.language})
       : preparedPassage?.key === passageKey(state) ? preparedPassage.asset : null;

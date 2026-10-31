@@ -243,6 +243,13 @@ const Narration = (() => {
     }));
   }
 
+  // The three choices as one sentence (narration/warm.py choice_prompt). Words voiced one by one came out clipped.
+  function choicePrompt(labels, language = "en") {
+    if (language === "ko") return `${labels.join(", ")} 중에서 하나를 골라 줘!`;
+    const words = labels.map(label => label.slice(0, 1).toLowerCase() + label.slice(1));
+    return `Tap one: ${words.slice(0, -1).join(", ")}, or ${words.at(-1)}.`;
+  }
+
   // A voice's sample for the start screen: the story's first line (the same line the registration preview reads).
   // A storybook voice plays the app's own file; a parent's voice is voiced by the server.
   const FIRST_LINE = {en: "Once upon a time, three little pigs set out to build homes.",
@@ -581,7 +588,7 @@ const Narration = (() => {
     } catch {}
   }
 
-  return {sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+  return {choicePrompt, sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
     playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};

@@ -2,7 +2,7 @@
 
     voice/.venv-chatterbox/bin/python -m narration.pack [--server https://…modal.run]
 
-Voices every authored page sentence, "let's see…" filler, choice prompt and choice word in the storybook voice
+Voices every authored page sentence, "let's see…" filler and choice sentence in the storybook voice
 (narrator and character voices from casting.json), and the narrator's lines in each built-in narrator
 (BUILTIN_VOICES, whose characters sound the same as the storybook voice's), on the voice server, saves them as
 prototype/audio/pack/<server key>.mp3 and writes manifest.json, which prototype/narration.js reads.
@@ -17,7 +17,7 @@ import urllib.request
 from pathlib import Path
 
 from .server import BUILTIN_VOICES
-from .warm import CHOICE_PROMPT, FILLERS, FILLERS_KO, _next_states, _sentences, book_pages
+from .warm import FILLERS, FILLERS_KO, book_pages
 
 PACK = Path(__file__).resolve().parent.parent / "prototype" / "audio" / "pack"
 
@@ -30,19 +30,8 @@ def pack_key(line, language):
 
 def fixed_lines(language):
     """Every line the reader can say in the storybook voice that does not come from the model, once each."""
-    from story_agent.engine import MockProvider, StoryEngine
-
-    lines = [line for page in book_pages(language) for line in page]
-    narrator = lambda text: {"speakerId": "narrator", "text": text}
-    lines += [narrator(text) for text in (FILLERS_KO if language == "ko" else FILLERS)]
-    # Choice mode reads the prompt and the three words as plain narrator lines (narrate() in live-book.js).
-    lines += [narrator(text) for text in _sentences(CHOICE_PROMPT[language])]
-    engine = StoryEngine(MockProvider(), language)
-    states = [engine.start("voice-pack")["storyState"]]
-    for state in states:
-        question = engine._question(state)
-        lines += [narrator(text) for choice in (question or {}).get("choices", []) for text in _sentences(choice["label"])]
-        states += _next_states(engine, state)
+    lines = [line for page in book_pages(language) for line in page]     # the choice sentences included
+    lines += [{"speakerId": "narrator", "text": text} for text in (FILLERS_KO if language == "ko" else FILLERS)]
     unique = {}
     for line in lines:
         unique.setdefault(pack_key(line, language), line)
