@@ -297,6 +297,7 @@
     Narration.selectVoice?.(id || null, voice?.name || "");
     reader();
     voiceOptions();
+    if (!snapshot) voiceNextPages();
     if (displayed && !pending && activity === "idle" && ui.readAloud.checked) {
       replay++;
       preparePresentation(displayed, {remember: false, image: displayedImage});
@@ -494,8 +495,15 @@
     ui.pictureNotice.textContent = t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
   }
 
+  // Voice the pages a tapped choice can open, once this page is showing (so they never delay its own lines).
+  function voiceNextPages() {
+    if (typeof Narration === "undefined" || !ui.readAloud.checked) return;
+    Narration.ahead?.(snapshot?.storyState || null, snapshot?.language || selectedLanguage);
+  }
+
   function render(state, {remember = true} = {}) {
     displayed = state;
+    if (state === snapshot && state.question) voiceNextPages();
     if (remember) { rememberPage(state, displayedImage); pageIndex = pages.length - 1; }
     pictureVisibility();
     if (state.choiceMode) choiceLocks.add(questionKey(state));
@@ -950,6 +958,7 @@
       localStorage.setItem("story-language", language);
       labels();
       syncControls();
+      voiceNextPages();
       return;
     }
     cancelWork({server: false});
@@ -998,6 +1007,7 @@
   labels();
   syncControls();
   if (typeof Narration !== "undefined") Narration.warm?.(selectedLanguage);
+  voiceNextPages();
   api("/api/config").then(data => {
     config = data;
     media.configure(data);

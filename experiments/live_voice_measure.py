@@ -2,6 +2,7 @@
 
     python3 experiments/live_voice_measure.py <voice id> <en|ko> "<answer 1>" "<answer 2>"
     VOICE_SERVER=https://…modal.run python3 experiments/live_voice_measure.py …   (a hosted voice server)
+    AHEAD=0 python3 experiments/live_voice_measure.py …   (baseline: next pages are not voiced ahead)
 
 Needs scripts/demo.sh running. Opens live.html in headless Chromium with the saved voice selected, starts the story,
 answers (or taps the first of the three words when the story offers them), and prints a timeline in ms:
@@ -30,6 +31,8 @@ with sync_playwright() as p:
     pg.goto("http://127.0.0.1:8000/prototype/live.html" + (f"?voiceServer={server}" if server else ""))
     pg.evaluate(f"localStorage.setItem('story-voice','{voice}');localStorage.setItem('story-voice-name','Dad');localStorage.setItem('story-language','{lang}')")
     pg.reload(); pg.wait_for_timeout(1500)
+    if os.environ.get("AHEAD") == "0":       # baseline: the next pages are not voiced ahead
+        pg.evaluate("Narration.ahead = () => {}")
     pg.select_option("#language", lang); pg.wait_for_timeout(500)
     pg.click("#cover")
     for a in [None, *answers]:

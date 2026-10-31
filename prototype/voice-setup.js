@@ -486,9 +486,8 @@
     $("ask").hidden = true;
     $("listenStatus").textContent = tr("Reading it in {possessive} voice. This takes about ten seconds…", names());
     try {
-      // Voice the rest of the first page too. The preview is the book's first line and is asked for last,
-      // because the server reads the newest request first.
-      if (typeof Narration !== "undefined") await Narration.prepare((await bookLines(language)).slice(1, FIRST_PAGE), {voice: state.draft.id, language});
+      // The story's opening page follows the preview, so a parent who saves and starts at once hears it sooner.
+      if (typeof Narration !== "undefined") Narration.ahead?.(null, language, {voice: state.draft.id});
       const clip = await api(`/api/voices/${state.draft.id}/preview`, post({language}));
       const url = `${server}${clip.url}?wait=30`;
       play.onclick = () => playPreview(url);
@@ -547,48 +546,30 @@
     go("who");
   };
 
-  // Every line of the picture book, in story order (prototype/audio/lines.json).
-  const FIRST_PAGE = 8;
-  const books = {};
-  async function bookLines(lang = "en") {
-    if (!books[lang]) {
-      try { books[lang] = (await (await fetch(lang === "ko" ? "audio/lines.ko.json" : "audio/lines.json")).json()).map(l => l.text); }
-      catch { books[lang] = []; }
-    }
-    return books[lang];
-  }
-
   // Show how much of the book is voiced, until all of it is or the page changes.
   // Counts the book in the page's language, the one the family is about to hear.
   async function watchBook(id) {
-    const lines = await bookLines(language);
-    if (typeof Narration === "undefined" || !lines.length) return;
+    if (typeof Narration === "undefined" || !Narration.voiceBook) return;
     const status = $("bookStatus");
     while (state.step === "done" && store.get() === id) {
-      let ready = 0;
-      for (let i = 0; i < lines.length; i += 20) {
-        const n = await Narration.readyCount(lines.slice(i, i + 20), {language});
-        if (n === null) { status.textContent = ""; return; }
-        ready += n;
-      }
-      if (ready >= lines.length) { status.textContent = tr("The whole storybook is ready."); status.classList.add("all"); return; }
-      status.textContent = tr("Getting the storybook ready: {ready} of {total} lines. You can start reading now.", {ready, total: lines.length});
+      const count = await Narration.voiceBook(language, {peek: true});
+      if (!count) { status.textContent = ""; return; }
+      if (count.ready >= count.lines) { status.textContent = tr("The whole storybook is ready."); status.classList.add("all"); return; }
+      status.textContent = tr("Getting the storybook ready: {ready} of {total} lines. You can start reading now.", {ready: count.ready, total: count.lines});
       await new Promise(r => setTimeout(r, 2500));
     }
   }
 
-  // Voice the "let's see…" lines and the whole picture book now, in the background, so they play without waiting.
-  async function prepareBook() {
-    if (typeof Narration === "undefined") return;
+  // Voice the "let's see…" lines and the whole storybook now, in the background, so they play without waiting.
+  function prepareBook() {
+    if (typeof Narration === "undefined" || !Narration.voiceBook) return;
     try {
       // The same voice reads both books. The server voices the newest request first, so send the other
-      // language's book first and the page language's book last (each from its last page to its opening);
-      // the short fillers go last of all.
+      // language's book first and the page language's book last (the server keeps each in reading order,
+      // opening page first); the short fillers go last of all.
       // Sent as beacons, so they still arrive if the parent leaves this page right away.
-      const chunks = lines => { const out = []; for (let i = 0; i < lines.length; i += 20) out.push(lines.slice(i, i + 20)); return out.reverse(); };
       const order = language === "ko" ? ["en", "ko"] : ["ko", "en"];
-      const books = {en: await bookLines("en"), ko: await bookLines("ko")};
-      for (const lang of order) for (const chunk of chunks(books[lang])) Narration.voiceAhead(chunk, {language: lang});
+      for (const lang of order) Narration.voiceBook(lang);
       for (const lang of order) Narration.voiceAhead(Narration.fillers(lang), {language: lang});
     } catch {}
   }

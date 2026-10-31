@@ -241,6 +241,31 @@ const Narration = (() => {
     catch { return false; }
   }
 
+  // Voice the authored pages that can open next (the opening page without a story state) before the child
+  // answers, so a tapped choice opens without waiting. The page actually opened is still asked for first.
+  function ahead(storyState = null, language = "en", {voice = null} = {}) {
+    if (!LANGUAGES.includes(language)) return;
+    const id = voice || voiceId();
+    request("/api/voice/ahead", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({language, ...(storyState ? {storyState} : {}), ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})})
+    }).catch(() => {});
+  }
+
+  // The whole authored book in reading order, as warmup (a beacon, like voiceAhead). With peek, nothing is
+  // queued and the reply says how much is voiced: {pages, lines, ready}, or null if the server is unavailable.
+  async function voiceBook(language = "en", {voice = null, peek = false} = {}) {
+    const id = voice || voiceId();
+    const body = JSON.stringify({language, book: true, ...(peek ? {peek} : {}), ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})});
+    if (!peek) {
+      try { return navigator.sendBeacon(`${server}/api/voice/ahead`, new Blob([body], {type: "text/plain"})); }
+      catch { return false; }
+    }
+    try {
+      const {response, body: count} = await request("/api/voice/ahead", {method: "POST", headers: {"Content-Type": "application/json"}, body});
+      return response.ok ? count : null;
+    } catch { return null; }
+  }
+
   // How many of these lines are already voiced (null if the server is unavailable). Queues nothing.
   async function readyCount(lines, {voice = null, language = "en"} = {}) {
     try { return (await queue(asLines(lines), {voice, peek: true, language})).filter(c => c.ready).length; }
@@ -486,7 +511,7 @@ const Narration = (() => {
     } catch {}
   }
 
-  return {speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+  return {speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
     playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};

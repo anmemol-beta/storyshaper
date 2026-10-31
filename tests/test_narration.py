@@ -268,6 +268,29 @@ class NarratorTest(unittest.TestCase):
             self.assertEqual(n.wait("default", clip["key"], 2), "ready")
         self.assertEqual(order, ["already running", "next passage", "another warmup"])
 
+    def test_pages_ahead_wait_behind_the_open_page_and_before_warmup_newest_first(self):
+        entered, release = threading.Event(), threading.Event()
+        order = []
+
+        def synthesize(text, settings):
+            if text == "already running":
+                entered.set()
+                release.wait(2)
+            order.append(text)
+            return b"ID3" + text.encode()
+
+        n = Narrator(synthesize, self.tmp.name)
+        n.submit([{"text": "already running"}])
+        self.assertTrue(entered.wait(1))
+        clips = n.submit([{"text": "book"}], priority="background")
+        clips += n.submit([{"text": "older page ahead"}], priority="ahead")
+        clips += n.submit([{"text": "next page ahead"}, {"text": "book"}], priority="ahead")
+        clips += n.submit([{"text": "open page"}])
+        release.set()
+        for clip in clips:
+            self.assertEqual(n.wait("default", clip["key"], 2), "ready")
+        self.assertEqual(order, ["already running", "open page", "next page ahead", "book", "older page ahead"])
+
     def test_deleted_in_flight_job_cannot_replace_a_new_request_for_the_same_voice(self):
         entered, release = threading.Event(), threading.Event()
         calls = []
@@ -400,6 +423,34 @@ process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(t
         result = subprocess.run(["node", "-e", script, str(source)], input=json.dumps(samples),
                                 capture_output=True, text=True, check=True)
         self.assertEqual([_sentences(text) for text in samples], json.loads(result.stdout))
+
+    def test_pages_ahead_match_the_sentences_the_reader_asks_for_when_a_choice_is_tapped(self):
+        from narration.warm import book_pages, pages_ahead
+        from story_agent.engine import MockProvider, StoryEngine
+        snapshots, pages = [], []
+        for language in ("en", "ko"):
+            engine = StoryEngine(MockProvider(), language)
+            snapshot = engine.start("s")
+            self.assertEqual(pages_ahead(language)[0], book_pages(language)[0])
+            while snapshot["question"]:
+                ahead = pages_ahead(language, snapshot["storyState"])
+                for choice in snapshot["question"]["choices"]:
+                    following = engine.answer(snapshot, "", choice["id"])
+                    if following.get("decision") in ("accept", "complete"):
+                        snapshots.append(following)
+                        pages.append(ahead)
+                snapshot = snapshots[-1]
+        script = """const fs = require('node:fs'), vm = require('node:vm');
+const context = vm.createContext({URLSearchParams, location:{search:''}});
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8').replace('return {speak,', 'return {sceneParts, speak,') + '\\nthis.N = Narration;', context);
+const passage = s => s.question ? [...s.lines, {speakerId: 'narrator', text: s.question.text, kind: 'narration', tone: 'curious', emotion: 'curious'}] : s.lines;
+process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(s => context.N.sceneParts(passage(s)).map(({line, ...part}) => part))));"""
+        source = Path(__file__).resolve().parent.parent / "prototype" / "narration.js"
+        result = subprocess.run(["node", "-e", script, str(source)], input=json.dumps(snapshots),
+                                capture_output=True, text=True, check=True)
+        self.assertGreater(len(snapshots), 10)
+        for read, ahead in zip(json.loads(result.stdout), pages):
+            self.assertIn(read, ahead)
 
     def test_main_queues_and_checks_the_current_authored_roles_in_both_languages(self):
         from narration import warm
@@ -652,6 +703,52 @@ class HttpTest(unittest.TestCase):
         status, _, body = self.request("POST", "/api/voice/lines",
             {"lines": [{"text": "wrong priority"}], "priority": "unknown"})
         self.assertEqual((status, json.loads(body)["error"]["code"]), (400, "invalid_priority"))
+
+    def test_pages_ahead_voice_each_next_pages_first_sentence_before_the_rest(self):
+        from narration.warm import pages_ahead
+        from story_agent.engine import MockProvider, StoryEngine
+        entered, release = threading.Event(), threading.Event()
+        order = []
+
+        def synthesize(text, settings):
+            if text == "occupied":
+                entered.set()
+                release.wait(2)
+            order.append(text)
+            return b"ID3" + text.encode()
+
+        self.server.narrator = Narrator(synthesize, self.server.narrator.cache)
+        self.request("POST", "/api/voice/lines", {"lines": [{"text": "occupied"}]})
+        self.assertTrue(entered.wait(1))
+        state = StoryEngine(MockProvider(), "en").start("s")["storyState"]
+        try:
+            status, _, body = self.request("POST", "/api/voice/ahead", {"language": "en", "storyState": state})
+        finally:
+            release.set()
+        pages = pages_ahead("en", state)
+        self.assertEqual(len(pages), 3, "one page for each material the first house allows")
+        reply = json.loads(body)
+        self.assertEqual((status, reply["pages"]), (200, 3))
+        for _ in range(100):
+            if len(order) == 1 + reply["lines"]:
+                break
+            threading.Event().wait(0.02)
+        firsts = [page[0]["text"] for page in pages]
+        self.assertEqual(order[1:4], firsts)
+        self.assertEqual(json.loads(self.request("POST", "/api/voice/ahead", {
+            "language": "en", "storyState": state, "peek": True})[2])["ready"], reply["lines"])
+
+    def test_the_whole_book_is_counted_without_queueing_and_bad_states_are_refused(self):
+        status, _, body = self.request("POST", "/api/voice/ahead", {"language": "ko", "book": True, "peek": True})
+        count = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertGreater(count["pages"], 20)
+        self.assertEqual(count["ready"], 0)
+        with self.server.narrator.cond:
+            self.assertEqual(self.server.narrator.queue, [])
+        for state in ({"stage": "choose"}, {"storyId": "x"}, "not a state", ["x"]):
+            status, _, body = self.request("POST", "/api/voice/ahead", {"language": "en", "storyState": state})
+            self.assertEqual((status, json.loads(body)["error"]["code"]), (400, "invalid_story_state"))
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "needs ffmpeg")
     def test_register_preview_save_read_and_delete_a_voice(self):

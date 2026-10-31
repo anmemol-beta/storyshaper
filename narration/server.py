@@ -5,6 +5,10 @@ POST   /api/voice/lines            {"lines": [{"speakerId", "text"}], "voiceId"?
                                    interactive newest first ("priority":"background" for warmup;
                                    "peek": only report which are ready)
 GET    /audio/<voice>/<key>.mp3    the clip; waits up to ?wait= seconds (max 30) while it is being generated
+POST   /api/voice/ahead            {"language", "storyState"?, "voiceId"?, "allRoles"?, "peek"?}  voice the authored
+                                   pages that can open next (the opening page without a state), every page's first
+                                   sentence first; {"book": true}: the whole book in reading order, as warmup.
+                                   Replies {"pages", "lines", "ready"}
 POST   /api/voice/scene            prepare all scene lines and its question as one complete audio file
 GET    /audio/<voice>/scene-<key>.wav  complete PCM scene; never streams a partially prepared scene
 GET    /api/voice/config           roles and languages
@@ -72,6 +76,8 @@ MAX_TEXT = 500
 # Korean was chosen by ear on 10/30 (voice/korean.html): the parent's English clip. Since 10/31 it uses the English
 # settings too, to be checked by ear later.
 LANGUAGES = ("en", "ko")
+# Queue ranks: the page being opened, the pages that can open next, then the rest of the book.
+PRIORITIES = ("interactive", "ahead", "background")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
 SCENE_AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/scene-([0-9a-f]{16})\.wav$")
@@ -137,14 +143,14 @@ class Narrator:
 
     def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None,
                priority="interactive", t3_scope=None):
-        """Queue interactive passages before warmup, newest request first within each priority.
+        """Queue interactive passages, then pages ahead, then warmup; newest request first within each priority.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
         enqueue=False only reports which lines are ready (for progress). t3: a fine-tuned T3 file for the
         parent roles in English (narration/finetune_merge.py); it is part of the cache key.
         Repeated warmup shares the pending or active job instead of changing its position."""
         batch = -next(self.batch)
-        rank = 1 if priority == "background" else 0
+        rank = PRIORITIES.index(priority)
         clips = []
         with self.cond:
             self.dropped.discard(voice)
@@ -164,9 +170,9 @@ class Narrator:
                 job_key = (voice, key)
                 if not ready and enqueue and self.queued.get(job_key) != self.active.get(job_key, -1):
                     previous = self.pending.get(job_key)
-                    # Warmup never demotes a passage or moves repeated warmup ahead. A passage can
-                    # promote an existing warmup job; an in-flight job is always reused.
-                    promote = previous and (rank < previous[0] or rank == previous[0] == 0 and batch < previous[1])
+                    # Warmup never demotes a passage or moves repeated warmup ahead. A passage or a page
+                    # ahead can promote an earlier job; an in-flight job is always reused.
+                    promote = previous and (rank < previous[0] or rank == previous[0] < 2 and batch < previous[1])
                     if previous is None or promote:
                         if previous is not None:
                             self.queue.remove(previous)
@@ -442,6 +448,27 @@ class Handler(BaseHTTPRequestHandler):
                                                              enqueue=body.get("peek") is not True, language=language,
                                                              t3=self.finetuned(body.get("voiceId")), priority=priority,
                                                              t3_scope=self.finetune_scope(body.get("voiceId")))})
+        if path == "/api/voice/ahead":
+            from .warm import book_pages, pages_ahead
+            body = self.json_body()
+            language = body.get("language", "en")
+            if language not in LANGUAGES:
+                raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
+            try:
+                pages = book_pages(language) if body.get("book") is True else pages_ahead(language, body.get("storyState"))
+            except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+                raise VoiceError(400, "invalid_story_state", "Send the story state of the page being read.")
+            if body.get("book") is True:          # the whole book in reading order
+                lines = [line for page in pages for line in page]
+            else:                                 # every next page's first sentence before the rest of any page
+                lines = [page[0] for page in pages] + [line for page in pages for line in page[1:]]
+            voice, ref = self.parent_ref(body.get("voiceId"))
+            clips = narrator.submit(lines, voice, ref, body.get("allRoles") is True, enqueue=body.get("peek") is not True,
+                                    language=language, t3=self.finetuned(body.get("voiceId")),
+                                    priority="background" if body.get("book") is True else "ahead",
+                                    t3_scope=self.finetune_scope(body.get("voiceId")))
+            ready = {clip["key"] for clip in clips if clip["ready"]}
+            return self.reply(200, {"pages": len(pages), "lines": len({clip["key"] for clip in clips}), "ready": len(ready)})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
