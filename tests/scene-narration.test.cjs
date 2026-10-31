@@ -52,7 +52,7 @@ function sceneHarness({ready = false, autoDownload = true, autoCanPlay = true, s
         queueMicrotask(() => this.emit('canplay'));
       }
     }
-    play() { this.paused = false; played.push(this.src); return Promise.resolve(); }
+    play() { this.paused = false; played.push(this.src); queueMicrotask(() => this.emit('playing')); return Promise.resolve(); }
     pause() { this.paused = true; }
     removeAttribute(name) { if (name === 'src') this.src = ''; }
   }
@@ -168,18 +168,20 @@ test('a prepared scene uses one continuous audio file with no requests between s
   const h = sceneHarness({ready: true});
   const prepared = await h.Narration.prepareScene(LINES, {language: 'en'});
   const before = h.requests.length;
-  const highlights = [];
+  const highlights = [], sentences = [];
   const reading = h.Narration.speak(LINES, {scene: true, prepared, key: 'continuous', language: 'en',
-    onLine: index => highlights.push(index)});
+    onLine: index => highlights.push(index), onSentence: (index, text) => sentences.push([index, text])});
   await tick();
   assert.equal(h.audios.length, 1);
   assert.equal(h.played.length, 1);
   assert.match(h.played[0], /^blob:/);
   assert.deepEqual(highlights, [0]);
+  assert.deepEqual(sentences[0], [0, LINES[0].text]);
   const audio = h.audios[0];
   audio.currentTime = 1.2;
   audio.emit('timeupdate');
   assert.deepEqual(highlights, [0, 1]);
+  assert.deepEqual(sentences[1], [1, LINES[1].text]);
   assert.equal(h.requests.length, before, 'nothing is synthesized or downloaded mid-scene');
   assert.deepEqual(h.spoken, []);
   audio.emit('ended');

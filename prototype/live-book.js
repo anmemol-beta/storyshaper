@@ -22,6 +22,7 @@
   let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
   let advancePayload = null;
   let scenePreparation = null, preparedPassage = null, stagedPicture = null, pictureSerial = 0;
+  let cueCover = null, cueCoverTimer = null;
   let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
   ui.mode.value = selectedMode;
@@ -35,12 +36,14 @@
     show(url, options = {}) {
       const preparation = scenePreparation;
       if (!preparation) return picture.show(url, options);
-      const staged = {serial: ++pictureSerial, preparation, ready: false, reveal: null};
+      const staged = {serial: ++pictureSerial, preparation, ready: false, revealed: false, reveal: null};
       stagedPicture = staged;
       const live = () => staged.serial === pictureSerial;
       staged.reveal = () => {
-        if (!live() || !staged.ready || !preparation.audioReady) return;
+        if (!live() || !staged.ready || staged.revealed || !preparation.audioReady) return;
         if (preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
+        staged.revealed = true;
+        stageCueCover(preparation.state);
         stagedPicture = null;
         if (typeof picture.reveal === "function") picture.reveal(options.onComplete);
         else picture.show(url, options);
@@ -53,10 +56,11 @@
     }
   };
   const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState, transition: stagedTransition});
+  const motion = typeof StoryMotion !== "undefined" ? new StoryMotion(ui.imgCur.parentElement) : null;
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
   const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
-  const canAnswer = () => configured && activity === "idle" && !pending
+  const canAnswer = () => configured && activity === "idle" && !pending && !cueCover
     && displayed === snapshot && Boolean(snapshot?.question);
   const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
   const cameraSupported = () => typeof CameraInput !== "undefined" && CameraInput.supported();
@@ -110,6 +114,7 @@
   function stopNarration() {
     spokenKey = null;
     if (typeof Narration !== "undefined") Narration.stop();
+    motion?.pause();
     highlight(-1);
   }
 
@@ -118,6 +123,42 @@
     ui.storyVideo.removeAttribute("src");
     ui.storyVideo.load();
     ui.storyVideo.hidden = true;
+  }
+
+  function playCuedVideo() {
+    if (!ui.storyVideo.src || !ui.storyVideo.hidden) return;
+    ui.storyVideo.hidden = false;
+    ui.storyVideo.play().catch(stopVideo);
+  }
+
+  function clearCueCover() {
+    clearTimeout(cueCoverTimer);
+    cueCoverTimer = null;
+    cueCover?.remove();
+    cueCover = null;
+  }
+
+  function revealCueCover() {
+    if (!cueCover || cueCover.classList.contains("is-revealing")) return;
+    cueCover.classList.add("is-revealing");
+    cueCoverTimer = setTimeout(() => { clearCueCover(); syncControls(); }, 280);
+  }
+
+  function stageCueCover(state) {
+    clearCueCover();
+    if (!motion || !ui.readAloud.checked ||
+        !["blown_away", "collapsed", "eaten", "melted", "stood"].includes(state.mediaPlan?.action) ||
+        displayed?.storyState?.houseIndex !== state.storyState?.houseIndex ||
+        globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const previous = picture.current?.getAttribute("src");
+    if (!previous) return;
+    const cover = document.createElement("img");
+    cover.className = "story-cue-cover";
+    cover.src = previous;
+    cover.alt = "";
+    cover.setAttribute("aria-hidden", "true");
+    ui.imgCur.parentElement.append(cover);
+    cueCover = cover;
   }
 
   function closeCamera() {
@@ -142,6 +183,8 @@
     cancelInput();
     stopNarration();
     stopVideo();
+    motion?.stop();
+    clearCueCover();
     if (scenePreparation) {
       scenePreparation.cancelled = true;
       clearTimeout(scenePreparation.timer);
@@ -303,14 +346,18 @@
     ui.retryMedia.hidden = true;
     preparedPassage = preparation.asset ? {key: preparation.key, asset: preparation.asset} : null;
     displayedImage = preparation.image;
+    const video = Boolean(preparation.video?.url?.startsWith("/prototype/video/"));
+    if (preparation.image) motion?.scene({action: preparation.state.mediaPlan?.action,
+      lines: preparation.state.lines.map(line => line.text), video,
+      narrated: ui.readAloud.checked && typeof Narration !== "undefined"});
+    else motion?.stop();
     render(preparation.state, {remember: preparation.remember});
     preparation.after?.();
-    const video = preparation.video;
-    if (video?.url?.startsWith("/prototype/video/")) {
-      ui.storyVideo.src = video.url;
-      ui.storyVideo.hidden = false;
+    if (video) {
+      ui.storyVideo.src = preparation.video.url;
+      ui.storyVideo.hidden = true;
       ui.storyVideo.onended = ui.storyVideo.onerror = stopVideo;
-      ui.storyVideo.play().catch(stopVideo);
+      if (!ui.readAloud.checked) playCuedVideo();
     }
   }
 
@@ -423,11 +470,15 @@
       return;
     }
     Promise.resolve(Narration.speak(lines, {key, language: state.language, ...(!choices ? {scene: true, prepared} : {}),
-      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {
+      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); },
+      onSentence: (index, sentence) => {
+        if (spokenKey !== key || pending || choices) return;
+        if (motion?.cue(index, key, sentence)) { revealCueCover(); playCuedVideo(); }
+      }})).catch(() => {
       if (choices || spokenKey !== key || displayed !== state || pending) return;
       const preparation = preparePresentation(state, {remember: false, image: displayedImage, deferAudio: true});
       narrationFailed(preparation);
-    });
+    }).finally(() => { if (spokenKey === key && !pending) { revealCueCover(); playCuedVideo(); } });
   }
 
   function rememberPage(state, image) {
@@ -852,12 +903,24 @@
   ui.pauseNarration.onclick = () => {
     if (!ui.pauseNarration.disabled && typeof Narration !== "undefined") Narration.pause?.();
   };
-  if (typeof Narration !== "undefined") Narration.subscribe?.(state => { playback = state; syncPlayback(); });
+  if (typeof Narration !== "undefined") Narration.subscribe?.(state => {
+    const wasPaused = playback === "paused";
+    playback = state;
+    if (state === "paused") { motion?.pause(); ui.storyVideo.pause(); }
+    else if (state === "playing" && wasPaused) {
+      motion?.resume();
+      if (!ui.storyVideo.hidden) ui.storyVideo.play().catch(stopVideo);
+    }
+    syncPlayback();
+  });
   ui.readAloud.checked = localStorage.getItem("story-read-aloud") !== "0";
   ui.readAloud.onchange = () => {
     localStorage.setItem("story-read-aloud", ui.readAloud.checked ? "1" : "0");
     if (!ui.readAloud.checked) {
       stopNarration();
+      revealCueCover();
+      motion?.start();
+      playCuedVideo();
       const preparation = scenePreparation;
       if (preparation) {
         preparation.attempt++;

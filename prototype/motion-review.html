@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StoryShaper 움직임 검수</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.5 system-ui, sans-serif; }
+    body { max-width: 1150px; margin: 24px auto; padding: 0 16px; color: #243034; background: #f4f0e8; }
+    h1 { margin-bottom: 4px; }
+    p { max-width: 80ch; }
+    .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 20px 0; }
+    label { display: grid; gap: 4px; font-weight: 600; }
+    select, button { font: inherit; padding: 8px 12px; min-height: 44px; }
+    select { max-width: min(78vw, 400px); }
+    button { border: 1px solid #566; border-radius: 8px; background: #fff; cursor: pointer; }
+    button:focus-visible, select:focus-visible { outline: 3px solid #276d75; outline-offset: 2px; }
+    .art { position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden; background: #d9d5ca; }
+    .art > img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+    .art .motion-stage { position: absolute; z-index: 1; pointer-events: none; }
+    .art .motion-stage img { position: absolute; object-fit: fill; }
+    .art .motion-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; }
+    #status { min-height: 1.5em; }
+    @media (prefers-reduced-motion: reduce) { .controls button:not(#still) { opacity: .65; } }
+  </style>
+</head>
+<body>
+  <h1>부분 애니메이션 검수</h1>
+  <p>그림과 사건을 선택해 원본, 정지 조각, 실제 움직임을 확인합니다. 조각의 경계와 이웃 캐릭터가 함께 움직이는지 확인하세요. 이 화면은 실제 낭독·영상 재생 시험을 대체하지 않습니다.</p>
+  <div class="controls">
+    <label>그림 <select id="picture"></select></label>
+    <label>사건 <select id="action"></select></label>
+    <button id="still" type="button">원본만 보기</button>
+    <button id="layer" type="button">조각 보기</button>
+    <button id="play" type="button">움직임 재생</button>
+    <button id="pause" type="button">일시정지</button>
+  </div>
+  <p id="status" role="status"></p>
+  <div class="art" id="art"><img id="pictureImage" class="is-current" alt="검수 중인 동화 그림"></div>
+  <script src="story-motion.js"></script>
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const art = $('art'), image = $('pictureImage'), picture = $('picture'), action = $('action');
+      const status = $('status');
+      const motion = new StoryMotion(art, {reducedMotion: () => false, useSpriteLayers: true});
+      let paused = false;
+      for (const name of Object.keys(StoryMotion.PRESETS)) {
+        const option = document.createElement('option'); option.value = name; option.textContent = name; action.append(option);
+      }
+      const stop = () => { motion.stop({settle: false}); paused = false; $('pause').textContent = '일시정지'; };
+      function show(mode) {
+        stop();
+        if (mode !== 'still') {
+          motion.scene({action: action.value, lines: ['Review event'], narrated: true});
+          if (mode === 'layer') { motion.pause(); paused = true; $('pause').textContent = '계속 재생'; }
+          if (mode === 'play') {
+            const scene = motion.active;
+            motion.loadManifest().then(() => {
+              if (motion.active === scene) motion.cue(0, `review-${Date.now()}`);
+            });
+          }
+        }
+        status.textContent = `${picture.value} · ${action.value} · ${mode === 'still' ? '원본' : mode === 'layer' ? '정지 조각' : '움직임'}`;
+      }
+      picture.onchange = () => { stop(); image.onload = () => show('still'); image.src = 'img/' + picture.value; };
+      action.onchange = () => show('still');
+      $('still').onclick = () => show('still');
+      $('layer').onclick = () => show('layer');
+      $('play').onclick = () => show('play');
+      $('pause').onclick = () => {
+        if (!motion.active) return;
+        paused = !paused;
+        if (paused) motion.pause(); else motion.resume();
+        $('pause').textContent = paused ? '계속 재생' : '일시정지';
+      };
+      fetch('img/motion/regions.json').then(response => {
+        if (!response.ok) throw Error(`HTTP ${response.status}`);
+        return response.json();
+      }).then(manifest => {
+        const files = Object.keys(manifest.images || {}).sort();
+        if (!files.length) throw Error('검수할 그림이 없습니다.');
+        for (const file of files) { const option = document.createElement('option'); option.value = file; option.textContent = file; picture.append(option); }
+        const preferred = files.includes('wolf_straw.jpg') ? 'wolf_straw.jpg' : files[0];
+        picture.value = preferred;
+        image.onload = () => show('still');
+        image.src = 'img/' + preferred;
+      }).catch(error => { status.textContent = `자산을 불러오지 못했습니다: ${error.message}`; });
+      window.addEventListener('pagehide', stop);
+    })();
+  </script>
+</body>
+</html>

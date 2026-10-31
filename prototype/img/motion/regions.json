@@ -1,0 +1,137 @@
+{
+  "model": "sam-3.1",
+  "images": {
+    "brick.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [351, 107, 831, 470], "sprite": "motion/brick.house.webp", "spriteBox": [322, 78, 860, 499]},
+      {"label": "pig", "box": [275, 304, 510, 624], "sprite": "motion/brick.pig.webp", "spriteBox": [256, 285, 529, 643]}
+    ]},
+    "empty1.jpg": {"size": [1024, 683], "objects": [
+      {"label": "pig", "box": [275, 302, 511, 624], "sprite": "motion/empty1.pig.webp", "spriteBox": [256, 283, 530, 643]}
+    ]},
+    "ending.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [349, 106, 832, 427], "sprite": "motion/ending.house.webp", "spriteBox": [320, 77, 861, 456]},
+      {"label": "pig", "box": [346, 321, 543, 606], "sprite": "motion/ending.pig.webp", "spriteBox": [329, 304, 560, 623]},
+      {"label": "pig", "box": [174, 318, 366, 610], "sprite": "motion/ending.pig1.webp", "spriteBox": [156, 300, 384, 628]},
+      {"label": "pig", "box": [521, 348, 699, 603], "sprite": "motion/ending.pig2.webp", "spriteBox": [506, 333, 714, 618]},
+      {"label": "wolf", "box": [845, 257, 912, 334], "sprite": "motion/ending.wolf.webp", "spriteBox": [840, 252, 917, 339]}
+    ]},
+    "paper_house.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [419, 79, 962, 475], "sprite": "motion/paper_house.house.webp", "spriteBox": [386, 46, 995, 508]},
+      {"label": "pig", "box": [275, 303, 510, 624], "sprite": "motion/paper_house.pig.webp", "spriteBox": [256, 284, 529, 643]}
+    ]},
+    "pig2_empty.jpg": {"size": [1024, 683], "objects": [
+      {"label": "pig", "box": [275, 286, 510, 624], "sprite": "motion/pig2_empty.pig.webp", "spriteBox": [255, 266, 530, 644]}
+    ]},
+    "pig3_empty.jpg": {"size": [1024, 683], "objects": [
+      {"label": "pig", "box": [275, 303, 511, 624], "sprite": "motion/pig3_empty.pig.webp", "spriteBox": [256, 284, 530, 643]}
+    ]},
+    "scenes/house1_cookie_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [502, 145, 889, 457], "sprite": "motion/house1_cookie_build.house.webp", "spriteBox": [479, 122, 912, 480]},
+      {"label": "pig", "box": [274, 298, 511, 617], "sprite": "motion/house1_cookie_build.pig.webp", "spriteBox": [255, 279, 530, 636]}
+    ]},
+    "scenes/house1_cookie_eaten.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [280, 121, 748, 486], "sprite": "motion/house1_cookie_eaten.house.webp", "spriteBox": [252, 93, 776, 514]},
+      {"label": "pig", "box": [722, 303, 934, 494], "sprite": "motion/house1_cookie_eaten.pig.webp", "spriteBox": [709, 290, 947, 507]},
+      {"label": "wolf", "box": [38, 175, 328, 469], "sprite": "motion/house1_cookie_eaten.wolf.webp", "spriteBox": [20, 157, 346, 487]}
+    ]},
+    "scenes/house1_icecream_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [411, 92, 867, 454], "sprite": "motion/house1_icecream_build.house.webp", "spriteBox": [384, 65, 894, 481]},
+      {"label": "pig", "box": [274, 298, 510, 617], "sprite": "motion/house1_icecream_build.pig.webp", "spriteBox": [255, 279, 529, 636]}
+    ]},
+    "scenes/house1_icecream_melted.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [410, 98, 873, 471], "sprite": "motion/house1_icecream_melted.house.webp", "spriteBox": [382, 70, 901, 499]},
+      {"label": "pig", "box": [200, 321, 423, 602], "sprite": "motion/house1_icecream_melted.pig.webp", "spriteBox": [183, 304, 440, 619]}
+    ]},
+    "scenes/house1_wood_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [526, 245, 828, 423], "sprite": "motion/house1_wood_build.house.webp", "spriteBox": [508, 227, 846, 441]},
+      {"label": "pig", "box": [274, 297, 511, 617], "sprite": "motion/house1_wood_build.pig.webp", "spriteBox": [255, 278, 530, 636]}
+    ]},
+    "scenes/house1_wood_collapsed.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [407, 263, 886, 438], "sprite": "motion/house1_wood_collapsed.house.webp", "spriteBox": [378, 234, 915, 467]},
+      {"label": "pig", "box": [523, 354, 759, 548], "sprite": "motion/house1_wood_collapsed.pig.webp", "spriteBox": [509, 340, 773, 562]},
+      {"label": "wolf", "box": [0, 183, 238, 370], "sprite": "motion/house1_wood_collapsed.wolf.webp", "spriteBox": [0, 169, 252, 384]}
+    ]},
+    "scenes/house2_cookie_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [506, 141, 832, 407], "sprite": "motion/house2_cookie_build.house.webp", "spriteBox": [486, 121, 852, 427]},
+      {"label": "pig", "box": [274, 282, 509, 617], "sprite": "motion/house2_cookie_build.pig.webp", "spriteBox": [254, 262, 529, 637]}
+    ]},
+    "scenes/house2_cookie_eaten.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [504, 148, 833, 406], "sprite": "motion/house2_cookie_eaten.house.webp", "spriteBox": [484, 128, 853, 426]},
+      {"label": "pig", "box": [421, 322, 621, 589], "sprite": "motion/house2_cookie_eaten.pig.webp", "spriteBox": [405, 306, 637, 605]},
+      {"label": "pig", "box": [256, 342, 449, 578], "sprite": "motion/house2_cookie_eaten.pig1.webp", "spriteBox": [242, 328, 463, 592]},
+      {"label": "wolf", "box": [6, 181, 236, 367], "sprite": "motion/house2_cookie_eaten.wolf.webp", "spriteBox": [0, 167, 250, 381]}
+    ]},
+    "scenes/house2_icecream_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [516, 142, 827, 435], "sprite": "motion/house2_icecream_build.house.webp", "spriteBox": [497, 123, 846, 454]},
+      {"label": "pig", "box": [275, 282, 509, 617], "sprite": "motion/house2_icecream_build.pig.webp", "spriteBox": [255, 262, 529, 637]}
+    ]},
+    "scenes/house2_icecream_melted.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [512, 140, 837, 432], "sprite": "motion/house2_icecream_melted.house.webp", "spriteBox": [492, 120, 857, 452]},
+      {"label": "pig", "box": [157, 314, 364, 593], "sprite": "motion/house2_icecream_melted.pig.webp", "spriteBox": [140, 297, 381, 610]},
+      {"label": "pig", "box": [336, 306, 497, 575], "sprite": "motion/house2_icecream_melted.pig1.webp", "spriteBox": [320, 290, 513, 591]}
+    ]},
+    "scenes/house2_paper_blown_away.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [513, 116, 876, 396], "sprite": "motion/house2_paper_blown_away.house.webp", "spriteBox": [491, 94, 898, 418]},
+      {"label": "pig", "box": [245, 336, 448, 587], "sprite": "motion/house2_paper_blown_away.pig.webp", "spriteBox": [230, 321, 463, 602]},
+      {"label": "pig", "box": [411, 333, 567, 563], "sprite": "motion/house2_paper_blown_away.pig1.webp", "spriteBox": [397, 319, 581, 577]},
+      {"label": "wolf", "box": [0, 176, 240, 368], "sprite": "motion/house2_paper_blown_away.wolf.webp", "spriteBox": [0, 162, 254, 382]}
+    ]},
+    "scenes/house2_paper_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [509, 200, 737, 407], "sprite": "motion/house2_paper_build.house.webp", "spriteBox": [495, 186, 751, 421]},
+      {"label": "pig", "box": [286, 282, 509, 617], "sprite": "motion/house2_paper_build.pig.webp", "spriteBox": [266, 262, 529, 637]}
+    ]},
+    "scenes/house2_straw_blown_away.jpg": {"size": [1024, 656], "objects": [
+      {"label": "house", "box": [446, 75, 785, 311], "sprite": "motion/house2_straw_blown_away.house.webp", "spriteBox": [426, 55, 805, 331]},
+      {"label": "pig", "box": [285, 325, 495, 598], "sprite": "motion/house2_straw_blown_away.pig.webp", "spriteBox": [269, 309, 511, 614]},
+      {"label": "pig", "box": [485, 329, 685, 550], "sprite": "motion/house2_straw_blown_away.pig1.webp", "spriteBox": [472, 316, 698, 563]},
+      {"label": "wolf", "box": [0, 172, 240, 366], "sprite": "motion/house2_straw_blown_away.wolf.webp", "spriteBox": [0, 158, 254, 380]}
+    ]},
+    "scenes/house2_straw_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [445, 80, 788, 318], "sprite": "motion/house2_straw_build.house.webp", "spriteBox": [424, 59, 809, 339]},
+      {"label": "pig", "box": [275, 282, 509, 617], "sprite": "motion/house2_straw_build.pig.webp", "spriteBox": [255, 262, 529, 637]}
+    ]},
+    "scenes/house3_stone_build.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [351, 106, 831, 468], "sprite": "motion/house3_stone_build.house.webp", "spriteBox": [322, 77, 860, 497]},
+      {"label": "pig", "box": [275, 300, 510, 618], "sprite": "motion/house3_stone_build.pig.webp", "spriteBox": [256, 281, 529, 637]}
+    ]},
+    "scenes/house3_stone_stood.jpg": {"size": [1024, 671], "objects": [
+      {"label": "house", "box": [351, 104, 830, 470], "sprite": "motion/house3_stone_stood.house.webp", "spriteBox": [322, 75, 859, 499]},
+      {"label": "pig", "box": [635, 319, 701, 388], "sprite": "motion/house3_stone_stood.pig.webp", "spriteBox": [631, 315, 705, 392]},
+      {"label": "pig", "box": [690, 308, 738, 383], "sprite": "motion/house3_stone_stood.pig1.webp", "spriteBox": [686, 304, 742, 387]},
+      {"label": "pig", "box": [735, 322, 787, 380], "sprite": "motion/house3_stone_stood.pig2.webp", "spriteBox": [732, 319, 790, 383]},
+      {"label": "wolf", "box": [0, 186, 233, 378], "sprite": "motion/house3_stone_stood.wolf.webp", "spriteBox": [0, 172, 247, 392]}
+    ]},
+    "straw_house.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [417, 66, 964, 469], "sprite": "motion/straw_house.house.webp", "spriteBox": [384, 33, 997, 502]},
+      {"label": "pig", "box": [275, 303, 511, 623], "sprite": "motion/straw_house.pig.webp", "spriteBox": [256, 284, 530, 642]}
+    ]},
+    "wolf_brick.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [352, 106, 831, 473], "sprite": "motion/wolf_brick.house.webp", "spriteBox": [323, 77, 860, 502]},
+      {"label": "pig", "box": [635, 324, 702, 394], "sprite": "motion/wolf_brick.pig.webp", "spriteBox": [631, 320, 706, 398]},
+      {"label": "pig", "box": [691, 312, 738, 388], "sprite": "motion/wolf_brick.pig1.webp", "spriteBox": [686, 307, 743, 393]},
+      {"label": "pig", "box": [736, 326, 789, 385], "sprite": "motion/wolf_brick.pig2.webp", "spriteBox": [732, 322, 793, 389]},
+      {"label": "wolf", "box": [0, 188, 233, 382], "sprite": "motion/wolf_brick.wolf.webp", "spriteBox": [0, 174, 247, 396]}
+    ]},
+    "wolf_paper.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [436, 56, 958, 480], "sprite": "motion/wolf_paper.house.webp", "spriteBox": [405, 25, 989, 511]},
+      {"label": "pig", "box": [299, 337, 516, 617], "sprite": "motion/wolf_paper.pig.webp", "spriteBox": [282, 320, 533, 634]},
+      {"label": "wolf", "box": [0, 188, 238, 382], "sprite": "motion/wolf_paper.wolf.webp", "spriteBox": [0, 174, 252, 396]}
+    ]},
+    "wolf_straw.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [429, 64, 964, 481], "sprite": "motion/wolf_straw.house.webp", "spriteBox": [397, 32, 996, 513]},
+      {"label": "pig", "box": [299, 339, 516, 617], "sprite": "motion/wolf_straw.pig.webp", "spriteBox": [282, 322, 533, 634]},
+      {"label": "wolf", "box": [0, 187, 236, 382], "sprite": "motion/wolf_straw.wolf.webp", "spriteBox": [0, 173, 250, 396]}
+    ]},
+    "wolf_wood.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [425, 119, 993, 386], "sprite": "motion/wolf_wood.house.webp", "spriteBox": [391, 85, 1024, 420]},
+      {"label": "pig", "box": [314, 344, 549, 586], "sprite": "motion/wolf_wood.pig.webp", "spriteBox": [299, 329, 564, 601]},
+      {"label": "pig", "box": [554, 326, 745, 563], "sprite": "motion/wolf_wood.pig1.webp", "spriteBox": [540, 312, 759, 577]},
+      {"label": "pig", "box": [747, 370, 902, 534], "sprite": "motion/wolf_wood.pig2.webp", "spriteBox": [737, 360, 912, 544]},
+      {"label": "wolf", "box": [0, 179, 239, 382], "sprite": "motion/wolf_wood.wolf.webp", "spriteBox": [0, 165, 253, 396]}
+    ]},
+    "wood.jpg": {"size": [1024, 683], "objects": [
+      {"label": "house", "box": [421, 109, 954, 426], "sprite": "motion/wood.house.webp", "spriteBox": [389, 77, 986, 458]},
+      {"label": "pig", "box": [275, 287, 510, 624], "sprite": "motion/wood.pig.webp", "spriteBox": [255, 267, 530, 644]}
+    ]}
+  }
+}
