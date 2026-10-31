@@ -17,6 +17,8 @@ class Element {
   }
   setAttribute(key, value) { this[key] = value; }
   getAttribute(key) { return this[key] ?? null; }
+  focus() { this.focused = true; }
+  contains(target) { return this === target || this.children.some(child => child.contains(target)); }
   removeAttribute(key) { delete this[key]; }
   replaceChildren(...children) { this.children = children; }
   append(child) { this.children.push(child); child.parentElement = this; }
@@ -222,11 +224,46 @@ test('settings selects saved voices immediately without opening registration', a
   assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom', 'dad']);
   h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
   assert.equal(h.settings.voiceId, 'dad');
+  assert.equal(h.element('addVoice').hidden, false, 'Adding another voice stays available for a saved voice');
   assert.match(h.element('readerName').textContent, /Dad/);
   assert.match(h.element('readBy').textContent, /Dad/);
   assert.equal(h.narrations.length, 2, 'Current passage restarts with the chosen voice');
   h.element('voiceSelect').value = ''; h.element('voiceSelect').onchange();
   assert.equal(h.settings.voiceId, null);
+});
+
+test('settings can close with its button, Escape or an outside press without swallowing inside interactions', async () => {
+  const h = await harness();
+  await h.element('settingsButton').onclick();
+  assert.equal(h.element('settingsButton')['aria-expanded'], 'true');
+  assert.equal(h.element('closeSettings').focused, true);
+  h.document.pointerdown({target:h.element('readerSettings')});
+  assert.equal(h.element('readerSettings').hidden, false);
+  h.document.pointerdown({target:h.element('settingsButton')});
+  assert.equal(h.element('readerSettings').hidden, false);
+  h.document.pointerdown({target:h.element('book')});
+  assert.equal(h.element('readerSettings').hidden, true);
+  assert.equal(h.element('settingsButton')['aria-expanded'], 'false');
+  await h.element('settingsButton').onclick();
+  let prevented = false;
+  h.document.keydown({key:'Escape', preventDefault() {prevented = true;}});
+  assert.equal(prevented, true);
+  assert.equal(h.element('readerSettings').hidden, true);
+  assert.equal(h.element('settingsButton').focused, true);
+  await h.element('settingsButton').onclick();
+  h.element('closeSettings').onclick();
+  assert.equal(h.element('readerSettings').hidden, true);
+});
+
+test('closing the settings popover prevents a late voice-list response from resetting the saved selection', async () => {
+  const h = await harness();
+  h.settings.voiceId = 'jiho'; h.settings.voiceName = 'Jiho';
+  const response = deferred(); h.settings.voiceList = response;
+  const opening = h.element('settingsButton').onclick();
+  h.element('closeSettings').onclick();
+  response.resolve([]); await opening;
+  assert.equal(h.settings.voiceId, 'jiho');
+  assert.equal(h.element('addVoice').hidden, false);
 });
 
 test('settings keeps the current voice on list failure and forgets a deleted saved voice on refresh', async () => {
@@ -262,9 +299,9 @@ test('merged parent voice registration, return links and warmup remain available
   h.settings.voiceName = 'Mom';
   h.element('language').value = 'ko';
   await h.element('language').onchange();
-  assert.equal(h.element('addVoice').hidden, true);
+  assert.equal(h.element('addVoice').hidden, false);
   assert.match(h.element('readerName').textContent, /Mom/);
-  assert.equal(h.element('changeVoice').href, 'voice.html?return=index.html&lang=ko');
+  assert.equal(h.element('addVoice').href, 'voice.html?return=index.html&lang=ko');
   await h.start();
   h.settings.answer = accepted();
   await h.submit();
