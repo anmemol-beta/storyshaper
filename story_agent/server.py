@@ -244,7 +244,7 @@ class Handler(BaseHTTPRequestHandler):
                     or any(part.startswith(".") for part in Path(path).parts)):
                 raise APIError(404, "not_found", "Page not found.")
             types = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-                     ".css": "text/css; charset=utf-8", ".jpg": "image/jpeg", ".png": "image/png",
+                     ".css": "text/css; charset=utf-8", ".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
                      ".mp3": "audio/mpeg", ".json": "application/json"}
             return self.reply(200, target.read_bytes(), types.get(target.suffix, "application/octet-stream"))
         except APIError as exc:

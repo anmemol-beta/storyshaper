@@ -130,3 +130,8 @@
   .reader-app .live-choices button { padding: 10px 6px; }
 }
 @media (max-width: 360px) { .reader-app .live-choices { grid-template-columns: minmax(0, 1fr); } }
+
+/* Motion layer (story-motion.js): sits exactly over the drawn picture, under the vignette and any video clip. */
+.art .motion-stage { position: absolute; z-index: 1; pointer-events: none; }
+.art .motion-stage img { position: absolute; inset: auto; opacity: 1; object-fit: fill; will-change: transform; }
+.art .motion-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; }

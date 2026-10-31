@@ -23,6 +23,7 @@
   ui.mode.value = selectedMode;
 
   const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState});
+  const motion = typeof StoryMotion !== "undefined" ? new StoryMotion(ui.imgCur.parentElement) : null;
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
   const canAnswer = () => configured && activity === "idle" && !pending && Boolean(snapshot?.question);
@@ -105,6 +106,7 @@
     cancelInput();
     stopNarration();
     stopVideo();
+    motion?.stop();
     media.cancel({server});
     pending = null;
     ui.loading.hidden = true;
@@ -235,7 +237,8 @@
       ...state.question.choices.map(choice => ({speakerId: "narrator", text: choice.label}))
     ] : state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text}] : state.lines;
     Promise.resolve(Narration.speak(lines, {key, language: state.language,
-      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {});
+      onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); },
+      onSpeak: index => { if (spokenKey === key && !pending && !choices) motion?.cue(index, key); }})).catch(() => {});
   }
 
   function render(state) {
@@ -279,6 +282,7 @@
     snapshot = state;
     activity = "idle";
     if (!translationOnly && state.mediaPlan && ["accept", "complete"].includes(state.decision)) {
+      motion?.stop();
       pending = state;
       ui.loading.hidden = false;
       ui.retryMedia.hidden = true;
@@ -286,7 +290,13 @@
       say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
       syncControls();
       media.update(state);
-    } else render(state);
+    } else {
+      const sceneChanged = displayed?.sessionId !== state.sessionId || displayed?.sceneId !== state.sceneId;
+      // A translation rereads the same picture, so its event plays again with the new words.
+      if (sceneChanged || translationOnly) motion?.scene({action: translationOnly ? state.mediaPlan?.action : null,
+        lines: state.lines.map(line => line.text), narrated: ui.readAloud.checked && typeof Narration !== "undefined"});
+      render(state);
+    }
   }
 
   function mediaState(result) {
@@ -307,8 +317,12 @@
       pending = null;
       ui.loading.hidden = true;
       ui.retryMedia.hidden = true;
+      const video = Boolean(result.video?.url?.startsWith("/prototype/video/"));
+      // The picture moves with its narration; a reviewed clip, when registered, shows the event instead.
+      motion?.scene({action: state.mediaPlan?.action, lines: state.lines.map(line => line.text), video,
+        narrated: ui.readAloud.checked && typeof Narration !== "undefined"});
       render(state);
-      if (result.video?.url?.startsWith("/prototype/video/")) {
+      if (video) {
         ui.storyVideo.src = result.video.url;
         ui.storyVideo.hidden = false;
         ui.storyVideo.onended = ui.storyVideo.onerror = stopVideo;
@@ -521,11 +535,15 @@
   ui.pauseNarration.onclick = () => {
     if (!ui.pauseNarration.disabled && typeof Narration !== "undefined") Narration.pause?.();
   };
-  if (typeof Narration !== "undefined") Narration.subscribe?.(state => { playback = state; syncPlayback(); });
+  if (typeof Narration !== "undefined") Narration.subscribe?.(state => {
+    playback = state;
+    if (state === "paused") motion?.pause(); else motion?.resume();
+    syncPlayback();
+  });
   ui.readAloud.checked = localStorage.getItem("story-read-aloud") !== "0";
   ui.readAloud.onchange = () => {
     localStorage.setItem("story-read-aloud", ui.readAloud.checked ? "1" : "0");
-    if (!ui.readAloud.checked) stopNarration();
+    if (!ui.readAloud.checked) { stopNarration(); motion?.start(); }
     else { replay++; narrate(); }
   };
   ui.language.onchange = async () => {

@@ -2,6 +2,7 @@ from copy import deepcopy
 import http.client
 from html.parser import HTMLParser
 import json
+from pathlib import Path
 import threading
 import unittest
 from unittest.mock import patch
@@ -312,6 +313,20 @@ class HTTPTests(unittest.TestCase):
             with self.subTest(asset=asset):
                 status, _ = self.request('GET', urljoin(location, asset))
                 self.assertEqual(status, 200)
+
+    def test_motion_sprites_are_served_as_webp_despite_nosniff(self):
+        # Pages are sent with nosniff, so a sprite with a generic type would not be drawn.
+        manifest = Path(__file__).resolve().parent.parent / 'prototype/img/motion/regions.json'
+        regions = json.loads(manifest.read_text(encoding='utf-8'))
+        sprite = next(iter(regions['images'].values()))['objects'][0]['sprite']
+        conn = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=5)
+        conn.request('GET', '/prototype/img/' + sprite)
+        response = conn.getresponse()
+        response.read()
+        conn.close()
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.getheader('Content-Type'), 'image/webp')
+        self.assertEqual(response.getheader('X-Content-Type-Options'), 'nosniff')
 
     def test_developer_page_is_preserved_but_unlinked_from_reader(self):
         status, raw = self.request('GET', '/prototype/agent.html')

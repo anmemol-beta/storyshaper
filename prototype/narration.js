@@ -104,8 +104,9 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
-  function playClip(url, my, loadMs = CLIP_LOAD_MS, beforePlay = null) {
+  // beforePlay: called once the clip has loaded (the server may still be making it), right before it plays.
+  // onPlaying: called once the browser has accepted play(), i.e. the clip is really heard.
+  function playClip(url, my, loadMs = CLIP_LOAD_MS, beforePlay = null, onPlaying = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
       let settled = false, started = false;
@@ -130,7 +131,7 @@ const Narration = (() => {
         started = true;
         beforePlay?.();
         setPlayback("playing", "parent");
-        clip.play().catch(() => done(false));
+        clip.play().then(() => { if (!settled && my === token) onPlaying?.(); }, () => done(false));
       }, {once: true});
       clip.load();
     });
@@ -279,7 +280,9 @@ const Narration = (() => {
     return merged;
   }
 
-  async function speak(lines, {key = null, language = "en", onLine = () => {}} = {}) {
+  // onLine: a line is next (its voice may still be on its way). onSpeak: a line is actually heard now, for pictures that
+  // move with the story (story-motion.js); each line once, even if the browser voice takes over from a failed clip.
+  async function speak(lines, {key = null, language = "en", onLine = () => {}, onSpeak = () => {}} = {}) {
     if (key !== null && key === lastKey) return;
     lastKey = key;
     stopReading();
@@ -293,19 +296,23 @@ const Narration = (() => {
       try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}
     }
     if (my !== token) return;
+    let heard = -1;
+    const announce = line => { if (line !== heard) { heard = line; onSpeak(line); } };
     for (let k = 0; k < parts.length; k += 1) {
       await untilResumed();
       if (my !== token) return;
       if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
       const clip = clips?.[k];
       const wait = clip?.ready ? 0 : LINE_WAIT;
-      const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS, k === 0 ? firstLineReady : null) : false;
+      const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS,
+        k === 0 ? firstLineReady : null, () => announce(parts[k].line)) : false;
       if (my !== token) return;
       if (!played) {
         if (k === 0) firstLineReady();
         await untilResumed();
         if (my !== token) return;
         setPlayback("playing", "browser");
+        announce(parts[k].line);
         await browserSay(parts[k].text, language);
       }
     }
