@@ -2,7 +2,7 @@
 (() => {
   "use strict";
   const ids = ["book", "cover", "startLabel", "storyTitle", "readBy", "language", "mode",
-    "languageLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "changeVoice",
+    "languageLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "settingsTitle", "closeSettings",
     "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
@@ -236,13 +236,14 @@
       button.setAttribute("aria-label", label);
       button.setAttribute("title", label);
     }
-    ui.changeVoice.textContent = t("Change voice", "목소리 바꾸기");
     ui.readAloudLabel.textContent = t("Read aloud", "소리 내어 읽기");
     ui.cameraButton.textContent = t("📷 Show an object", "📷 물건 보여주기");
     ui.cameraSnap.textContent = t("Take picture", "사진 찍기");
     ui.cameraCancel.textContent = t("Cancel", "닫기");
     ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
-    ui.settingsButton.setAttribute("aria-label", t("Reader settings", "낭독 설정"));
+    ui.settingsButton.setAttribute("aria-label", t("Settings", "환경설정"));
+    ui.settingsTitle.textContent = t("Settings", "환경설정");
+    ui.closeSettings.setAttribute("aria-label", t("Close settings", "설정 닫기"));
     ui.voiceSelectLabel.textContent = t("Saved voices", "저장된 목소리");
     ui.narrationControls.setAttribute("aria-label", t("Narration playback", "낭독 재생"));
     voiceOptions();
@@ -309,11 +310,9 @@
     const name = saved || t("Storybook voice", "기본 목소리");
     ui.readerName.textContent = t("Reader: ", "읽어주는 목소리: ") + name;
     ui.readBy.textContent = t("Read by ", "읽어주는 목소리: ") + name;
-    ui.changeVoice.textContent = saved ? t("Change voice", "목소리 바꾸기") : t("Add a parent's voice", "부모 목소리 추가하기");
-    ui.addVoice.hidden = Boolean(saved);
+    ui.addVoice.hidden = false;
     ui.addVoice.textContent = t("🎙 Add a parent's voice", "🎙 부모 목소리 추가");
-    for (const link of [ui.changeVoice, ui.addVoice])
-      link.href = "voice.html?return=index.html&lang=" + ui.language.value;
+    ui.addVoice.href = "voice.html?return=index.html&lang=" + ui.language.value;
   }
 
   function highlight(index) {
@@ -890,14 +889,30 @@
     media.retry(pending);
   };
   ui.restart.onclick = ui.cover.onclick = begin;
-  ui.settingsButton.onclick = () => {
-    ui.readerSettings.hidden = !ui.readerSettings.hidden;
-    ui.settingsButton.setAttribute("aria-expanded", String(!ui.readerSettings.hidden));
-    if (!ui.readerSettings.hidden) return loadVoices();
+  function setSettings(open, {restoreFocus = true} = {}) {
+    ui.readerSettings.hidden = !open;
+    ui.settingsButton.setAttribute("aria-expanded", String(open));
+    if (open) {
+      ui.closeSettings.focus({preventScroll: true});
+      return loadVoices();
+    }
     voiceListRequest++;
     voiceListLoading = false;
     syncControls();
-  };
+    if (restoreFocus) ui.settingsButton.focus({preventScroll: true});
+  }
+  ui.settingsButton.onclick = () => setSettings(ui.readerSettings.hidden);
+  ui.closeSettings.onclick = () => setSettings(false);
+  document.addEventListener("pointerdown", event => {
+    if (!ui.readerSettings.hidden && !ui.readerSettings.contains(event.target)
+        && !ui.settingsButton.contains(event.target)) setSettings(false, {restoreFocus: false});
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !ui.readerSettings.hidden) {
+      event.preventDefault();
+      setSettings(false);
+    }
+  });
   ui.voiceSelect.onchange = () => {
     if (!ui.voiceSelect.disabled && typeof Narration !== "undefined") chooseVoice(ui.voiceSelect.value);
   };
