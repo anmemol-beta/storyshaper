@@ -32,12 +32,9 @@
     "The yellow part will be the voice we learn from. Tap a part to hear it, or slide it along the recording.":
       "노란 부분의 목소리를 배워요. 눌러서 들어 보고, 옆으로 밀어서 옮길 수 있어요.",
     "Hear {name} read": "{name} 목소리로 들어 보기", "Play the story line": "동화 문장 재생",
-    "Voices on this device": "이 기기의 목소리", "Read every character in this voice": "모든 등장인물을 이 목소리로 읽기",
-    "Off: the three pigs and the wolf each have their own voice, so children always know who is talking.": "끄면 아기돼지 셋과 늑대가 각자 다른 목소리로 읽어서 아이가 누가 말하는지 알 수 있어요.",
+    "Voices on this device": "이 기기의 목소리",
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
     "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
-    "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
-    "Trained voice (beta)": "학습한 목소리 사용 (베타)",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "Try this recording again": "이 녹음으로 다시 시도하기",
     "The voice helper took too long. Your recording is still here. Try again.": "목소리 처리가 오래 걸려요. 녹음은 보관 중이니 다시 시도해 주세요.",
@@ -103,8 +100,8 @@
   // Where "Start a story" and the logo lead: the page that sent the parent here (?return=live.html), else the live book.
   const RETURN = (r => (/^[a-z-]+\.html$/.test(r || "") ? r : "live.html"))(new URLSearchParams(location.search).get("return"));
   const PREVIEW = {
-    en: "Once upon a time, a mother pig lived with her three little pigs.",
-    ko: "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.",
+    en: "Once upon a time, three little pigs set out to build homes.",
+    ko: "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요.",
   };
   const state = { step: "who", draft: null, peaks: null, duration: 0, clip: null, checked: null, previewed: false };
   let player = null;
@@ -478,9 +475,10 @@
       if (meta.transcript) {
         heard.append(`“${meta.transcript}”`);
         heard.prepend(Object.assign(document.createElement("small"), {textContent: tr("We heard")}));
-      } else {
+      } else if (meta.transcript === "") {       // null: this server has no transcription, so say nothing
         heard.append(Object.assign(document.createElement("small"), {textContent: tr("We couldn't make out the words, but the voice can still be used.")}));
       }
+      heard.hidden = !heard.childNodes.length;
       if (!q.ok) showError("pickError", tr("This part might not sound right. You can still try it, or slide to another part."));
       state.checked = {start, end};
     } catch (error) {
@@ -586,8 +584,9 @@
     } catch {}
   }
 
-  $("allRoles").checked = (() => { try { return localStorage.getItem("story-voice-all") === "1"; } catch { return false; } })();
-  $("allRoles").onchange = () => { try { localStorage.setItem("story-voice-all", $("allRoles").checked ? "1" : "0"); } catch {} };
+  // The parent reads the narration; the pigs and the wolf keep their own voices (10/31). The old "read every character
+  // in this voice" switch is gone, so forget it where it was turned on.
+  try { localStorage.removeItem("story-voice-all"); } catch {}
 
   /* ---------- voices on this device ---------- */
 
@@ -611,18 +610,6 @@
           voice.consent?.relation === "me" ? "My own voice" : "A parent who is away")}));
       pick.append(radio, text);
       row.append(pick);
-      // A fine-tuned voice (narration/finetune_merge.py) can be switched on and off to compare by ear.
-      if (voice.finetune) {
-        const tune = document.createElement("label");
-        tune.className = "tuned";
-        const box = Object.assign(document.createElement("input"), {type: "checkbox", checked: Boolean(voice.finetune.enabled)});
-        box.onchange = async () => {
-          try { await api(`/api/voices/${voice.id}/finetune`, post({enabled: box.checked})); }
-          catch (error) { box.checked = !box.checked; alert(error.message); }
-        };
-        tune.append(box, tr("Trained voice (beta)"));
-        row.append(tune);                         // beside the name, not inside its label (no nested labels)
-      }
       if (voice.id && !voice.builtin) {
         const remove = Object.assign(document.createElement("button"), {type: "button", className: "btn small", textContent: tr("Delete")});
         remove.onclick = async () => {
@@ -653,7 +640,6 @@
     $("previewLine").textContent = `“${PREVIEW[language]}”`;
     if (!$("record").textContent.startsWith("■")) $("record").textContent = recordLabel();
     document.querySelectorAll("[data-return]").forEach(a => { a.href = RETURN; });
-    $("practice").href = `voice-train.html?lang=${language}`;
     render();
     loadVoices();
   }

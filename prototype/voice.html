@@ -143,11 +143,7 @@
   .voice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
   .voice label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .voice input { width: 20px; height: 20px; accent-color: var(--green); }
-  .voice small, .every small { display: block; color: var(--subtle); font-size: .82rem; }
-  .voice .tuned { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: .82rem; color: var(--green); }
-  .voice .tuned input { width: 16px; height: 16px; }
-  .every { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); cursor: pointer; }
-  .every input { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--green); }
+  .voice small { display: block; color: var(--subtle); font-size: .82rem; }
 
   /* Buttons and the action bar */
   .btn { min-height: 48px; padding: 0 22px; border-radius: 999px; border: 2px solid var(--green); background: transparent; color: var(--green); font-weight: 700; cursor: pointer; }
@@ -249,7 +245,7 @@
         <button class="play" type="button" id="play" aria-label="Play the story line" data-t-aria="Play the story line">
           <svg viewBox="0 0 44 44" fill="currentColor" aria-hidden="true"><path d="M15 10l20 12-20 12z"/></svg>
         </button>
-        <p class="story" id="previewLine">“Once upon a time, a mother pig lived with her three little pigs.”</p>
+        <p class="story" id="previewLine">“Once upon a time, three little pigs set out to build homes.”</p>
         <p class="status" id="listenStatus" role="status"></p>
         <p class="ask" id="ask" hidden></p>
       </div>
@@ -262,7 +258,6 @@
         <p class="lead" id="doneText"></p>
         <p class="book-status" id="bookStatus" role="status"></p>
         <a class="btn main" href="live.html" data-return data-t style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
-        <a class="btn" id="practice" href="voice-train.html" style="display:inline-grid;place-items:center;text-decoration:none" data-t>Make it sound even more like them (10 min)</a>
         <button class="btn quiet" type="button" id="again" data-t>Add another voice</button>
       </div>
     </section>
@@ -270,8 +265,6 @@
     <section class="voices" id="voicesBox" hidden>
       <h2 data-t>Voices on this device</h2>
       <div id="voices"></div>
-      <label class="every"><input type="checkbox" id="allRoles">
-        <span><span data-t>Read every character in this voice</span><small data-t>Off: the three pigs and the wolf each have their own voice, so children always know who is talking.</small></span></label>
     </section>
   </main>
 </div>

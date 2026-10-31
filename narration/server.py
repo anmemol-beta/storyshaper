@@ -64,8 +64,9 @@ PROFILES = ROOT / "voice" / "profiles"
 BUILTIN_VOICES = {"000000007127": {"name": "Storybook voice (male)", "ref": "voice/characters/narrator_libritts_7127.wav"}}
 PARENT_ROLES = ("narrator",)               # the parent reads the narration; every character keeps its own voice (10/31)
 # The preview is the picture book's first line, so the book can start the moment the voice is saved.
-PREVIEW_TEXT = {"en": "Once upon a time, a mother pig lived with her three little pigs.",
-                "ko": "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요."}
+# The current story's first line, so the preview is also the first line the parent will hear.
+PREVIEW_TEXT = {"en": "Once upon a time, three little pigs set out to build homes.",
+                "ko": "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요."}
 MAX_BODY = 16384
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_LINES = 20
