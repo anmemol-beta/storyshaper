@@ -80,11 +80,22 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 
 ## Languages
 
-The parent records once, using the passage in their selected language, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. The Korean picture book lines are in `prototype/audio/lines.ko.json` (written by `node experiments/narration_lines.mjs`) and are voiced ahead by `narration/warm.py` and on saving a voice. Korean fillers: `FILLERS_KO`.
+The parent records once, using the passage in their selected language, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. `narration.warm.authored_book()` collects the current engine's English and Korean dialogue, questions and choice keywords across all 50 authored material paths without a model call. Warmup preserves each speaker and delivery label and splits sentences like the reader, so the wolf uses its own role and the cached text matches playback. Newly generated wording and custom materials are still prepared as needed. The older `prototype/audio/lines*.json` files belong to the earlier fixed book. Korean fillers: `FILLERS_KO`.
+
+Current script sources and complete model input exports are documented in [the script guide](../story_agent/README.md). `kind`, `tone` and `emotion` stay outside spoken text. The server resolves character personality and these line labels into supported `exaggeration`, `cfg_weight` and tempo settings using `story_agent.performance.voice_direction()`. The existing reference voice mapping remains in place while the three pigs have different delivery presets. These directions and their revision are part of audio cache identity. They are authored controls, not proof that a categorical emotion has been learned or successfully expressed.
 
 On a Mac (MPS) a Korean line takes about 6–9 s to make, slower than it takes to play, so live Korean passages pause between lines; the picture book is fine once voiced ahead.
 
 ## Making a voice closer (fine-tuning, beta)
+
+The default practice mode now uses the current story's **98 directed prompts per language**, showing the speaker, personality and intended tone/emotion. The older 100-sentence English practice remains available separately. The server resolves the script ID and revision itself; it keeps the desired performance separate from a parent's listening confirmation. Stale text, missing audio, a failed transcription match or an unreviewed performance cannot enter a directed dataset. See [the full recording and training guide](../docs/internal/model-performance.md).
+
+```bash
+# Export only checked, real recordings for this voice, character and emotion.
+voice/.venv-chatterbox/bin/python -m narration.finetune --voice <id> --language en --speaker pig1 --emotion excited --performance-only --export-only
+```
+
+The export contains WAV files, plain transcripts, a performance sidecar and a dataset scope. The current LoRA kit consumes audio and plain text, not emotion tokens. Scoped adapters apply only to matching English character/emotion lines; other lines keep the base model. Korean script recordings can be exported, but the current English adapter pipeline does not train or apply them. At this implementation check there are no directed training clips and no separate fine-tuning runtime installed, so no new weights were trained.
 
 Chatterbox imitates a voice from at most 10 s of its reference clip, so recording more does not make the zero-shot voice closer. A parent can optionally teach it their way of speaking:
 

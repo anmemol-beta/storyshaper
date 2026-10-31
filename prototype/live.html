@@ -29,6 +29,10 @@
    <img id="imgCur" class="is-current" src="img/intro.jpg" alt="동화 그림">
    <img id="imgNext" src="img/intro.jpg" alt="" aria-hidden="true">
    <video id="storyVideo" class="live-video" muted playsinline hidden aria-label="움직이는 동화 그림"></video>
+   <nav class="page-navigation" id="pageNavigation" aria-label="장면 이동">
+     <button id="previousPage" type="button" aria-label="이전 장면" title="이전 장면" disabled>◀</button>
+     <button id="nextPage" type="button" aria-label="다음 장면" title="다음 장면" disabled>▶</button>
+   </nav>
    <div class="narration-controls" role="group" aria-label="낭독 재생" id="narrationControls">
      <div><button id="playNarration" type="button" disabled>▶ 재생</button><button id="pauseNarration" type="button" disabled>Ⅱ 일시정지</button></div>
      <span id="narrationStatus" role="status" aria-live="polite"></span>

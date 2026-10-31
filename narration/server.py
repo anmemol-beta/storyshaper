@@ -98,6 +98,27 @@ class Narrator:
         settings = dict(self.casting[role])
         if role in PARENT_ROLES or all_roles:
             settings["ref"] = str(parent_ref) if parent_ref is not None else self.casting["narrator"]["ref"]
+        from story_agent.performance import voice_direction
+        direction = voice_direction({"speakerId": "pig1" if role == "pig" else role, "text": "."})
+        settings.update({key: direction[key] for key in ("exaggeration", "cfg_weight", "tempo")})
+        settings["exclaim_exaggeration"] = direction["exaggeration"]
+        settings["performance"] = direction
+        return settings
+
+    def line_settings(self, line, parent_ref=None, all_roles=False, language="en"):
+        """Apply the server-owned script direction using supported synthesis controls."""
+        from story_agent.performance import voice_direction
+
+        speaker = line.get("speakerId") or "narrator"
+        if speaker not in {"narrator", "pig1", "pig2", "pig3", "wolf"}:
+            speaker = "narrator"                 # older fixed-book speakers use the narrator
+        direction = voice_direction({**line, "speakerId": speaker}, language)
+        settings = self.settings(self.role(speaker), parent_ref, all_roles)
+        settings.update({key: direction[key] for key in ("exaggeration", "cfg_weight", "tempo")})
+        settings["exclaim_exaggeration"] = direction["exaggeration"]
+        # Identity, delivery and revision are part of the audio cache even if two
+        # current presets happen to share numeric synthesis controls.
+        settings["performance"] = direction
         return settings
 
     @staticmethod
@@ -108,7 +129,7 @@ class Narrator:
         return self.cache / voice / f"{key}.mp3"
 
     def submit(self, lines, voice="default", parent_ref=None, all_roles=False, enqueue=True, language="en", t3=None,
-               priority="interactive"):
+               priority="interactive", t3_scope=None):
         """Queue interactive passages before warmup, newest request first within each priority.
         voice names the cache folder; parent_ref replaces the parent reference clip for that voice;
         all_roles reads every character, the wolf too, in the parent's voice.
@@ -122,10 +143,14 @@ class Narrator:
             self.dropped.discard(voice)
             for line in lines:
                 text, role = line["text"].strip(), self.role(line.get("speakerId"))
-                settings = self.settings(role, parent_ref, all_roles)
+                settings = self.line_settings(line, parent_ref, all_roles, language)
                 if language != "en":            # English keys stay as before, so existing clips remain valid
                     settings["language"] = language
-                elif t3 and settings["ref"] != self.casting[role]["ref"]:    # the parent's voice, not a stock one
+                elif (t3 and settings["ref"] != self.casting[role]["ref"]
+                      and (not t3_scope or (
+                          t3_scope.get("language", "en") == language
+                          and t3_scope.get("speakerId") in (None, line.get("speakerId", "narrator"))
+                          and t3_scope.get("emotion") in (None, settings["performance"]["emotion"])))):
                     settings["t3"] = t3
                 key = self.key(settings, text)
                 ready = self.path(voice, key).exists()
@@ -146,6 +171,7 @@ class Narrator:
                         self.pending[job_key] = job
                         self.queued[job_key] = ticket
                 clips.append({"speakerId": line.get("speakerId", "narrator"), "role": role, "text": text,
+                              "performance": settings["performance"],
                               "key": key, "url": f"/audio/{voice}/{key}.mp3", "ready": ready})
             self.cond.notify_all()
         return clips
@@ -286,6 +312,11 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return f"{path}#{int(path.stat().st_mtime)}"
 
+    def finetune_scope(self, voice_id):
+        if voice_id in (None, "default"):
+            return None
+        return (self.server.library.meta(voice_id).get("finetune") or {}).get("scope")
+
     def handle_safely(self, action):
         if not self.guarded():
             return
@@ -319,6 +350,12 @@ class Handler(BaseHTTPRequestHandler):
         url = urlsplit(self.path)
         if url.path == "/api/voice/config":
             return self.reply(200, {"roles": sorted(self.server.narrator.casting), "languages": list(LANGUAGES)})
+        if url.path == "/api/voice/training-script":
+            from .practice import training_catalog
+            language = parse_qs(url.query).get("language", ["en"])[0]
+            if language not in LANGUAGES:
+                raise VoiceError(400, "invalid_language", "Language must be en or ko.")
+            return self.reply(200, training_catalog(language))
         if url.path == "/api/voices":
             return self.reply(200, {"voices": self.server.library.saved()})
         route = VOICE_ROUTE.match(url.path)
@@ -364,9 +401,15 @@ class Handler(BaseHTTPRequestHandler):
             if priority not in ("interactive", "background"):
                 raise VoiceError(400, "invalid_priority", "Priority must be interactive or background.")
             voice, ref = self.parent_ref(body.get("voiceId"))
+            try:
+                for line in lines:
+                    narrator.line_settings(line, ref, body.get("allRoles") is True, language)
+            except (ValueError, TypeError, KeyError):
+                raise VoiceError(400, "invalid_delivery", "Use the story's speaker, tone and emotion labels.")
             return self.reply(200, {"clips": narrator.submit(lines, voice, ref, body.get("allRoles") is True,
                                                              enqueue=body.get("peek") is not True, language=language,
-                                                             t3=self.finetuned(body.get("voiceId")), priority=priority)})
+                                                             t3=self.finetuned(body.get("voiceId")), priority=priority,
+                                                             t3_scope=self.finetune_scope(body.get("voiceId")))})
         if path == "/api/voices":
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -384,15 +427,25 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, library.add_training_media(voice_id, self.body(MAX_UPLOAD)))
         if action == "train" and self.headers.get("Content-Type", "").startswith("application/json"):
             body = self.json_body()                 # {"text"?, "excluded"?}: correct or drop a clip
-            return self.reply(200, library.update_training_clip(voice_id, int(number), body.get("text"), body.get("excluded")))
+            return self.reply(200, library.update_training_clip(voice_id, int(number), body.get("text"), body.get("excluded"),
+                                                               body.get("performanceReviewed")))
         if action == "train":
             n = int(number or 0)
-            if n not in TRAINING:
+            query = parse_qs(urlsplit(self.path).query)
+            script_id = query.get("scriptLineId", [None])[0]
+            performance = None
+            if script_id:
+                from .practice import training_sample
+                performance = training_sample(script_id, query.get("revision", [None])[0])
+                if n != performance["n"]:
+                    raise VoiceError(409, "script_mismatch", "Reload the current story practice sentence.")
+            if performance is None and n not in TRAINING:
                 raise VoiceError(404, "not_found", "No training sentence with this number.")
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith("audio/"):
                 raise VoiceError(415, "unsupported_type", "Send the recording as audio.")
-            return self.reply(200, library.add_training_clip(voice_id, n, TRAINING[n], self.body(MAX_UPLOAD)))
+            return self.reply(200, library.add_training_clip(voice_id, n,
+                performance["text"] if performance else TRAINING[n], self.body(MAX_UPLOAD), performance=performance))
         if action == "clip":
             body = self.json_body()
             return self.reply(200, library.choose(voice_id, body.get("start"), body.get("end")))
@@ -401,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
             if language not in LANGUAGES:
                 raise VoiceError(400, "invalid_language", f"Language must be one of {', '.join(LANGUAGES)}.")
             [clip] = narrator.submit([{"speakerId": "narrator", "text": PREVIEW_TEXT[language]}], *self.parent_ref(voice_id),
-                                     language=language, t3=self.finetuned(voice_id))
+                                     language=language, t3=self.finetuned(voice_id), t3_scope=self.finetune_scope(voice_id))
             return self.reply(200, clip)
         if action == "sample":                     # {"from": "practice" | "original"}
             if self.json_body().get("from") == "practice":
@@ -492,7 +545,7 @@ def chatterbox_synthesizer():
     conds = {}
 
     def generate(engine, text, ref_key, exaggeration, cfg_weight, **kw):
-        key = (id(engine), ref_key)
+        key = (id(engine), ref_key, exaggeration)
         if key not in conds:
             engine.prepare_conditionals(str(ROOT / ref_key.split("#", 1)[0]), exaggeration=exaggeration)
             if len(conds) >= 16:

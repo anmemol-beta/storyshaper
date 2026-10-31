@@ -7,7 +7,8 @@
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
     "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
-    "narrationControls", "playNarration", "pauseNarration", "narrationStatus"];
+    "narrationControls", "playNarration", "pauseNarration", "narrationStatus",
+    "pageNavigation", "previousPage", "nextPage"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -18,6 +19,7 @@
   let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
   let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
   let savedVoices = [], voiceListLoading = false, voiceListRequest = 0;
+  let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
   let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
   ui.mode.value = selectedMode;
@@ -25,16 +27,18 @@
   const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState});
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
-  const canAnswer = () => configured && activity === "idle" && !pending && Boolean(snapshot?.question);
+  const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
+  const canAnswer = () => configured && activity === "idle" && !pending
+    && displayed === snapshot && Boolean(snapshot?.question);
   const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
   const cameraSupported = () => typeof CameraInput !== "undefined" && CameraInput.supported();
 
   function syncControls() {
     const locked = !canAnswer();
-    const visible = pending ? displayed : snapshot;
-    const choices = choiceOnly(visible);
-    ui.freeInput.hidden = !visible?.question || choices;
-    ui.inputActions.hidden = !visible?.question || choices;
+    const visible = displayed || snapshot;
+    const choices = !reviewing() && choiceOnly(visible);
+    ui.freeInput.hidden = !visible?.question || choices || reviewing();
+    ui.inputActions.hidden = !visible?.question || choices || reviewing();
     ui.answer.disabled = locked || choices;
     ui.send.disabled = locked || choices;
     ui.mic.disabled = choices || (activity === "recording" ? false : locked);
@@ -47,12 +51,16 @@
     ui.choices.hidden = !choices;
     for (const button of ui.choices.children) button.disabled = locked;
     ui.language.disabled = ui.mode.disabled = !configured || activity !== "idle" || Boolean(pending);
+    ui.language.disabled ||= reviewing();
     ui.cover.disabled = !configured || activity !== "idle" || Boolean(pending);
     ui.restart.disabled = !configured;
-    ui.book.setAttribute("aria-busy", String(Boolean(pending) || activity === "request"));
+    ui.book.setAttribute("aria-busy", String(Boolean(pending) || ["request", "navigation"].includes(activity)));
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? "DRAWING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
+    const navigating = !configured || activity !== "idle" || Boolean(pending);
+    ui.previousPage.disabled = navigating || pageIndex <= 0;
+    ui.nextPage.disabled = navigating || (Boolean(snapshot) && !reviewing() && !snapshot.question);
     syncPlayback();
   }
 
@@ -143,6 +151,12 @@
     ui.answer.placeholder = t("Your answer or idea", "답이나 생각을 적어 줘");
     ui.answer.setAttribute("aria-label", t("Your answer", "답변"));
     ui.restart.textContent = t("↻ Restart", "↻ 처음부터");
+    ui.pageNavigation.setAttribute("aria-label", t("Page navigation", "장면 이동"));
+    for (const [button, label] of [[ui.previousPage, t("Previous page", "이전 장면")],
+      [ui.nextPage, t("Next page", "다음 장면")]]) {
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    }
     ui.changeVoice.textContent = t("Change voice", "목소리 바꾸기");
     ui.readAloudLabel.textContent = t("Read aloud", "소리 내어 읽기");
     ui.cameraButton.textContent = t("📷 Show an object", "📷 물건 보여주기");
@@ -226,25 +240,43 @@
   function narrate() {
     if (!displayed || pending || !ui.readAloud.checked || typeof Narration === "undefined") return;
     const state = displayed;
-    const choices = choiceOnly();
+    const choices = !reviewing() && choiceOnly(state);
     const key = `${choices ? 'choices:' : ''}${state.sessionId}:${state.version}:${state.language}:${replay}`;
     if (spokenKey === key) return;
     spokenKey = key;
     const lines = choices ? [
       {speakerId: "narrator", text: t("Tap one of these three words.", "세 가지 중 하나를 톡 골라 줘!")},
       ...state.question.choices.map(choice => ({speakerId: "narrator", text: choice.label}))
-    ] : state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text}] : state.lines;
+    ] : state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text,
+      kind: "narration", tone: "curious", emotion: "curious"}] : state.lines;
     Promise.resolve(Narration.speak(lines, {key, language: state.language,
       onLine: index => { if (spokenKey === key && !pending) highlight(choices ? -1 : index); }})).catch(() => {});
   }
 
-  function render(state) {
-    displayed = snapshot = state;
+  function render(state, {remember = true} = {}) {
+    displayed = state;
+    if (remember) {
+      const page = {state, image: displayedImage};
+      const last = pages.at(-1)?.state;
+      if (last?.sessionId === state.sessionId && last.sceneId === state.sceneId) pages[pages.length - 1] = page;
+      else pages.push(page);
+      pageIndex = pages.length - 1;
+    }
     if (state.choiceMode) choiceLocks.add(questionKey(state));
     ui.cover.hidden = true;
     ui.narrative.replaceChildren(...state.lines.map(line => {
       const paragraph = document.createElement("p");
-      paragraph.textContent = line.text;
+      if (line.speakerId && line.speakerId !== "narrator") {
+        const names = state.language === "ko"
+          ? {pig1: "첫째 돼지", pig2: "둘째 돼지", pig3: "막내 돼지", wolf: "늑대"}
+          : {pig1: "Oldest pig", pig2: "Middle pig", pig3: "Youngest pig", wolf: "Wolf"};
+        const speaker = document.createElement("span");
+        speaker.className = "line-speaker";
+        speaker.textContent = (names[line.speakerId] || line.speakerId) + ": ";
+        const words = document.createElement("span");
+        words.textContent = `“${line.text}”`;
+        paragraph.replaceChildren(speaker, words);
+      } else paragraph.textContent = line.text;
       return paragraph;
     }));
     ui.question.textContent = state.question?.text || t("The End", "이야기 끝");
@@ -263,7 +295,8 @@
       ? t("House ", "집 ") + (state.storyState?.houseIndex || 1) + " / 3"
       : t("Story complete", "동화를 다 읽었어요");
     activity = "idle";
-    say(choiceOnly() ? t("Tap one of the three words.", "세 가지 중 하나를 톡 골라 줘!")
+    say(reviewing() ? t("An earlier page. Tap ▶ to return to your question.", "앞에서 읽은 장면이에요. ▶를 눌러 질문으로 돌아가요.")
+      : choiceOnly() ? t("Tap one of the three words.", "세 가지 중 하나를 톡 골라 줘!")
       : state.question ? t("Your turn!", "이제 네 차례야!") : t("Story complete", "이야기 끝"));
     syncControls();
     narrate();
@@ -272,7 +305,8 @@
   function receive(state) {
     if (!valid(state)) throw new Error("Invalid story state");
     if (typeof Narration !== "undefined" && ui.readAloud.checked)
-      Narration.prefetch?.(state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text}] : state.lines,
+      Narration.prefetch?.(state.question ? [...state.lines, {speakerId: "narrator", text: state.question.text,
+        kind: "narration", tone: "curious", emotion: "curious"}] : state.lines,
         {language: state.language});
     const translationOnly = state.diagnostics?.languageChanged === true
       && displayed?.sessionId === state.sessionId && displayed?.sceneId === state.sceneId;
@@ -307,6 +341,7 @@
       pending = null;
       ui.loading.hidden = true;
       ui.retryMedia.hidden = true;
+      displayedImage = result.image?.url || displayedImage;
       render(state);
       if (result.video?.url?.startsWith("/prototype/video/")) {
         ui.storyVideo.src = result.video.url;
@@ -326,7 +361,7 @@
   }
 
   function openChoices() {
-    if (!snapshot?.question || pending) return;
+    if (!snapshot?.question || displayed !== snapshot || pending || reviewing()) return;
     cancelInput();
     stopNarration();
     choiceLocks.add(questionKey(snapshot));
@@ -343,6 +378,12 @@
     cancelWork();
     choiceLocks.clear();
     snapshot = displayed = null;
+    pages = [];
+    pageIndex = -1;
+    displayedImage = "img/intro.jpg";
+    latestDraft = "";
+    ui.language.value = selectedLanguage;
+    labels();
     retryPayload = null;
     ui.narrative.replaceChildren();
     ui.question.textContent = "";
@@ -366,6 +407,50 @@
       }
     } finally { if (token === epoch) requestController = null; }
   }
+
+  function turnPage(offset) {
+    if (!configured || activity !== "idle" || pending) return;
+    const target = pageIndex + offset;
+    if (target < 0 || target >= pages.length) return;
+    if (!reviewing()) latestDraft = ui.answer.value;
+    cancelWork({server: false});
+    const token = epoch, page = pages[target];
+    activity = "navigation";
+    ui.loading.hidden = false;
+    ui.loadingText.textContent = t("Loading this page…", "장면을 불러오고 있어요…");
+    syncControls();
+    media.picture.show(page.image, {
+      onComplete: () => {
+        if (token !== epoch) return;
+        media.describePicture();
+        pageIndex = target;
+        displayedImage = page.image;
+        ui.language.value = page.state.language;
+        labels();
+        ui.loading.hidden = true;
+        render(page.state, {remember: false});
+        if (!reviewing()) ui.answer.value = latestDraft;
+      },
+      onError: () => {
+        if (token !== epoch) return;
+        activity = "idle";
+        ui.loading.hidden = true;
+        say(t("Couldn't load this page. Tap the arrow to try again.", "장면을 불러오지 못했어요. 화살표를 다시 눌러 주세요."));
+        syncControls();
+      }
+    });
+  }
+
+  ui.previousPage.onclick = () => { if (!ui.previousPage.disabled) turnPage(-1); };
+  ui.nextPage.onclick = () => {
+    if (ui.nextPage.disabled) return;
+    if (!snapshot) return begin();
+    if (reviewing()) turnPage(1);
+    else {
+      openChoices();
+      say(t("Choose an answer to turn the page.", "답을 고르면 다음 장면으로 넘어가요."));
+    }
+  };
 
   async function answer(value, choiceId) {
     if (!canAnswer() || (choiceOnly() && !choiceId)) return;
@@ -529,7 +614,10 @@
     else { replay++; narrate(); }
   };
   ui.language.onchange = async () => {
-    if (!configured || activity !== "idle" || pending) { ui.language.value = selectedLanguage; return; }
+    if (!configured || activity !== "idle" || pending || reviewing()) {
+      ui.language.value = displayed?.language || selectedLanguage;
+      return;
+    }
     const language = ui.language.value;
     if (!snapshot) {
       selectedLanguage = language;

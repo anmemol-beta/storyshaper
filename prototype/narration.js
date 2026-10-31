@@ -202,8 +202,15 @@ const Narration = (() => {
     return body.clips;
   }
 
-  const asLines = lines => lines.map(line => typeof line === "string" ? {speakerId: "narrator", text: line}
-    : {speakerId: line.speakerId || "narrator", text: line.text});
+  const asLines = lines => lines.map(line => {
+    if (typeof line === "string") return {speakerId: "narrator", text: line};
+    const spoken = {speakerId: line.speakerId || "narrator", text: line.text};
+    // Keep delivery directions separate from the words the voice actually reads.
+    for (const field of ["kind", "tone", "emotion"]) {
+      if (line[field] !== undefined) spoken[field] = line[field];
+    }
+    return spoken;
+  });
 
   // Clip URLs for these lines, in order (null if the server is unavailable or the language has no cloned voice).
   async function prepare(lines, {language = "en", voice = null} = {}) {
@@ -286,8 +293,8 @@ const Narration = (() => {
     const my = token;
     readingController = new AbortController();
     setPlayback("loading", null);
-    const usable = lines.filter(line => String(line.text || "").trim());
-    const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({speakerId: line.speakerId, text, line: i})));
+    const usable = asLines(lines).filter(line => String(line.text || "").trim());
+    const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({...line, text, line: i})));
     let clips = null;
     if (LANGUAGES.includes(language)) {
       try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}

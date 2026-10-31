@@ -46,7 +46,8 @@ def finish(manager, job):
 
 
 def review(**overrides):
-    verdict = dict(safe=True, materialMatches=True, castMatches=True, actionMatches=True)
+    verdict = dict(safe=True, materialMatches=True, castMatches=True, actionMatches=True,
+                   expressionMatches=True)
     verdict.update(overrides)
     return {'status': 'completed', 'output': [{'type': 'message', 'content': [
         {'type': 'output_text', 'text': json.dumps(verdict)}]}]}
@@ -101,7 +102,8 @@ class ImageProviderTests(unittest.TestCase):
 
     def test_failed_or_uncertain_independent_review_never_publishes(self):
         for verdict in (review(safe=False), review(materialMatches=False), review(castMatches=False),
-                        review(actionMatches='true'), {'status': 'incomplete'}):
+                        review(actionMatches='true'), review(expressionMatches=False),
+                        review(expressionMatches='true'), {'status': 'incomplete'}):
             with self.subTest(verdict=verdict), self.assertRaisesRegex(ImageError, 'image_review_failed'):
                 self.generate([self.edit, verdict])
 

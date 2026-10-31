@@ -197,7 +197,7 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(session.snapshot, localized)
         next_turn = self.app.answer(turn_body(localized, '늑대가 벽을 먹을 것 같아요', 'korean-answer'))
         self.assertEqual(next_turn['decision'], 'accept')
-        self.assertIn('먹', next_turn['lines'][-1]['text'])
+        self.assertIn('먹', ' '.join(line['text'] for line in next_turn['lines']))
 
     def test_language_switch_preserves_attempts_rejects_stale_versions_and_locks(self):
         failed = self.app.answer(turn_body(self.start, ''))

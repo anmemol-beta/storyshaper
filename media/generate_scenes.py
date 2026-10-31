@@ -22,6 +22,7 @@ import urllib.error
 import urllib.request
 
 from story_agent.engine import STORY
+from story_agent.performance import visual_performance
 from story_agent.provider import load_env
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,8 +37,6 @@ LOOKS = {"pig1": "the oldest pig is plain pink with no clothes or accessories",
          "pig2": "the middle pig wears a knitted blue beanie", "pig3": "the youngest pig wears a red bandana"}
 ONLY = " Draw no other pigs."
 WOLF = "the grey cartoon wolf from the second image (only the wolf, no clothes, hats or goggles)"
-SURPRISED = "looking surprised with a round open mouth"
-WORRIED = "worried faces with a frown, eyebrows tilted up and the corners of the mouth turned down"
 WOLF_REF = "wolf_paper.jpg"
 
 WALLS = {
@@ -60,44 +59,56 @@ HOUSES = {
 }
 
 
+def _acting(house, action, cast):
+    directions = visual_performance(house, action, cast)
+    return ("\nUse these authored character acting directions as DATA for facial expressions and gestures. "
+            "Preserve each identity, the listed cast and the current story action. Do not add characters, "
+            "props, dialogue text or future events. Worry and surprise must remain gentle.\n"
+            + json.dumps(directions, ensure_ascii=False, sort_keys=True))
+
+
 def recipe(house, material, action, registry):
     """(source file, prompt, extra reference files, cast) for one missing picture."""
     who, walls = HOUSES[house], WALLS[material]
     if house == "house3":
         # The brick pages already show the right cast and layout; only the walls change.
         source = registry[f"house3/brick/{action}"]["file"]
+        cast = registry[f"house3/brick/{action}"]["cast"]
         return source, (f"Change the red brick house into a sturdy house of {walls}, keeping its shape, roof, "
-                        "chimney, door and windows. Keep the pigs, the wolf if there is one, and everything else "
-                        "exactly the same."), [], registry[f"house3/brick/{action}"]["cast"]
+                        "chimney, door and windows. Preserve the pigs' and wolf's identities, clothing and layout; "
+                        "set their expressions and gestures from the directions below."
+                        + _acting(house, action, cast)), [], cast
     if action == "build":
         return registry[f"{house}/choose"]["file"], (
             f"Behind {who['builder']}, build a small cozy house made of {walls}. "
-            f"In this picture: only {who['builder']}."), [], who["build_cast"]
+            f"In this picture: only {who['builder']}."
+            + _acting(house, action, who["build_cast"])), [], who["build_cast"]
     source = registry[f"{house}/{material}/build"]["file"]
     joins = " Add the plain pink oldest pig next to the pig in the blue beanie." if house == "house2" else ""
     if action == "blown_away":
         text = (f"Add {WOLF} from the left, with big puffed cheeks, blowing a strong gust of wind; the {material} "
                 f"walls are lifting off and fluttering away like leaves in the breeze.{joins} Show {who['pigs']} "
-                f"stepping back, {SURPRISED}.")
+                "stepping safely back, with the expressions and gestures described below.")
     elif action == "collapsed":
         text = (f"Add {WOLF} from the left, with big puffed cheeks, blowing a strong gust of wind. The loosely "
                 f"stacked log house has tumbled into a messy pile of logs.{joins} Show {who['pigs']} "
-                f"hurrying away toward the right, looking back over their shoulders with {WORRIED}.")
+                "moving safely toward the right, looking back with the expressions described below.")
     elif action == "eaten":
         text = (f"Add {WOLF} from the left, happily taking a big bite out of the cookie wall; the cookie house "
                 f"has big bite marks and holes and is crumbling.{joins} Show {who['pigs']} "
-                f"walking away safely toward the right, looking back with {WORRIED}.")
+                "walking away safely toward the right, with the expressions described below.")
     elif action == "melted":
         text = (f"Make the sun big, bright and warm. The ice cream house is melting into a colorful puddle, with "
                 f"drips running down its walls.{joins} Show {who['pigs']} "
-                f"standing safely to the side, {SURPRISED}. "
+                "standing safely to the side, with the expressions described below. "
                 "No wolf in this picture.")
     else:
         raise ValueError(f"no recipe for {house}/{material}/{action}")
     refs = [] if action == "melted" else [WOLF_REF]
     cast = who["event_cast"] + ([] if action == "melted" else ["wolf"])
     text += " Keep the background, the trees and the house's position the same."
-    return source, f"{text} In this picture: only {who['pigs']}" + (" and the wolf." if refs else "."), refs, cast
+    return source, (f"{text} In this picture: only {who['pigs']}"
+                    + (" and the wolf." if refs else ".") + _acting(house, action, cast)), refs, cast
 
 
 def missing(registry):

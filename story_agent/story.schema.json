@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StoryShaper authored story and dialogue v2",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "storyId",
+    "language",
+    "fixedCharacters",
+    "characters",
+    "houses",
+    "materials",
+    "endingLines",
+    "lineFormat",
+    "narrationDelivery",
+    "questionDelivery"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "storyId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language": {
+      "enum": [
+        "en",
+        "ko"
+      ]
+    },
+    "fixedCharacters": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "narrator"
+        },
+        {
+          "const": "pig1"
+        },
+        {
+          "const": "pig2"
+        },
+        {
+          "const": "pig3"
+        },
+        {
+          "const": "wolf"
+        }
+      ],
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "characters": {
+      "type": "object",
+      "required": [
+        "narrator",
+        "pig1",
+        "pig2",
+        "pig3",
+        "wolf"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "narrator": {
+          "$ref": "#/$defs/character"
+        },
+        "pig1": {
+          "$ref": "#/$defs/character"
+        },
+        "pig2": {
+          "$ref": "#/$defs/character"
+        },
+        "pig3": {
+          "$ref": "#/$defs/character"
+        },
+        "wolf": {
+          "$ref": "#/$defs/character"
+        }
+      }
+    },
+    "houses": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/house"
+      }
+    },
+    "materials": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/material"
+      }
+    },
+    "endingLines": {
+      "$ref": "#/$defs/lines"
+    },
+    "narrationDelivery": {
+      "$ref": "#/$defs/delivery"
+    },
+    "questionDelivery": {
+      "$ref": "#/$defs/delivery"
+    },
+    "lineFormat": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "speakerId",
+        "text",
+        "kind",
+        "tone",
+        "emotion"
+      ],
+      "properties": {
+        "speakerId": {
+          "enum": [
+            "narrator",
+            "pig1",
+            "pig2",
+            "pig3",
+            "wolf"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "narration",
+            "dialogue"
+          ]
+        },
+        "tone": {
+          "enum": [
+            "warm",
+            "lively",
+            "thoughtful",
+            "playful",
+            "gentle",
+            "curious",
+            "reassuring"
+          ]
+        },
+        "emotion": {
+          "enum": [
+            "calm",
+            "excited",
+            "curious",
+            "confident",
+            "surprised",
+            "worried",
+            "relieved",
+            "happy",
+            "determined",
+            "disappointed"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "speakerId": {
+                "const": "narrator"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "narration"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "kind": {
+                "const": "dialogue"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/line"
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "speakerId",
+        "kind",
+        "tone",
+        "emotion"
+      ],
+      "properties": {
+        "speakerId": {
+          "enum": [
+            "narrator",
+            "pig1",
+            "pig2",
+            "pig3",
+            "wolf"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "narration",
+            "dialogue"
+          ]
+        },
+        "tone": {
+          "enum": [
+            "warm",
+            "lively",
+            "thoughtful",
+            "playful",
+            "gentle",
+            "curious",
+            "reassuring"
+          ]
+        },
+        "emotion": {
+          "enum": [
+            "calm",
+            "excited",
+            "curious",
+            "confident",
+            "surprised",
+            "worried",
+            "relieved",
+            "happy",
+            "determined",
+            "disappointed"
+          ]
+        }
+      }
+    },
+    "character": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "role",
+        "personality",
+        "speechStyle",
+        "defaultTone",
+        "defaultEmotion",
+        "imageNotes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "personality": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "speechStyle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultTone": {
+          "enum": [
+            "warm",
+            "lively",
+            "thoughtful",
+            "playful",
+            "gentle",
+            "curious",
+            "reassuring"
+          ]
+        },
+        "defaultEmotion": {
+          "enum": [
+            "calm",
+            "excited",
+            "curious",
+            "confident",
+            "surprised",
+            "worried",
+            "relieved",
+            "happy",
+            "determined",
+            "disappointed"
+          ]
+        },
+        "imageNotes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "house": {
+      "type": "object",
+      "required": [
+        "id",
+        "pigId",
+        "intro",
+        "question",
+        "introLines",
+        "buildLines",
+        "reactionLines"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pigId": {
+          "enum": [
+            "pig1",
+            "pig2",
+            "pig3"
+          ]
+        },
+        "intro": {
+          "type": "string",
+          "minLength": 1
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "introLines": {
+          "$ref": "#/$defs/lines"
+        },
+        "buildLines": {
+          "$ref": "#/$defs/lines"
+        },
+        "reactionLines": {
+          "$ref": "#/$defs/lines"
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "required": [
+        "label",
+        "build",
+        "process",
+        "event",
+        "predict",
+        "reflect",
+        "setupLines",
+        "eventLines"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build": {
+          "type": "string",
+          "minLength": 1
+        },
+        "process": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predict": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reflect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "setupLines": {
+          "$ref": "#/$defs/lines"
+        },
+        "eventLines": {
+          "$ref": "#/$defs/lines"
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "storyId": "three-little-pigs",
   "language": "ko",
   "title": "아기돼지 삼형제",
@@ -36,7 +37,41 @@
         "cookie"
       ],
       "intro": "첫째 돼지는 햇살이 따뜻한 풀밭에 작은 집을 지으려고 해요.",
-      "question": "첫째 돼지는 어떤 재료로 작은 집을 지으면 좋을까요?"
+      "question": "첫째 돼지는 어떤 재료로 작은 집을 지으면 좋을까요?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "첫째 돼지는 햇살이 따뜻한 풀밭에 작은 집을 지으려고 해요.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "내 작은 집을 얼른 지어 보고 싶어!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig1",
+          "text": "나는 {material} 재료로 집을 지을 거야!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "excited"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig1",
+          "text": "앗! 여기서는 지낼 수 없겠어. 둘째에게 가야지!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "surprised"
+        }
+      ]
     },
     {
       "id": "house2",
@@ -55,7 +90,41 @@
         "icecream"
       ],
       "intro": "형제들은 숲 옆에 있는 둘째 돼지의 집터에 도착했어요.",
-      "question": "둘째 돼지는 이번 집을 어떤 재료로 지어 볼까요?"
+      "question": "둘째 돼지는 이번 집을 어떤 재료로 지어 볼까요?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "형제들은 숲 옆에 있는 둘째 돼지의 집터에 도착했어요.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "형, 어서 와! 이번에는 우리 같이 집을 지어 보자!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig2",
+          "text": "이번에는 {material} 재료로 집을 지어 보자!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig2",
+          "text": "이런, 다른 집이 필요하네. 막내에게 함께 가자!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "worried"
+        }
+      ]
     },
     {
       "id": "house3",
@@ -71,7 +140,55 @@
         "brick_team"
       ],
       "intro": "세 돼지는 막내 돼지와 함께 튼튼한 집을 지을 계획을 세워요.",
-      "question": "마지막 집은 어떤 튼튼한 재료로 지으면 좋을까요?"
+      "question": "마지막 집은 어떤 튼튼한 재료로 지으면 좋을까요?",
+      "introLines": [
+        {
+          "speakerId": "narrator",
+          "text": "세 돼지는 막내 돼지와 함께 튼튼한 집을 지을 계획을 세워요.",
+          "kind": "narration",
+          "tone": "warm",
+          "emotion": "calm"
+        },
+        {
+          "speakerId": "pig3",
+          "text": "서두르지 말고 벽을 하나씩 단단히 붙이자.",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig1",
+          "text": "내가 재료를 나를게!",
+          "kind": "dialogue",
+          "tone": "lively",
+          "emotion": "determined"
+        },
+        {
+          "speakerId": "pig2",
+          "text": "나는 옆에서 함께 쌓을게!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "happy"
+        }
+      ],
+      "buildLines": [
+        {
+          "speakerId": "pig3",
+          "text": "{material} 재료를 하나씩 단단히 붙이자. 우리 함께!",
+          "kind": "dialogue",
+          "tone": "thoughtful",
+          "emotion": "determined"
+        }
+      ],
+      "reactionLines": [
+        {
+          "speakerId": "pig3",
+          "text": "벽이 꼭 붙어 버텼어! 우리 함께 있으니 든든해.",
+          "kind": "dialogue",
+          "tone": "reassuring",
+          "emotion": "relieved"
+        }
+      ]
     }
   ],
   "materials": {
@@ -90,6 +207,24 @@
       "process": [
         "늑대가 후 불자 종이 벽이 팔랑팔랑 흔들렸어요.",
         "살짝 붙여 둔 가장자리가 하나씩 풀렸어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "흐흐흐, 이번에도 바람을 후 불어 봐야지!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "휘잉! 가벼운 벽이 날아갔네!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "straw": {
@@ -108,6 +243,24 @@
       "process": [
         "늑대가 후 불자 짚 벽이 흔들흔들 움직였어요.",
         "느슨하게 묶인 지푸라기가 하나씩 풀렸어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "흐흐흐, 이번에도 바람을 후 불어 봐야지!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "휘잉! 가벼운 벽이 날아갔네!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "wood": {
@@ -135,6 +288,24 @@
       "process": [
         "늑대가 후 불자 느슨하게 쌓인 나무가 흔들렸어요.",
         "꼭 묶지 않은 통나무가 하나씩 빠졌어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "호호, 내 바람이 얼마나 센지 볼까?",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "confident"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "어라! 느슨하게 쌓은 조각들이 빠졌네!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "cookie": {
@@ -160,6 +331,24 @@
       "process": [
         "배고픈 늑대가 과자 벽에 코를 킁킁 댔어요.",
         "벽을 조금씩 냠냠 먹자 작은 구멍이 점점 커졌어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "킁킁! 벽에서 맛있는 간식 냄새가 나네!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "curious"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "냠냠! 벽에 커다란 틈이 생겼네!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "surprised"
+        }
       ]
     },
     "icecream": {
@@ -177,6 +366,24 @@
       "process": [
         "따뜻한 햇볕을 받으니 아이스크림 벽에서 물방울이 똑똑 떨어졌어요.",
         "벽이 점점 얇아지고 아래로 주르르 흘렀어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "narrator",
+          "text": "따뜻한 햇살이 벽 위로 쨍쨍 비쳐요.",
+          "kind": "narration",
+          "tone": "gentle",
+          "emotion": "calm"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "narrator",
+          "text": "돼지들은 안전한 곳에서 그 모습을 살펴봐요.",
+          "kind": "narration",
+          "tone": "reassuring",
+          "emotion": "calm"
+        }
       ]
     },
     "brick": {
@@ -194,6 +401,24 @@
       "process": [
         "늑대가 벽돌 벽을 향해 힘껏 후 불었어요.",
         "단단히 붙인 벽돌들이 서로를 꼭 잡아 주었어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "이번에는 더 힘껏 후 불어 봐야지!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "휴! 벽이 여전히 끄떡없네!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        }
       ]
     },
     "stone": {
@@ -215,21 +440,205 @@
       "process": [
         "늑대가 돌 벽을 향해 힘껏 후 불었어요.",
         "단단히 붙인 돌들이 서로를 꼭 잡아 주었어요."
+      ],
+      "setupLines": [
+        {
+          "speakerId": "wolf",
+          "text": "이번에는 더 힘껏 후 불어 봐야지!",
+          "kind": "dialogue",
+          "tone": "playful",
+          "emotion": "determined"
+        }
+      ],
+      "eventLines": [
+        {
+          "speakerId": "wolf",
+          "text": "휴! 벽이 여전히 끄떡없네!",
+          "kind": "dialogue",
+          "tone": "gentle",
+          "emotion": "surprised"
+        }
       ]
     }
   },
   "endingLines": [
     {
+      "speakerId": "wolf",
+      "text": "휴, 내 바람으로는 안 되겠네. 나는 이제 집에 갈래!",
+      "kind": "dialogue",
+      "tone": "gentle",
+      "emotion": "disappointed"
+    },
+    {
       "speakerId": "narrator",
-      "text": "늑대는 튼튼한 집이 끄떡없이 서 있는 것을 보고 다치지 않고 떠났어요."
+      "text": "늑대는 다치지 않고 떠났어요. 세 돼지는 함께 안전하게 있었어요.",
+      "kind": "narration",
+      "tone": "reassuring",
+      "emotion": "calm"
+    },
+    {
+      "speakerId": "pig1",
+      "text": "도와줘서 고마워! 다음에는 나도 벽을 단단히 붙일게.",
+      "kind": "dialogue",
+      "tone": "warm",
+      "emotion": "relieved"
+    },
+    {
+      "speakerId": "pig2",
+      "text": "함께 집을 지으니까 참 좋다!",
+      "kind": "dialogue",
+      "tone": "playful",
+      "emotion": "happy"
     },
     {
       "speakerId": "pig3",
-      "text": "우리는 잘 생각하고 함께 집을 지어서 모두가 안전하게 지낼 집을 만들었어!"
+      "text": "잘 생각하고 서로 도왔잖아. 우리 모두 여기서 함께 지내자!",
+      "kind": "dialogue",
+      "tone": "reassuring",
+      "emotion": "happy"
     },
     {
       "speakerId": "narrator",
-      "text": "아기돼지 삼형제는 안전한 집에서 함께 지냈어요. 끝."
+      "text": "아기돼지 삼형제는 안전한 집에서 함께 지냈어요. 끝.",
+      "kind": "narration",
+      "tone": "warm",
+      "emotion": "calm"
     }
-  ]
+  ],
+  "characters": {
+    "narrator": {
+      "name": "이야기꾼",
+      "role": "narrator",
+      "personality": [
+        "다정함",
+        "관찰을 도와줌",
+        "기다려 줌"
+      ],
+      "speechStyle": "짧고 또렷한 해요체. 아이의 답을 채점하지 않고 눈에 보이는 변화를 함께 살펴봐요.",
+      "defaultTone": "warm",
+      "defaultEmotion": "calm",
+      "imageNotes": "승인된 행동과 눈에 보이는 변화를 설명해요. 이야기꾼을 그림 속 인물로 추가하지 않아요."
+    },
+    "pig1": {
+      "name": "첫째 돼지",
+      "role": "oldest_brother",
+      "personality": [
+        "호기심이 많음",
+        "상상이 풍부함",
+        "먼저 해 보기를 좋아함"
+      ],
+      "speechStyle": "밝고 빠른 느낌의 짧은 반말. 짓기 전에는 들뜨고, 일이 생기면 놀라지만 형제에게 도움을 청해요.",
+      "defaultTone": "lively",
+      "defaultEmotion": "excited",
+      "imageNotes": "들뜬 몸짓과 놀란 표정으로 표현해요. 기존 첫째 돼지 참조 그림의 외형을 유지해요."
+    },
+    "pig2": {
+      "name": "둘째 돼지",
+      "role": "middle_brother",
+      "personality": [
+        "장난기가 있음",
+        "붙임성이 좋음",
+        "형제를 잘 도와줌"
+      ],
+      "speechStyle": "통통 튀고 친근한 짧은 반말. 형제를 반갑게 맞고 함께 해 보자고 말해요.",
+      "defaultTone": "playful",
+      "defaultEmotion": "happy",
+      "imageNotes": "반갑게 맞는 손짓과 풍부한 반응을 보여 줘요. 기존 둘째 돼지 참조 그림의 외형을 유지해요."
+    },
+    "pig3": {
+      "name": "막내 돼지",
+      "role": "youngest_brother",
+      "personality": [
+        "신중함",
+        "참을성이 있음",
+        "협력을 좋아함"
+      ],
+      "speechStyle": "차분하고 든든한 짧은 반말. 어려운 건축 용어 대신 함께 할 행동을 구체적으로 말해요.",
+      "defaultTone": "thoughtful",
+      "defaultEmotion": "confident",
+      "imageNotes": "꼼꼼히 일하는 모습과 안심시키는 몸짓을 보여 줘요. 기존 막내 돼지 참조 그림의 외형을 유지해요."
+    },
+    "wolf": {
+      "name": "늑대",
+      "role": "comic_challenger",
+      "personality": [
+        "허풍을 조금 부림",
+        "쉽게 포기하지 않음",
+        "익살스러움"
+      ],
+      "speechStyle": "장난스럽게 자신만만한 짧은 반말과 후후 부는 소리. 집이 버티면 놀라요. 돼지를 먹거나 다치게 하겠다고 위협하지 않아요.",
+      "defaultTone": "playful",
+      "defaultEmotion": "confident",
+      "imageNotes": "익살스러운 동화 속 늑대예요. 기존 참조 외형을 유지하고 무서운 확대 장면이나 상처를 넣지 않아요."
+    }
+  },
+  "lineFormat": {
+    "fields": {
+      "speakerId": "A fixedCharacters ID; never a display name.",
+      "text": "Only words to speak, without speaker labels or acting directions.",
+      "kind": "narration for narrator; dialogue for a character.",
+      "tone": "Delivery style; stable code independent of language.",
+      "emotion": "Feeling in this moment; stable code independent of language."
+    },
+    "tones": [
+      "warm",
+      "lively",
+      "thoughtful",
+      "playful",
+      "gentle",
+      "curious",
+      "reassuring"
+    ],
+    "emotions": [
+      "calm",
+      "excited",
+      "curious",
+      "confident",
+      "surprised",
+      "worried",
+      "relieved",
+      "happy",
+      "determined",
+      "disappointed"
+    ],
+    "templateVariables": {
+      "material": "Replace with the server-approved material label in the active language, including approved custom materials."
+    },
+    "sequence": {
+      "choose": [
+        "introLines"
+      ],
+      "predict": [
+        "buildLines",
+        "material.build",
+        "material.setupLines"
+      ],
+      "reflect": [
+        "material.process",
+        "material.event",
+        "material.eventLines",
+        "reactionLines"
+      ],
+      "complete": [
+        "endingLines"
+      ]
+    },
+    "consumers": {
+      "speech": "Use text as the transcript and speakerId as the voice identity; tone/emotion are conditioning labels, never spoken text. Templates are not recordings or training audio.",
+      "storyAgent": "Preserve the characters, their personalities, selected material, fixed events and safe ending. Keep setup before the prediction and process before the result.",
+      "image": "Use approved scene facts and character references. Personality, imageNotes and line emotion can inform expression; do not render dialogue or directions as text in the picture."
+    }
+  },
+  "narrationDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "warm",
+    "emotion": "calm"
+  },
+  "questionDelivery": {
+    "speakerId": "narrator",
+    "kind": "narration",
+    "tone": "curious",
+    "emotion": "curious"
+  }
 }
