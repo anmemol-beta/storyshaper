@@ -11,11 +11,16 @@ class Element {
   constructor() {
     this.children = []; this.hidden = false; this.disabled = false; this.value = ''; this.dataset = {};
     this.textContent = ''; this.checked = false;
-    this.classList = {toggle() {}};
+    const classes = new Set();
+    this.classList = {toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); },
+      add:name => classes.add(name), contains:name => classes.has(name)};
   }
   setAttribute(key, value) { this[key] = value; }
+  getAttribute(key) { return this[key] ?? null; }
   removeAttribute(key) { delete this[key]; }
   replaceChildren(...children) { this.children = children; }
+  append(child) { this.children.push(child); child.parentElement = this; }
+  remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this); }
   pause() {}
   load() {}
   play() { return Promise.resolve(); }
@@ -51,16 +56,18 @@ function preparedChoiceResult(snapshot, overrides = {}) {
     image:{url:'/prototype/img/paper_house.jpg'}, ...overrides});
 }
 
-async function harness(request = null) {
+async function harness(request = null, {withMotion = false} = {}) {
   const elements = new Map(), calls = [], shows = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
   element('readerSettings').hidden = true;
+  element('imgCur').parentElement = element('art');
+  element('imgCur').src = 'img/intro.jpg';
   const voiceSetupCalls = [];
   const settings = {answer:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
     transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper', voiceId:null,
     voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null};
-  const playbackCalls = [], prefetched = [];
+  const playbackCalls = [], prefetched = [], motionCalls = [];
   let playbackListener = () => {};
   const playback = state => { settings.playback = state; playbackListener(state); };
   let timerId = 0;
@@ -71,6 +78,14 @@ async function harness(request = null) {
     AbortController, Date, localStorage:{getItem:key => storage.get(key) ?? null, setItem:(key, value) => storage.set(key, value)},
     setTimeout:(callback, ms) => { const id = ++timerId; timers.set(id, {callback, ms}); return id; },
     clearTimeout:id => timers.delete(id),
+    StoryMotion: withMotion ? class {
+      stop() { motionCalls.push('stop'); }
+      scene(options) { motionCalls.push(['scene', options.action]); }
+      cue(index, key, sentence) { motionCalls.push(['cue', index, sentence]); return /ate the wall/.test(sentence); }
+      pause() { motionCalls.push('pause'); }
+      resume() { motionCalls.push('resume'); }
+      start() { motionCalls.push('start'); }
+    } : undefined,
     StoryImageTransition:class {
       constructor(current, next) { this.current = current; this.next = next; }
       cancel() {}
@@ -130,7 +145,7 @@ async function harness(request = null) {
     await flush();
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
-  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls,
+  return {element, calls, settings, shows, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, motionCalls,
     document, start, submit, playback, playbackCalls, prefetched};
 }
 
@@ -595,4 +610,33 @@ test('language-only presentation changes keep the displayed image without genera
   h.element('language').value = 'ko'; await h.element('language').onchange();
   assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, 1);
   assert.equal(h.element('mic').disabled, false);
+});
+
+test('an outcome picture stays behind the prior frame until its action sentence is spoken', async () => {
+  const h = await harness(null, {withMotion:true});
+  await h.start('mock');
+  const build = accepted('mock', {mediaPlan:{action:'build'}});
+  h.settings.answer = build;
+  h.settings.media = imageResult(build, {generated:false, generationRequested:false});
+  await h.submit('paper');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('answer').disabled, false);
+
+  const outcome = state('mock', {version:2, sceneId:'house1_reflect', decision:'accept',
+    mediaPlan:{action:'eaten'}, lines:[{speakerId:'narrator', text:'The wolf smelled the cookie. Then he ate the wall.'}]});
+  h.settings.answer = outcome;
+  h.settings.media = imageResult(outcome, {generated:false, generationRequested:false});
+  await h.submit('the wolf will eat it');
+  assert.ok(h.element('art').children.some(child => child.className === 'story-cue-cover'));
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('answer').disabled, true, 'the outcome is still covered');
+  const spoken = h.narrations.at(-1).options.onSentence;
+  spoken(0, 'The wolf smelled the cookie.');
+  assert.equal(h.element('answer').disabled, true);
+  spoken(0, 'Then he ate the wall.');
+  const fade = [...h.timers.values()].find(timer => timer.ms === 280);
+  assert.ok(fade, 'the result picture begins its reveal at the action sentence');
+  fade.callback();
+  assert.equal(h.element('answer').disabled, false);
+  assert.equal(h.element('art').children.some(child => child.className === 'story-cue-cover'), false);
 });

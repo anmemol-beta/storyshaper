@@ -104,8 +104,7 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  // beforePlay: called once the clip has loaded (the server may still be making it), right before it plays.
-  // onPlaying: called once the browser has accepted play(), i.e. the clip is really heard.
+  // A resolved play() promise is not proof that sound has begun. Use the media "playing" event.
   function playClip(url, my, loadMs = CLIP_LOAD_MS, beforePlay = null, onPlaying = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
@@ -124,14 +123,18 @@ const Narration = (() => {
       finish = done;
       clip.onended = () => done(true);
       clip.onerror = () => done(false);
+      clip.addEventListener("playing", () => {
+        if (settled || my !== token) return;
+        beforePlay?.();
+        setPlayback("playing", "parent");
+        onPlaying?.();
+      }, {once: true});
       clip.addEventListener("canplay", async () => {
         clearTimeout(timer);
         await untilResumed();
         if (settled || my !== token) return done(false);
         started = true;
-        beforePlay?.();
-        setPlayback("playing", "parent");
-        clip.play().then(() => { if (!settled && my === token) onPlaying?.(); }, () => done(false));
+        clip.play().catch(() => done(false));
       }, {once: true});
       clip.load();
     });
@@ -143,7 +146,7 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  function browserSay(text, language) {
+  function browserSay(text, language, onStart = () => {}) {
     return new Promise(resolve => {
       if (!("speechSynthesis" in window)) return setTimeout(resolve, 1500);
       const say = new SpeechSynthesisUtterance(text);
@@ -162,6 +165,7 @@ const Narration = (() => {
       speechFinish = done;
       speechPause = () => clearTimeout(guard);
       speechResume = arm;
+      say.onstart = () => { if (!settled) { setPlayback("playing", "browser"); onStart(); } };
       say.onend = done;
       say.onerror = done;
       speechSynthesis.speak(say);
@@ -280,9 +284,9 @@ const Narration = (() => {
     return merged;
   }
 
-  // onLine: a line is next (its voice may still be on its way). onSpeak: a line is actually heard now, for pictures that
-  // move with the story (story-motion.js); each line once, even if the browser voice takes over from a failed clip.
-  async function speak(lines, {key = null, language = "en", onLine = () => {}, onSpeak = () => {}} = {}) {
+  // onLine highlights a queued line; onSpeak reports its first audible sentence once;
+  // onSentence reports every audible sentence so the matching action can start at that sentence.
+  async function speak(lines, {key = null, language = "en", onLine = () => {}, onSpeak = () => {}, onSentence = () => {}} = {}) {
     if (key !== null && key === lastKey) return;
     lastKey = key;
     stopReading();
@@ -297,7 +301,10 @@ const Narration = (() => {
     }
     if (my !== token) return;
     let heard = -1;
-    const announce = line => { if (line !== heard) { heard = line; onSpeak(line); } };
+    const announce = part => {
+      if (part.line !== heard) { heard = part.line; onSpeak(part.line); }
+      onSentence(part.line, part.text);
+    };
     for (let k = 0; k < parts.length; k += 1) {
       await untilResumed();
       if (my !== token) return;
@@ -305,15 +312,13 @@ const Narration = (() => {
       const clip = clips?.[k];
       const wait = clip?.ready ? 0 : LINE_WAIT;
       const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS,
-        k === 0 ? firstLineReady : null, () => announce(parts[k].line)) : false;
+        k === 0 ? firstLineReady : null, () => announce(parts[k])) : false;
       if (my !== token) return;
       if (!played) {
         if (k === 0) firstLineReady();
         await untilResumed();
         if (my !== token) return;
-        setPlayback("playing", "browser");
-        announce(parts[k].line);
-        await browserSay(parts[k].text, language);
+        await browserSay(parts[k].text, language, () => announce(parts[k]));
       }
     }
     if (my === token) { onLine(-1); setPlayback("idle", null); }

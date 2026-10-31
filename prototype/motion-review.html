@@ -43,7 +43,7 @@
       const $ = id => document.getElementById(id);
       const art = $('art'), image = $('pictureImage'), picture = $('picture'), action = $('action');
       const status = $('status');
-      const motion = new StoryMotion(art, {reducedMotion: () => false});
+      const motion = new StoryMotion(art, {reducedMotion: () => false, useSpriteLayers: true});
       let paused = false;
       for (const name of Object.keys(StoryMotion.PRESETS)) {
         const option = document.createElement('option'); option.value = name; option.textContent = name; action.append(option);

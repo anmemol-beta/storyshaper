@@ -14,10 +14,13 @@ function load() {
 
 test('the event starts on the first narrated line that names it, in English and Korean', () => {
   const StoryMotion = load();
-  assert.equal(StoryMotion.cueLine('blown_away', ['You guessed it might fly.', 'The wolf puffed, and the straw shook.', 'It blew away.']), 1);
-  assert.equal(StoryMotion.cueLine('blown_away', ['네 생각이 멋져.', '늑대가 후 불자 짚이 흔들렸어요.']), 1);
-  assert.equal(StoryMotion.cueLine('melted', ['The sun was warm.', 'The ice cream got soft.']), 0);
+  assert.equal(StoryMotion.cueLine('blown_away', ['You guessed it might fly.', 'The wolf puffed, and the straw shook.', 'It blew away.']), 2);
+  assert.equal(StoryMotion.cueLine('blown_away', ['네 생각이 멋져.', '늑대가 후 불자 짚이 흔들렸어요.', '지푸라기가 날아갔어요.']), 2);
+  assert.equal(StoryMotion.cueLine('melted', ['The sun was warm.', 'The ice cream got soft.']), 1);
   assert.equal(StoryMotion.cueLine('eaten', ['Yum.', '늑대가 과자 벽을 냠냠 먹었어요.']), 1);
+  assert.equal(StoryMotion.cueLine('eaten', ['The wolf smelled the cookie.', 'Then he ate the wall.']), 1);
+  assert.equal(StoryMotion.cueLine('collapsed', ['늑대가 후 불자 나무가 흔들렸어요.', '벽이 무너졌어요.']), 1);
+  assert.equal(StoryMotion.cueLine('stood', ['The wolf puffed hard.', 'The brick house stayed standing.']), 1);
 });
 
 test('without a naming line the event still plays during the last story line, and pages without events at the start', () => {
@@ -50,7 +53,7 @@ test('a cue plays the event once per reading; a new reading of the page plays it
   const motion = new StoryMotion({}, {reducedMotion: () => false});
   const played = [];
   motion.play = active => { active.played = true; played.push(active.cueKey); };
-  motion.active = {cue: 1, played: false, cueKey: null, video: false};
+  motion.active = {action: 'build', cue: 1, played: false, cueKey: null, video: false};
   motion.cue(0, 'read-1');
   assert.deepEqual(played, [], 'an earlier line does not start the event');
   motion.cue(1, 'read-1');
@@ -59,6 +62,18 @@ test('a cue plays the event once per reading; a new reading of the page plays it
   motion.cue(0, 'read-2');
   motion.cue(1, 'read-2');
   assert.deepEqual(played, ['read-1', 'read-2']);
+});
+
+test('the event waits for the action sentence even when a character is mentioned earlier on the same line', () => {
+  const StoryMotion = load();
+  const motion = new StoryMotion({}, {reducedMotion: () => false});
+  const played = [];
+  motion.play = () => played.push('event');
+  motion.active = {action: 'eaten', cue: 0, namedCue: true, played: false, cueKey: null, paused: false};
+  motion.cue(0, 'read', 'The wolf smelled the cookie.');
+  assert.deepEqual(played, []);
+  motion.cue(0, 'read', 'Then he ate the wall.');
+  assert.deepEqual(played, ['event']);
 });
 
 test('a reviewed video clip shows the event instead of the preset', () => {

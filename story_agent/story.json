@@ -84,9 +84,9 @@
       ],
       "outcome": "blown_away",
       "build": "The paper walls are light and carefully folded.",
-      "event": "The wolf blows, and the light paper walls blow away. The pigs step safely away.",
+      "event": "The wolf blows, and loose paper pieces blow away, leaving gaps in the roof. The house is no longer safe, so the pigs step aside.",
       "predict": "The wolf is about to puff at the light paper house. What do you think will happen?",
-      "reflect": "The light paper walls blew away in the wind. What did we notice about those light walls?",
+      "reflect": "Loose paper pieces blew away. Why was the house no longer safe?",
       "process": [
         "The wolf puffed, and the paper walls fluttered back and forth.",
         "Their loosely joined edges came free."
@@ -102,9 +102,9 @@
       ],
       "outcome": "blown_away",
       "build": "The straw walls are light bundles tied together.",
-      "event": "The wolf blows, and the light straw walls blow away. The pigs step safely away.",
+      "event": "The wolf blows, and loose pieces of straw from the roof blow away. The house is no longer safe, so the pigs step aside.",
       "predict": "The wolf is about to puff at the light straw house. What do you think will happen?",
-      "reflect": "The light straw walls blew away in the wind. What did we notice about those light walls?",
+      "reflect": "Loose straw blew away. Why was the house no longer safe?",
       "process": [
         "The wolf puffed, and the straw walls shook.",
         "Loose bits of straw started to come apart."

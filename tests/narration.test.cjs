@@ -12,7 +12,8 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
   const clips = [], spoken = [], pauses = [], storage = new Map();
   class Audio {
     constructor(src) { this.src = src; clips.push(this); this.events = {}; }
-    play() { played.push(this.src); return refusePlay ? Promise.reject(new Error('NotAllowedError')) : Promise.resolve(); }   // "ends" only when the test calls finish()
+    play() { played.push(this.src); if (refusePlay) return Promise.reject(new Error('NotAllowedError'));
+      queueMicrotask(() => this.events.playing?.()); return Promise.resolve(); }   // "ends" only when the test calls finish()
     pause() { pauses.push(this); }
     addEventListener(name, fn) { this.events[name] = fn; }
     load() { if (ready && !stallAudio && autoPlay) queueMicrotask(() => this.events.canplay?.()); }
@@ -33,7 +34,8 @@ function load({ready = true, autoEnd = true, hang = false, stallAudio = false, a
     Audio,
     SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } },
     speechSynthesis: {paused:false, current:null,
-      speak(utterance) { this.current = utterance; spoken.push(utterance); if (autoEnd && !this.paused) queueMicrotask(() => { if (this.current === utterance) utterance.onend?.(); }); },
+      speak(utterance) { this.current = utterance; spoken.push(utterance);
+        queueMicrotask(() => { if (this.current === utterance) { utterance.onstart?.(); if (autoEnd && !this.paused) utterance.onend?.(); } }); },
       cancel() { this.current = null; }, pause() {this.paused = true; pauses.push('browser');},
       resume() {this.paused = false; pauses.push('resume'); if (autoEnd && this.current) {const utterance = this.current; queueMicrotask(() => {if (this.current === utterance) utterance.onend?.();});}}},
   };
@@ -133,17 +135,20 @@ test('ready parent clips still use the selected parent voice', async () => {
 
 test('onSpeak reports a line when its voice is heard, once per line, not when it is queued', async () => {
   const h = load({autoPlay:false});
-  const lines = [], heard = [];
+  const lines = [], heard = [], sentences = [];
   const reading = h.Narration.speak([{text:'The wolf took a very deep breath. Then he puffed at the walls.'}, {text:'Whoosh!'}],
-    {key:'cue', onLine: i => lines.push(i), onSpeak: i => heard.push(i)});
+    {key:'cue', onLine: i => lines.push(i), onSpeak: i => heard.push(i),
+      onSentence: (i, text) => sentences.push([i, text])});
   await tick();
   assert.deepEqual(lines, [0]);
   assert.deepEqual(heard, [], 'nothing is heard while the clip is still being voiced');
   h.clips.at(-1).events.canplay(); await tick();
   assert.deepEqual(heard, [0]);
+  assert.deepEqual(sentences, [[0, 'The wolf took a very deep breath.']]);
   h.clips.at(-1).onended(); await tick();
   h.clips.at(-1).events.canplay(); await tick();     // the second sentence of the same line
   assert.deepEqual(heard, [0]);
+  assert.deepEqual(sentences[1], [0, 'Then he puffed at the walls.']);
   h.clips.at(-1).onended(); await tick();
   h.clips.at(-1).events.canplay(); await tick();
   assert.deepEqual(heard, [0, 1]);

@@ -6,24 +6,29 @@
 class StoryMotion {
   constructor(art, {current = () => art.querySelector('img.is-current'), manifest = 'img/motion/regions.json',
     fetch: request = (...args) => globalThis.fetch(...args),
-    reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches} = {}) {
+    reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    useSpriteLayers = false} = {}) {
     this.art = art;
     this.current = current;
     this.manifestUrl = manifest;
     this.fetch = request;
     this.reducedMotion = reducedMotion;
+    this.useSpriteLayers = useSpriteLayers;
     this.manifest = null;
     this.active = null;
+    this.loadManifest();
   }
 
-  // Words that describe each event, in both languages. The first narrated line with one starts the event.
+  // Match the action, rather than the character or weather mentioned before it happens.
   static CUES = {
-    blown_away: /wolf|puff|huff|blow|blew|wind|늑대|후|불|바람/i,
-    collapsed: /wolf|puff|huff|blow|blew|wind|tumble|fell|fall|늑대|후|불|바람|무너/i,
-    stood: /wolf|puff|huff|blow|blew|wind|늑대|후|불|바람/i,
-    eaten: /wolf|eat|ate|munch|bite|chomp|늑대|먹|냠/i,
-    melted: /melt|sun|warm|drip|soft|녹|햇|따뜻|흘러|말랑/i,
+    blown_away: /blow away|blew away|blown away|flew away|fly away|swept away|날아|날려|흩어/i,
+    collapsed: /tumble|fell|fall|collapse|crumbl|무너|쓰러|허물|주저앉/i,
+    stood: /stood|stand|stayed firm|stays standing|서 있었|서 있|서있|끄떡|버텼/i,
+    eaten: /eat|ate|munch|bite|chomp|nibbl|먹|냠/i,
+    melted: /melt|drip|soften|녹|흘러|물방울|떨어졌/i,
     build: /build|built|made|make|짓|지었|만들/i,
+    move_to_next_house: /run|walk|move|next house|달려|걸어|다음 집|이동/i,
+    safe_ending: /safe|together|함께|안전/i,
   };
 
   // The line index (into the narrated lines) that starts the event: the first line whose text names it,
@@ -51,7 +56,7 @@ class StoryMotion {
   static DEFAULT_REGIONS = {wolf: [0, 0.27, 0.23, 0.56], house: [0.42, 0.09, 0.94, 0.7], pigs: [[0.29, 0.5, 0.5, 0.9]]};
 
   loadManifest() {
-    this.manifest ??= Promise.resolve(this.fetch(this.manifestUrl, {cache: 'no-store'}))
+    this.manifest ??= Promise.resolve().then(() => this.fetch(this.manifestUrl, {cache: 'no-store'}))
       .then(response => response.ok ? response.json() : {images: {}}).catch(() => ({images: {}}));
     return this.manifest;
   }
@@ -63,9 +68,11 @@ class StoryMotion {
     if (this.reducedMotion()) return;
     const image = this.current();
     if (!image) return;
-    const active = {image, action, video, played: false, cueKey: null, paused: false, clock: 0, last: null,
+    const active = {image, action, video, played: false, cueKey: null, paused: narrated, clock: 0, last: null,
       particles: [], schedule: [], animations: [], sprites: {}, regions: StoryMotion.DEFAULT_REGIONS,
-      cue: StoryMotion.cueLine(action, lines), frame: null, observer: null, drift: []};
+      cue: StoryMotion.cueLine(action, lines), namedCue: Boolean(StoryMotion.CUES[action]
+        && lines.some(text => StoryMotion.CUES[action].test(String(text || '')))),
+      frame: null, observer: null, drift: []};
     this.active = active;
     this.buildStage(active);
     this.startDrift(active);
@@ -83,21 +90,28 @@ class StoryMotion {
 
   // Called when the narration actually starts voicing a line (Narration.speak onSpeak). key: one reading of the page;
   // reading the page again (Play after it ended, read aloud switched on) plays the event again.
-  cue(index, key = null) {
+  cue(index, key = null, sentence = null) {
     const active = this.active;
-    if (!active || active.video || active.cue === null) return;
+    if (!active) return false;
+    this.resume();
+    if (!active.action || active.cue === null) return false;
     if (key !== active.cueKey) { active.cueKey = key; active.played = false; }
-    if (index === active.cue && !active.played) this.play(active);
+    if (index !== active.cue || active.played || (sentence && active.namedCue
+        && !StoryMotion.CUES[active.action]?.test(sentence))) return false;
+    if (active.video) active.played = true;
+    else this.play(active);
+    return true;
   }
 
   // Play the event now, without waiting for its line (read aloud was switched off).
-  start() { if (this.active) this.play(this.active); }
+  start() { if (this.active) { this.resume(); this.play(this.active); } }
 
   pause() {
     const active = this.active;
     if (!active || active.paused) return;
     active.paused = true;
     for (const animation of active.animations) animation.pause();
+    for (const animation of active.drift) animation.pause();
   }
 
   resume() {
@@ -106,6 +120,7 @@ class StoryMotion {
     active.paused = false;
     active.last = null;
     for (const animation of active.animations) if (animation.playState === 'paused') animation.play();
+    for (const animation of active.drift) if (animation.playState === 'paused') animation.play();
   }
 
   // Leave the page: ease the drift back so the next picture fades in from a still frame.
@@ -194,6 +209,9 @@ class StoryMotion {
     const of = label => record.objects.filter(object => object.label === label);
     active.regions = {wolf: of('wolf')[0] ? norm(of('wolf')[0].box) : null,
       house: of('house')[0] ? norm(of('house')[0].box) : null, pigs: of('pig').map(object => norm(object.box))};
+    // These WebP crops still contain neighbouring pixels. Use their boxes for effects,
+    // and show the crops only on the review page until true object masks are approved.
+    if (!this.useSpriteLayers) return;
     const place = object => {
       const sprite = document.createElement('img');
       sprite.src = 'img/' + object.sprite;
@@ -223,7 +241,11 @@ class StoryMotion {
     const keyframes = [{transform: 'scale(1) translate(0px, 0px)'}, {transform: 'scale(1.025) translate(-5px, -3px)'}];
     const options = {duration: 16000, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out'};
     for (const target of [active.image, active.stage]) {
-      if (target.animate) active.drift.push(target.animate(keyframes, options));
+      if (target.animate) {
+        const animation = target.animate(keyframes, options);
+        if (active.paused) animation.pause();
+        active.drift.push(animation);
+      }
     }
   }
 
