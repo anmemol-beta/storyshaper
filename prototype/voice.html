@@ -138,9 +138,16 @@
   .finale svg { width: 120px; height: 120px; }
 
   /* Voices on this device */
-  .voices { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line); }
-  .voices h2 { font-family: var(--title); font-weight: 400; font-size: 1.15rem; margin: 0 0 10px; }
-  .voice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
+  .voices { display: grid; gap: 8px; margin: 18px 0 22px; }
+  .voice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--page); }
+  .voice:has(input:checked) { border-color: var(--green); }
+  .voice > label { flex: 1; min-width: 0; }
+  .voice .listen { width: 44px; min-height: 44px; padding: 0; }
+  .voice .listen.busy { opacity: .45; }
+  .voices-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .voices-actions .btn { flex: 1 1 200px; }
+  .manage { margin: -6px 0 18px; }
+  .link { padding: 0; border: 0; background: none; color: var(--green); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 44px; }
   .voice label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
   .voice input { width: 20px; height: 20px; accent-color: var(--green); }
   .voice small { display: block; color: var(--subtle); font-size: .82rem; }
@@ -175,6 +182,7 @@
     <section data-step="who">
       <h1 data-t>Who will read the stories?</h1>
       <p class="lead" data-t>Their voice will read every page aloud, even on nights they can't be there.</p>
+      <p class="manage" id="manageVoices" hidden><button type="button" class="link" id="seeVoices" data-t>Listen to or remove saved voices ›</button></p>
       <fieldset class="who">
         <legend hidden>Whose voice is this</legend>
         <label><input type="radio" name="relation" value="family_consented">
@@ -258,13 +266,19 @@
         <p class="lead" id="doneText"></p>
         <p class="book-status" id="bookStatus" role="status"></p>
         <a class="btn main" href="live.html" data-return data-t style="display:inline-grid;place-items:center;text-decoration:none">Start a story</a>
-        <button class="btn quiet" type="button" id="again" data-t>Add another voice</button>
+        <button class="btn quiet" type="button" id="doneVoices" data-t>See all voices</button>
       </div>
     </section>
 
-    <section class="voices" id="voicesBox" hidden>
-      <h2 data-t>Voices on this device</h2>
-      <div id="voices"></div>
+    <!-- Managing saved voices is its own page, apart from adding one (voice.html#voices). -->
+    <section data-step="voices" hidden>
+      <h1 data-t>Voices on this device</h1>
+      <p class="lead" data-t>Choose who reads the stories. Tap ▶ to hear the story's first line in that voice.</p>
+      <div class="voices" id="voicesBox"><div id="voices"></div></div>
+      <div class="voices-actions">
+        <button class="btn main" type="button" id="again" data-t>+ Add a new voice</button>
+        <a class="btn" href="live.html" data-return data-t style="display:inline-grid;place-items:center;text-decoration:none">Back to the story</a>
+      </div>
     </section>
   </main>
 </div>

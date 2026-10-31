@@ -15,7 +15,7 @@ import urllib.error
 from media.assets import ROOT
 from media.contracts import normalize
 from media.image_provider import ImageError, MuseImageProvider, checked_jpeg, scene_facts
-from media.jobs import JobError, MediaJobs
+from media.jobs import JobError, MediaJobs, fixed_followers
 from story_agent.engine import MockProvider, StoryEngine
 from story_agent.server import SESSION_TTL
 from vision.server import VisionPlayground, VisionServer
@@ -190,6 +190,49 @@ class ImageJobTests(unittest.TestCase):
         self.assertEqual(second['reason'], 'generated_image_reviewed')
         self.assertEqual(provider.calls[1][2][0], JPEG, 'Next scene edits the generated house reference')
         self.assertIsNone(second['video'])
+
+    def test_pictures_fixed_by_the_material_are_drawn_while_the_child_reads_and_reused_on_answer(self):
+        manager, provider = self.manager(gated=True)
+        build = manager.request(self.build)
+        manager.draw_ahead(self.build, fixed_followers(self.build))
+        self.assertTrue(provider.started.wait(1))
+        time.sleep(.05)
+        self.assertEqual(len(provider.calls), 1, 'Nothing is drawn ahead before the page the child waits for')
+        provider.release.set()
+        finish(manager, build)
+        deadline = time.monotonic() + 3
+        while len(provider.calls) < 3 and time.monotonic() < deadline:
+            time.sleep(.005)
+        actions = [call[0].action for call in provider.calls]
+        self.assertEqual(actions[0], 'build')
+        self.assertEqual(sorted(actions[1:]), sorted([self.event['mediaPlan']['action'], 'move_to_next_house']))
+        event = finish(manager, manager.request(self.event))
+        move_snapshot = self.engine.answer(self.event, 'We can build carefully together.')
+        move = finish(manager, manager.request(move_snapshot))
+        self.assertEqual((event['status'], move['status']), ('ready', 'ready'))
+        self.assertEqual(len(provider.calls), 3, 'The answers reuse the pictures drawn ahead')
+        outcome = next(call for call in provider.calls if call[0].action == self.event['mediaPlan']['action'])
+        self.assertEqual(outcome[2][0], JPEG, 'The outcome edits the generated house picture')
+
+    def test_a_picture_drawn_ahead_that_failed_is_drawn_again_when_asked(self):
+        manager, provider = self.manager()
+        finish(manager, manager.request(self.build))
+        provider.fail = True
+        manager.draw_ahead(self.build, fixed_followers(self.build))
+        deadline = time.monotonic() + 3
+        while len(provider.calls) < 3 and time.monotonic() < deadline:
+            time.sleep(.005)
+        time.sleep(.05)
+        provider.fail = False
+        event = finish(manager, manager.request(self.event))
+        self.assertEqual(event['status'], 'ready')
+        self.assertEqual(len(provider.calls), 4)
+
+    def test_only_a_live_build_page_draws_ahead(self):
+        self.assertEqual(len(fixed_followers(self.build)), 2)
+        self.assertEqual(fixed_followers(self.event), [])
+        offline = dict(self.build, providerMode='mock')
+        self.assertEqual(fixed_followers(offline), [])
 
     def test_translation_rebinds_one_inflight_generation_without_a_paid_duplicate(self):
         manager, provider = self.manager(gated=True)

@@ -357,10 +357,19 @@ class FillerListTest(unittest.TestCase):
             block = re.search(rf"const {name} = \[(.*?)\];", page, re.S).group(1)
             self.assertEqual(re.findall(r'"([^"]+)"', block), expected)
 
-    def test_warm_script_voices_the_choice_prompt_the_live_page_reads(self):
-        from narration.warm import CHOICE_PROMPT
-        page = (Path(__file__).resolve().parent.parent / "prototype" / "live-book.js").read_text(encoding="utf-8")
-        self.assertIn(f't("{CHOICE_PROMPT["en"]}", "{CHOICE_PROMPT["ko"]}")', page)
+    def test_the_choices_are_read_as_the_same_single_sentence_the_page_asks_for(self):
+        from narration.warm import choice_prompt
+        cases = [(["Paper", "Straw", "Cookie"], "en"), (["Blow away", "Stay the same", "Watch together"], "en"),
+                 (["종이", "짚", "과자"], "ko")]
+        script = """const fs = require('node:fs'), vm = require('node:vm');
+const context = vm.createContext({URLSearchParams, location:{search:''}});
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8') + '\\nthis.N = Narration;', context);
+process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0, 'utf8')).map(([labels, language]) => context.N.choicePrompt(labels, language))));"""
+        source = Path(__file__).resolve().parent.parent / "prototype" / "narration.js"
+        result = subprocess.run(["node", "-e", script, str(source)], input=json.dumps(cases),
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(result.stdout), [choice_prompt(labels, language) for labels, language in cases])
+        self.assertEqual(choice_prompt(["Paper", "Straw", "Cookie"], "en"), "Tap one: paper, straw, or cookie.")
 
 
 class WarmBookTest(unittest.TestCase):
@@ -758,15 +767,15 @@ class HttpTest(unittest.TestCase):
         finally:
             release.set()
         pages = pages_ahead("en", state)
-        self.assertEqual(len(pages), 3, "one page for each material the first house allows")
+        self.assertEqual(len(pages), 4, "one page for each choice, then the choices as one sentence")
         reply = json.loads(body)
-        self.assertEqual((status, reply["pages"]), (200, 3))
+        self.assertEqual((status, reply["pages"]), (200, 4))
         for _ in range(100):
             if len(order) == 1 + reply["lines"]:
                 break
             threading.Event().wait(0.02)
         firsts = [page[0]["text"] for page in pages]
-        self.assertEqual(order[1:4], firsts)
+        self.assertEqual(order[1:5], firsts)
         self.assertEqual(json.loads(self.request("POST", "/api/voice/ahead", {
             "language": "en", "storyState": state, "peek": True})[2])["ready"], reply["lines"])
 

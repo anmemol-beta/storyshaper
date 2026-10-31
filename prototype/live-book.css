@@ -210,3 +210,4 @@
 .reader-app .mic.choose { width: auto; aspect-ratio: auto; min-height: 52px; padding: 0 22px; font-size: 16px; font-weight: 700; }
 .reader-app .mic:not(.choose) { font-size: calc(var(--mic) * .42); }
 .reader-app .live-select[hidden] { display: none; }
+.manage-voices { align-self: flex-start; color: var(--action-primary); font-size: 14px; font-weight: 700; text-underline-offset: 3px; }
