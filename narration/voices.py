@@ -233,7 +233,10 @@ class VoiceLibrary:
                     "source": "video" if content_type.startswith("video/") else "audio",
                     "sourceSeconds": round(len(samples) / sr, 1)}
             if check_consent:
-                meta["consentHeard"] = consent_heard(self._transcribe(folder / "full.wav", seconds=60))
+                # No transcript (no Muse key on this server, or the call failed): the page shows no consent check.
+                transcript = self._transcribe(folder / "full.wav", seconds=60)
+                if transcript is not None:
+                    meta["consentHeard"] = consent_heard(transcript)
             (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)

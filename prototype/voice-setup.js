@@ -33,7 +33,7 @@
       "노란 부분의 목소리를 배워요. 눌러서 들어 보고, 옆으로 밀어서 옮길 수 있어요.",
     "Hear {name} read": "{name} 목소리로 들어 보기", "Play the story line": "동화 문장 재생",
     "Voices on this device": "이 기기의 목소리", "Read every character in this voice": "모든 등장인물을 이 목소리로 읽기",
-    "Off: the wolf has his own voice, so children always know who is talking.": "끄면 늑대는 다른 목소리로 읽어서 아이가 누가 말하는지 알 수 있어요.",
+    "Off: the three pigs and the wolf each have their own voice, so children always know who is talking.": "끄면 아기돼지 셋과 늑대가 각자 다른 목소리로 읽어서 아이가 누가 말하는지 알 수 있어요.",
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
     "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
     "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
@@ -83,7 +83,19 @@
   const tr = (source, values = {}) => (language === "ko" ? KO[source] || source : source)
     .replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? `{${key}}`));
 
-  const server = new URLSearchParams(location.search).get("voiceServer") || "http://127.0.0.1:8100";
+  // The voice server: Modal (deploy/modal_voice.py) unless ?voiceServer= names another, e.g. http://127.0.0.1:8100 for
+  // the server on this Mac. The choice is remembered so links between pages keep it; ?voiceServer=modal goes back.
+  // Same in narration.js, voice-setup.js and voice-train.js.
+  const server = (() => {
+    const MODAL = "https://shj0213--storyshaper-voice.us-east.modal.run";
+    const asked = new URLSearchParams(location.search).get("voiceServer");
+    const chosen = asked && asked !== "modal" ? asked.replace(/\/$/, "") : null;
+    try {
+      if (asked === "modal") localStorage.removeItem("voice-server");
+      else if (chosen) localStorage.setItem("voice-server", chosen);
+      return chosen || localStorage.getItem("voice-server") || MODAL;
+    } catch { return chosen || MODAL; }
+  })();
   const $ = id => document.getElementById(id);
   const STEPS = ["who", "find", "pick", "listen", "done"];
   const RECORD_SECONDS = 30;

@@ -80,7 +80,7 @@ def main():
             if (PACK / name).exists():
                 continue
             key = name[:-4]
-            for _ in range(20):
+            for _ in range(120):            # the server voices newer requests first; a whole book takes minutes
                 try:
                     audio = call(f"/audio/{voice}/{key}.mp3?wait=30", timeout=90)
                     break

@@ -33,7 +33,7 @@ with sync_playwright() as p:
     pg.reload(); pg.wait_for_timeout(1500)
     if os.environ.get("AHEAD") == "0":       # baseline: the next pages are not voiced ahead
         pg.evaluate("Narration.ahead = () => {}")
-    pg.select_option("#language", lang); pg.wait_for_timeout(500)
+    # the language comes from localStorage (the selector now sits in the settings popover)
     pg.click("#cover")
     for a in [None, *answers]:
         if a is not None:

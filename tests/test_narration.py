@@ -629,6 +629,8 @@ class VoiceLibraryTest(unittest.TestCase):
         quiet = VoiceLibrary(self.root / "p3", lambda wav: "once upon a time")
         self.assertFalse(quiet.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True)["consentHeard"])
         self.assertNotIn("consentHeard", quiet.create((self.root / "talk.wav").read_bytes(), "video/mp4"))
+        unheard = VoiceLibrary(self.root / "p4", lambda wav: None)       # a server without a transcription key
+        self.assertNotIn("consentHeard", unheard.create((self.root / "talk.wav").read_bytes(), "audio/webm", check_consent=True))
 
     def test_deleting_a_voice_also_deletes_what_was_trained_from_it(self):
         draft = self.library.create((self.root / "talk.wav").read_bytes(), "audio/wav")

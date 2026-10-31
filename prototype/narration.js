@@ -13,8 +13,19 @@
 const Narration = (() => {
   "use strict";
 
-  const params = new URLSearchParams(location.search);
-  const server = params.get("voiceServer") || "http://127.0.0.1:8100";
+  // The voice server: Modal (deploy/modal_voice.py) unless ?voiceServer= names another, e.g. http://127.0.0.1:8100 for
+  // the server on this Mac. The choice is remembered so links between pages keep it; ?voiceServer=modal goes back.
+  // Same in narration.js, voice-setup.js and voice-train.js.
+  const server = (() => {
+    const MODAL = "https://shj0213--storyshaper-voice.us-east.modal.run";
+    const asked = new URLSearchParams(location.search).get("voiceServer");
+    const chosen = asked && asked !== "modal" ? asked.replace(/\/$/, "") : null;
+    try {
+      if (asked === "modal") localStorage.removeItem("voice-server");
+      else if (chosen) localStorage.setItem("voice-server", chosen);
+      return chosen || localStorage.getItem("voice-server") || MODAL;
+    } catch { return chosen || MODAL; }
+  })();
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
   // A hosted server (deploy/modal_voice.py) is ~1 s away from Korea; a server that is down fails at once anyway.
   const REQUEST_MS = 4000, CLIP_LOAD_MS = 800;
