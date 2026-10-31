@@ -76,7 +76,7 @@ async function inspect(tab) {
             window.__storySyncEvents.push({ms:Math.round(performance.now()), line:index, sentence,
               event, cover:!!document.querySelector('.story-cue-cover')}); return event;
           }; document.querySelector('#cover').click(); return true; })()`);
-        await until(`document.querySelector('#book').dataset.state === 'ASKING'`);
+        await until(`['ASKING', 'VOICING'].includes(document.querySelector('#book').dataset.state)`);
       } else if (action === 'straw' || action === 'predict') {
         const oldQuestion = await evaluate(`document.querySelector('#question').textContent`);
         await evaluate(`document.querySelector('#mic').click()`);
