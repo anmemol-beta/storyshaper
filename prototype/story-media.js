@@ -152,6 +152,20 @@ class StoryMediaPlayer {
             encodeURIComponent(binding.sessionId)}`, active);
           this.consume(next, active);
         } catch (error) {
+          // The server restarted and lost the job (the story itself was saved): ask for this page's picture again, once.
+          if (error.code === 'job_not_found' && !active.resubmitted && this.active === active) {
+            active.resubmitted = true;
+            this.onState({state: 'generating', retrying: true});
+            try {
+              const again = await this.request('/api/media/jobs', active, {method: 'POST', body: JSON.stringify(binding)});
+              if (this.active !== active) { this.cancelLateJob(active, again); return; }
+              active.jobId = again.jobId;
+              this.consume(again, active);
+            } catch (retryError) {
+              this.fail(active, {reason: retryError.code, retryable: retryError.retryable});
+            }
+            return;
+          }
           this.fail(active, {reason: error.code, retryable: error.retryable});
         }
       }, this.pollMs);

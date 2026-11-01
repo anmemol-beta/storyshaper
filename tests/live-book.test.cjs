@@ -229,6 +229,21 @@ test('the start screen makes the story together by default and shows one play bu
   assert.equal(h.element('mic').classList.contains('choose'), true, 'offline answers open the choices, not a microphone');
 });
 
+test('the answer card rises only once the reading reaches the question or stops', async () => {
+  const h = await harness(); await h.start('mock');
+  const raised = () => h.element('book').classList.contains('child-turn');
+  assert.equal(h.settings.playback, 'playing');
+  assert.equal(raised(), false, 'while the passage is read the story text keeps the focus');
+  h.narrations.at(-1).options.onLine(h.element('narrative').children.length);   // reading the question
+  assert.equal(raised(), true);
+  h.narrations.at(-1).options.onLine(0);
+  assert.equal(raised(), false);
+  h.playback('idle');
+  assert.equal(raised(), true, 'nothing being read: it is the child\'s turn');
+  await h.submit();
+  assert.equal(raised(), false, 'the card steps down while the next page is made');
+});
+
 test('the start screen lists every voice as a card that chooses it', async () => {
   const h = await harness();
   h.settings.voices = [{id:'000000007127', name:'Storybook voice (male)', builtin:true}, {id:'dad', name:'Dad'}];

@@ -5,8 +5,9 @@
     -> https://<workspace>--storyshaper-story.modal.run
 
 The Vercel site (vercel.json) serves prototype/ and forwards /api/* here, so the pages call it from their own
-address. Sessions and pictures live in this one container's memory: one container at most, and they are gone
-after IDLE_SECONDS without requests (the next visit wakes a new one in about half a minute).
+address. One container at most; it sleeps after IDLE_SECONDS without requests and wakes in a few seconds.
+Each session's latest page is saved on the "storyshaper-story" Volume (STORY_SESSION_DIR), so a story continues
+after the container restarts (a deploy or idle sleep); a picture still being drawn is asked for again.
 Cost: billed per second only while the container is up.
 """
 import os
@@ -25,13 +26,15 @@ PAGES = r"^https://storyshaper[-a-z0-9]*\.vercel\.app$"     # the Vercel site an
 image = modal.Image.debian_slim(python_version="3.10").apt_install("ffmpeg").pip_install("pillow==12.0.0")
 for package in ("src", "vision", "speech", "story_agent", "media", "narration", "prototype"):
     image = image.add_local_dir(ROOT / package, f"/app/{package}", ignore=["__pycache__", "**/__pycache__"])
+volume = modal.Volume.from_name("storyshaper-story", create_if_missing=True)
 app = modal.App(LABEL, image=image)
 
 
-@app.function(secrets=[modal.Secret.from_name("storyshaper-meta")], max_containers=1,
+@app.function(secrets=[modal.Secret.from_name("storyshaper-meta")], volumes={"/data": volume}, max_containers=1,
               scaledown_window=IDLE_SECONDS, timeout=3600)
 @modal.concurrent(max_inputs=100)
 @modal.web_server(8000, startup_timeout=120, label=LABEL)
 def story():
     subprocess.Popen("cd /app && exec python -m src.server --host 0.0.0.0 --port 8000", shell=True,
-                     env={**os.environ, "STORY_PUBLIC_HOSTS": PUBLIC_HOSTS, "STORY_PUBLIC_ORIGINS": PAGES})
+                     env={**os.environ, "STORY_PUBLIC_HOSTS": PUBLIC_HOSTS, "STORY_PUBLIC_ORIGINS": PAGES,
+                          "STORY_SESSION_DIR": "/data/sessions"})

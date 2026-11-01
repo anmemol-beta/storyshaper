@@ -68,22 +68,25 @@
      <p><span id="readBy">읽어주는 목소리: 기본 목소리</span><span id="narrationStatus" role="status" aria-live="polite"></span></p>
    </div>
    <div id="narrative" class="live-narrative" aria-live="polite"></div>
-   <div id="question" class="live-question"></div>
-   <div class="live-controls" id="freeInput" hidden>
-     <label class="sr-only" for="answer">답변</label>
-     <input id="answer" type="text" placeholder="답이나 생각을 적어 줘" autocomplete="off" disabled>
-     <button id="send" type="button" disabled>답하기</button>
+   <!-- The child's turn: the question, the ways to answer and the status, raised as one card (live-book.css). -->
+   <div class="ask-card" id="askCard">
+     <div id="question" class="live-question"></div>
+     <div class="live-controls" id="freeInput" hidden>
+       <label class="sr-only" for="answer">답변</label>
+       <input id="answer" type="text" placeholder="답이나 생각을 적어 줘" autocomplete="off" disabled>
+       <button id="send" type="button" disabled>답하기</button>
+     </div>
+     <div class="mic-col" id="inputActions" hidden>
+       <button class="camera-button" id="cameraButton" type="button" hidden>📷 물건 보여주기</button>
+       <button class="mic" id="mic" type="button" disabled aria-label="말로 답하기">🎙</button>
+     </div>
+     <div class="camera-panel" id="cameraPanel" hidden>
+       <video id="cameraPreview" muted playsinline aria-label="카메라 미리보기"></video>
+       <div><button id="cameraSnap" type="button">사진 찍기</button><button id="cameraCancel" type="button">닫기</button></div>
+     </div>
+     <div class="live-choices" id="choices" hidden></div>
+     <p class="status" id="status" role="status" aria-live="polite"></p>
    </div>
-   <div class="mic-col" id="inputActions" hidden>
-     <button class="camera-button" id="cameraButton" type="button" hidden>📷 물건 보여주기</button>
-     <button class="mic" id="mic" type="button" disabled aria-label="말로 답하기">🎙</button>
-   </div>
-   <div class="camera-panel" id="cameraPanel" hidden>
-     <video id="cameraPreview" muted playsinline aria-label="카메라 미리보기"></video>
-     <div><button id="cameraSnap" type="button">사진 찍기</button><button id="cameraCancel" type="button">닫기</button></div>
-   </div>
-   <div class="live-choices" id="choices" hidden></div>
-   <p class="status" id="status" role="status" aria-live="polite"></p>
  </section>
 </main>
 <footer class="foot"><div id="progress" role="status"></div><button id="restart" class="btn" type="button">↻ 처음부터</button></footer>

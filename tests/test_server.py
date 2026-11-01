@@ -2,6 +2,9 @@ from copy import deepcopy
 import http.client
 from html.parser import HTMLParser
 import json
+import os
+from pathlib import Path
+import tempfile
 import threading
 import unittest
 from unittest.mock import patch
@@ -19,6 +22,22 @@ class SessionTests(unittest.TestCase):
     def setUp(self):
         self.app = Playground()
         self.start = self.app.create('mock')
+
+    def test_a_restarted_server_continues_the_saved_story(self):
+        # The hosted container restarts on deploys and after idle minutes; the story must not start over.
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {'STORY_SESSION_DIR': folder}):
+            first = Playground()
+            start = first.create('mock', 'ko')
+            predict = first.answer(turn_body(start, '나무'))
+            restarted = Playground()
+            self.assertEqual(restarted.sessions.get(start['sessionId']).snapshot, predict)
+            reflect = restarted.answer(turn_body(predict, '무너질 것 같아', 'turn-2'))
+            self.assertEqual((reflect['version'], reflect['language']), (predict['version'] + 1, 'ko'))
+            self.assertEqual(Playground().sessions.get(start['sessionId']).snapshot, reflect)
+            self.assertIsNone(Playground().sessions.get('../' + start['sessionId']))
+            stale = Path(folder) / f"{start['sessionId']}.json"
+            os.utime(stale, (0, 0))
+            self.assertIsNone(Playground().sessions.get(start['sessionId']), 'An old saved session has expired')
 
     def test_same_submission_counted_and_generated_once(self):
         body = turn_body(self.start)
