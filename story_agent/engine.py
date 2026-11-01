@@ -1022,6 +1022,10 @@ class StoryEngine:
         if korean:
             if not re.search(r"[가-힣]", text) or re.search(r"[a-zA-Z]", text):
                 raise ValueError("expected Korean output")
+            # The model sometimes emits a wrong syllable ("볼까" → "볼껈"). Outside the 2,350 everyday syllables
+            # (KS X 1001, two bytes in EUC-KR) no line in a picture book needs, so the turn is not accepted.
+            if any(len(char.encode("euc-kr")) != 2 for char in re.findall(r"[가-힣]", text)):
+                raise ValueError("unusual Korean syllable")
         elif re.search(r"[가-힣]", text):
             raise ValueError("expected English output")
 
