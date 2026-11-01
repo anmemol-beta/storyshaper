@@ -243,6 +243,20 @@ test('the answer card rises only once the reading reaches the question or stops'
   assert.equal(raised(), false, 'the card steps down while the next page is made');
 });
 
+test('speaking is the main answer; typing opens only on request', async () => {
+  const h = await harness(); await h.start();
+  assert.equal(h.element('inputActions').hidden, false);
+  assert.equal(h.element('micLabel').textContent, 'Answer by speaking');
+  assert.equal(h.element('freeInput').hidden, true);
+  assert.equal(h.element('typeAnswer').getAttribute('aria-expanded'), 'false');
+  h.element('typeAnswer').onclick();
+  assert.equal(h.element('freeInput').hidden, false);
+  assert.equal(h.element('typeAnswer').getAttribute('aria-expanded'), 'true');
+  assert.equal(h.element('typeAnswer').textContent, '⌨️ Close typing');
+  h.element('typeAnswer').onclick();
+  assert.equal(h.element('freeInput').hidden, true);
+});
+
 test('the start screen lists every voice as a card that chooses it', async () => {
   const h = await harness();
   h.settings.voices = [{id:'000000007127', name:'Storybook voice (male)', builtin:true}, {id:'dad', name:'Dad'}];
@@ -645,7 +659,8 @@ test('first rejection shows exactly three keywords and blocks every free input p
   assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 2);
   h.shows.at(-1).onComplete();
   assert.equal(h.element('choices').hidden, true);
-  assert.equal(h.element('freeInput').hidden, false);
+  assert.equal(h.element('inputActions').hidden, false);
+  assert.equal(h.element('freeInput').hidden, true, 'typing waits behind "Type it"');
   assert.equal(h.element('mic').disabled, false);
   await card.onclick();
   assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 2, 'Old choice cannot answer the next question');

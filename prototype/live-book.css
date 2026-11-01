@@ -161,6 +161,17 @@
 .reader-app .book.child-turn .live-question { font-size: clamp(21px, 2.6vw, 30px); }
 .reader-app .book.child-turn .live-question.speaking { background: none; }
 @keyframes ask-rise { from { transform: translateY(28px); opacity: 0; } }
+/* Inside the card: what to do now (the status, as a chip), the question, one big microphone with its label,
+   then the small extras (show an object, type it). */
+.reader-app .ask-card { --mic: clamp(84px, 20vw, 104px); }
+.reader-app .ask-card > .status { align-self: flex-start; padding: 6px 14px; border-radius: 99px; font-size: 15px; font-weight: 700; }
+.reader-app .ask-card .mic-col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.reader-app .mic-label { font-size: 16px; font-weight: 700; color: var(--text-main); }
+.reader-app .mic:disabled + .mic-label { color: var(--text-subtle); }
+.reader-app .answer-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
+.reader-app .answer-tools button { min-height: 44px; padding: 8px 16px; border-radius: 99px; border: 1px solid var(--border-soft);
+  background: transparent; color: var(--text-subtle); font: inherit; font-size: 15px; cursor: pointer; }
+.reader-app .answer-tools button:disabled { opacity: .5; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .reader-app .book.child-turn .ask-card { animation: none; }
   .reader-app .live-narrative { transition: none; }
