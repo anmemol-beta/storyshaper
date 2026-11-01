@@ -288,7 +288,9 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin and page_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
-            self.send_header("Vary", "Origin")
+        # Always: a clip first loaded by an <audio> tag (no Origin, so no CORS header) is cached for a day, and
+        # without Vary the page's later fetch() of the same clip got that cached copy and was blocked.
+        self.send_header("Vary", "Origin")
 
     def reply(self, status, body, content_type="application/json"):
         data = json.dumps(body).encode() if content_type == "application/json" else body
