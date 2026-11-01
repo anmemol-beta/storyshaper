@@ -1040,37 +1040,53 @@ class StoryEngine:
                        "providerMode": self._mode()})
         return result
 
-    @staticmethod
-    def _failure_message(state, decision, reason):
-        # Show the authored touch choices on the first missed answer. Never
-        # require another spoken attempt before the child can continue.
-        choosing = state["stage"] == "choose"
-        if state["language"] == "ko":
-            if reason == "unsupported_material":
-                message = "새 재료로 집을 짓고 싶구나! 그 재료로 안전한 집을 짓는 방법은 아직 준비하지 못했어."
-            elif decision == "clarify":
-                message = ("이 집을 지을 재료가 필요해요." if choosing else
-                           "생각을 잘 알아듣지 못했어요.")
-            elif reason == "material_not_allowed":
-                message = ("마지막 집은 튼튼하게 서 있을 수 있는 재료로 골라 봐요." if state["houseIndex"] == 3 else
-                           "그 튼튼한 재료는 마지막 집에 써 봐요.")
+    def _failure_message(self, state, decision, reason):
+        """Why the answer could not be used, in words a child can follow, then the touch choices.
+        Show the authored touch choices on the first missed answer. Never require another spoken
+        attempt before the child can continue. The child's own words are never repeated back."""
+        korean = state["language"] == "ko"
+        stage = state["stage"]
+        if stage == "choose":
+            labels = [choice["label"] for choice in self._question(state)["choices"]]
+            if korean:
+                unclear = f"집을 지으려면 재료가 있어야 해. {', '.join(labels)} 중에서 골라 볼까?"
             else:
-                message = "돼지들이 안전하게 지내도록 지금 이야기 속에서 도와줘요."
-            message += " 이번에는 그림을 보고 마음에 드는 것을 톡 눌러 줘요!"
-            return message
-        if reason == "unsupported_material":
-            message = "You have a new material in mind! I don't have a safe way to build with it yet."
-        elif decision == "clarify":
-            message = ("This house needs a building material." if choosing else
-                       "I didn't quite understand.")
-        elif reason == "material_not_allowed":
-            message = ("For this last house, let's choose something strong that stays standing."
-                       if state["houseIndex"] == 3 else
-                       "Let's save those strong materials for the pigs' last house.")
+                labels = [label if label == "Teamwork" else label.lower() for label in labels]
+                unclear = f"A house needs something to build it with. You could choose {', '.join(labels[:-1])}, or {labels[-1]}."
+        elif stage in ("predict", "reflect"):
+            house = _house_meta(state)["label"]
+            unclear = {
+                ("predict", True): f"늑대가 후 불면 {house} 집이 어떻게 될지 궁금해! 어떻게 될 것 같은지 골라 줘.",
+                ("reflect", True): f"{house} 집이 왜 그렇게 됐는지 같이 생각해 보자. 어떤 까닭인 것 같아?",
+                ("predict", False): f"I wonder what will happen to the {house} house when the wolf puffs. What do you think?",
+                ("reflect", False): f"Let's think about why the {house} house changed. What do you think the reason was?",
+            }[stage, korean]
         else:
-            message = "Let's keep the pigs safe and help with this part of their story."
-        message += " Let's pick a picture! Tap the one you like."
-        return message
+            unclear = "생각을 잘 알아듣지 못했어요." if korean else "I didn't quite understand."
+        if korean:
+            message = {
+                "unsupported_material": "새 재료로 집을 짓고 싶구나! 그 재료로 안전한 집을 짓는 방법은 아직 준비하지 못했어.",
+                "material_not_allowed": ("늑대가 마지막 집을 가장 세게 불 거라서 아주 튼튼한 재료가 필요해." if state["houseIndex"] == 3 else
+                                         "튼튼한 재료는 마지막 집을 위해 아껴 두자. 지금은 가벼운 재료로 지어 볼래?"),
+                "unsafe_request": "그건 이 동화에 어울리지 않아. 여기서는 모두가 안전하게 지내.",
+                "private_information": "전화번호나 이메일 같은 건 여기 말하지 말고 비밀로 지키자.",
+                "instruction_override": "이 동화는 돼지들이 함께 안전하게 지내며 끝나. 그 부분은 바꿀 수 없어.",
+                "fixed_story_change": "이 동화는 돼지들이 함께 안전하게 지내며 끝나. 그 부분은 바꿀 수 없어.",
+                "outside_story_rules": "그건 이 이야기와 조금 달라. 이 이야기에서는 돼지들이 집을 짓고 안전하게 지내.",
+            }.get(reason, unclear if decision == "clarify" else "돼지들이 안전하게 지내도록 지금 이야기 속에서 도와줘요.")
+            return message + " 이번에는 그림을 보고 마음에 드는 것을 톡 눌러 줘요!"
+        message = {
+            "unsupported_material": "You have a new material in mind! I don't have a safe way to build with it yet.",
+            "material_not_allowed": ("The wolf will puff hardest at the last house, so it needs something very strong."
+                                     if state["houseIndex"] == 3 else
+                                     "Let's save the strongest materials for the last house. Try a lighter one here."),
+            "unsafe_request": "That doesn't belong in this story. Here, everyone stays safe.",
+            "private_information": "Let's keep phone numbers and emails private and not share them here.",
+            "instruction_override": "This story always ends with the pigs safe together, so that part can't change.",
+            "fixed_story_change": "This story always ends with the pigs safe together, so that part can't change.",
+            "outside_story_rules": "That's not part of this story. Here, the pigs build houses and stay safe together.",
+        }.get(reason, unclear if decision == "clarify" else "Let's keep the pigs safe and help with this part of their story.")
+        return message + " Let's pick a picture! Tap the one you like."
 
     @staticmethod
     def _service_message(language):

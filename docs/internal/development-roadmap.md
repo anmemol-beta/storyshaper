@@ -769,3 +769,9 @@
 - Keep the current scene and question when image generation fails or times out. Do not advance to the next scene or accept an answer while the required image is unavailable.
 - Offer image retry when possible; otherwise show recovery guidance on the current scene.
 - Disable page navigation that can bypass the pending scene while image generation is in a failed state. A timeout must reach a failure state within a finite period, never wait forever.
+
+### Hosted demo fixes (2026-11-01, user request)
+
+- **Saved voices stay private on the hosted site:** the Modal voice server lists, reads, and deletes a saved voice only with the key the creating browser got (`X-Voice-Key`). The existing family voices were backed up and given keys outside the repo. Local servers are unchanged.
+- **Lost picture → start over:** when a picture can never arrive (e.g. the story server restarted and the session is gone), the button under the picture becomes "Start the story again" instead of leaving the page stuck.
+- **Why an answer was not used:** each failure message names its reason (no building material → the three choices; prediction or reflection unclear → asks about this house; outside the story, unsafe, private information, changing the ending, strong material too early). The child's words are never repeated back.

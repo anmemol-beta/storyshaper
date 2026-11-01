@@ -16,6 +16,7 @@
   const questionKey = state => state?.question ? `${state.sessionId}:${state.question.id}` : null;
   const choiceLocks = new Set();
   let snapshot = null, displayed = null, pending = null, activity = "idle", epoch = 0;
+  let restartOnRetry = false; // The picture can never come (e.g. the server restarted): the button starts over.
   let requestController = null, inputController = null, inputToken = 0, recording = null, camera = null;
   let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
   let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
@@ -490,6 +491,7 @@
     }[problem] || [];
     ui.loadingText.textContent = text;
     ui.retryMedia.textContent = button;
+    restartOnRetry = false;
     ui.retryMedia.hidden = false;
     ui.retryMedia.disabled = false;
     say(t("Or turn off Read aloud in ⚙ settings to keep reading without sound.",
@@ -716,12 +718,17 @@
         syncControls(); // A failed image cannot be skipped by advancing to the next scene.
         if (!scenePreparation.audioReady) return;
       }
-      ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
-      ui.loadingText.textContent = t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
-      ui.retryMedia.hidden = result.retryable === false;
-      ui.retryMedia.disabled = result.retryable === false;
-      say(result.retryable === false
-        ? t("Couldn't finish the picture. Restart the story to try again.", "그림을 완성하지 못했어요. 이야기를 다시 시작해 주세요.")
+      // A picture bound to another page (stale_snapshot) is replaced by that page's own request; nothing to restart.
+      restartOnRetry = result.retryable === false && result.reason !== "stale_snapshot";
+      const lost = ["session_not_found", "job_not_found"].includes(result.reason);
+      ui.retryMedia.textContent = restartOnRetry ? t("Start the story again", "처음부터 다시 시작")
+        : t("Reload picture", "그림 다시 불러오기");
+      ui.loadingText.textContent = lost
+        ? t("The story server restarted, so this story was lost.", "이야기 서버가 다시 시작돼서 이 이야기가 끊겼어요.")
+        : t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
+      ui.retryMedia.hidden = ui.retryMedia.disabled = result.retryable === false && !restartOnRetry;
+      say(restartOnRetry
+        ? t("Couldn't finish the picture. Start the story again to keep reading.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
         : t("Reload the picture to continue.", "계속하려면 그림을 다시 불러와 주세요."));
       syncControls(); // A failed live generation's substitute picture keeps the next turn locked.
     }
@@ -989,6 +996,7 @@
   };
 
   ui.retryMedia.onclick = () => {
+    if (restartOnRetry && !ui.retryMedia.disabled) { restartOnRetry = false; return begin(); }
     if (!pending || ui.retryMedia.disabled) return;
     if (scenePreparation?.failed) return prepareAudio(scenePreparation, {retry: true});
     ui.retryMedia.hidden = true;
