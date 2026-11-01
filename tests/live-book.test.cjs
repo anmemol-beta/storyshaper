@@ -588,20 +588,21 @@ test('restart ignores stale image decode and late generation responses', async (
   }
 });
 
-test('exhausted retries or missing generation cannot leave a useless retry button', async () => {
+test('exhausted retries or missing generation turn the retry button into starting over', async () => {
   for (const unavailable of [false, true]) {
     const h = await harness(); await h.start();
     const next = accepted(); h.settings.answer = next;
     h.settings.media = imageResult(next, {status:'failed', generated:false, generationRequested:!unavailable,
       generationRetryAvailable:false, retriesRemaining:0, image:null});
     await h.submit();
-    assert.equal(h.element('retryMedia').hidden, true);
-    assert.equal(h.element('retryMedia').disabled, true);
-    assert.match(h.element('status').textContent, /Restart the story/);
-    const count = h.calls.length;
-    await h.element('retryMedia').onclick();
-    assert.equal(h.calls.length, count);
+    assert.equal(h.element('retryMedia').hidden, false);
+    assert.equal(h.element('retryMedia').textContent, 'Start the story again');
+    assert.match(h.element('status').textContent, /Start the story again/);
     assert.equal(h.element('send').disabled, true, 'A recovery message cannot skip the picture gate');
+    const sessions = h.calls.filter(c => c.url === '/api/sessions').length;
+    await h.element('retryMedia').onclick();
+    assert.equal(h.calls.filter(c => c.url === '/api/sessions').length, sessions + 1, 'The button starts a new story');
+    assert.equal(h.calls.some(c => c.body?.retry), false, 'It never retries the lost picture');
   }
 });
 

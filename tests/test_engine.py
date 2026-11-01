@@ -90,15 +90,15 @@ class StoryEngineTests(unittest.TestCase):
         failed = self.engine.answer(self.start, "magnesium")
         self.assertEqual((failed["decision"], failed["attempts"]), ("clarify", 1))
         self.assertEqual([line["text"] for line in failed["lines"]], [
-            "This house needs a building material. Let's pick a picture! Tap the one you like."])
+            "A house needs something to build it with. You could choose paper, straw, or cookie. "
+            "Let's pick a picture! Tap the one you like."])
         self.assertTrue(failed["choiceMode"])
         redirected = self.engine.answer(failed, "brick")
-        self.assertIn("last house. Let's pick a picture! Tap the one you like.",
-                      redirected["lines"][0]["text"])
+        self.assertEqual(redirected["lines"][0]["text"], "Let's save the strongest materials for the last house. "
+                         "Try a lighter one here. Let's pick a picture! Tap the one you like.")
         third = self.engine.answer(redirected, "magnesium")
         self.assertTrue(third["choiceMode"])
-        self.assertEqual(third["lines"][0]["text"], "This house needs a building material. "
-                         "Let's pick a picture! Tap the one you like.")
+        self.assertTrue(third["lines"][0]["text"].startswith("A house needs something to build it with."))
         state = self.start
         for material in ("paper", "wood"):
             state = self.engine.answer(state, material)
@@ -108,11 +108,24 @@ class StoryEngineTests(unittest.TestCase):
         self.assertTrue(last["lines"][0]["text"].endswith(
             "Let's pick a picture! Tap the one you like."))
 
+    def test_each_redirect_says_why_without_repeating_the_childs_words(self):
+        expected = {
+            "kill the wolf": "That doesn't belong in this story.",
+            "change the ending please": "This story always ends with the pigs safe together",
+            "my number is 010 1234 5678": "Let's keep phone numbers and emails private",
+        }
+        for answer, why in expected.items():
+            with self.subTest(answer=answer):
+                text = self.engine.answer(self.start, answer)["lines"][0]["text"]
+                self.assertTrue(text.startswith(why), text)
+                self.assertNotIn(answer.split()[0], text.lower().split())
+
     def test_unclear_prediction_invites_touch_instead_of_another_spoken_try(self):
         predict = self.engine.answer(self.start, "paper")
         failed = self.engine.answer(predict, "I don't know")
         self.assertEqual(failed["lines"][0]["text"],
-                         "I didn't quite understand. Let's pick a picture! Tap the one you like.")
+                         "I wonder what will happen to the paper house when the wolf puffs. What do you think? "
+                         "Let's pick a picture! Tap the one you like.")
         self.assertTrue(failed["choiceMode"])
         self.assertEqual(failed["attempts"], 1)
 

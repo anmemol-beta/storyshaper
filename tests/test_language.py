@@ -114,7 +114,8 @@ class LanguageTests(unittest.TestCase):
         engine = StoryEngine(MockProvider(), 'ko')
         failed = engine.answer(engine.start('materials'), '마그네슘')
         self.assertEqual(failed['lines'][0]['text'],
-                         '이 집을 지을 재료가 필요해요. 이번에는 그림을 보고 마음에 드는 것을 톡 눌러 줘요!')
+                         '집을 지으려면 재료가 있어야 해. 종이, 짚, 과자 중에서 골라 볼까? '
+                         '이번에는 그림을 보고 마음에 드는 것을 톡 눌러 줘요!')
         self.assertTrue(failed['choiceMode'])
         self.assert_korean(failed)
         self.assertEqual(engine.answer(engine.start('sticks'), '나뭇가지')['storyState']['houses'][0]['material'],
