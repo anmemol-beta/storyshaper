@@ -26,6 +26,19 @@ const Narration = (() => {
       return chosen || localStorage.getItem("voice-server") || MODAL;
     } catch { return chosen || MODAL; }
   })();
+  // The hosted voice server lists and reads a saved voice only for the browser that made it: POST /api/voices returns
+  // a key, kept here and sent with every request. ?voiceKey=<id>:<key> adds one, to use that voice on another device.
+  const KEYS = "voice-keys";
+  const voiceKeys = () => { try { return JSON.parse(localStorage.getItem(KEYS)) || {}; } catch { return {}; } };
+  function rememberKey(id, key) { try { localStorage.setItem(KEYS, JSON.stringify({...voiceKeys(), [id]: key})); } catch {} }
+  function keyHeader() {
+    const pairs = Object.entries(voiceKeys()).map(([id, key]) => `${id}:${key}`);
+    return pairs.length ? {"X-Voice-Key": pairs.join(",")} : {};
+  }
+  {
+    const [id, key] = (new URLSearchParams(location.search).get("voiceKey") || "").split(":");
+    if (/^[0-9a-f]{12}$/.test(id) && key) rememberKey(id, key);
+  }
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
   // A hosted server (deploy/modal_voice.py) is ~1 s away from Korea; a server that is down fails at once anyway.
   const REQUEST_MS = 4000, CLIP_LOAD_MS = 800;
@@ -201,7 +214,7 @@ const Narration = (() => {
     signal?.addEventListener("abort", cancel, {once: true});
     try {
       return await Promise.race([
-        fetch(server + path, {...options, signal: controller.signal}).then(async response => ({response, body: await response.json()})),
+        fetch(server + path, {...options, headers: {...keyHeader(), ...options.headers}, signal: controller.signal}).then(async response => ({response, body: await response.json()})),
         new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error("narration_timeout")); }, timeout); })
       ]);
     } finally { clearTimeout(timer); signal?.removeEventListener("abort", cancel); }
@@ -591,7 +604,7 @@ const Narration = (() => {
   }
 
   return {choicePrompt, sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
-    playbackState: () => playback, voiceSource: () => source,
+    rememberKey, keyHeader, playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
 })();

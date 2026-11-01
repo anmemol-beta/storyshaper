@@ -126,12 +126,15 @@
     }
   };
 
+  // The key the voice server gives each new voice (narration.js keeps them); the hosted server needs it.
+  const keyHeader = () => (typeof Narration !== "undefined" && Narration.keyHeader?.()) || {};
+
   async function api(path, options = {}) {
     let response;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.method === "POST" ? 90000 : 10000);
     try {
-      try { response = await fetch(server + path, {...options, signal: controller.signal}); }
+      try { response = await fetch(server + path, {...options, headers: {...keyHeader(), ...options.headers}, signal: controller.signal}); }
       catch {
         throw new Error(tr(controller.signal.aborted
           ? "The voice helper took too long. Your recording is still here. Try again."
@@ -212,7 +215,7 @@
   async function upload(blob, label, recorded = false) {
     if (uploading || openingMic || recordingActive) return;
     pendingUpload = {blob, label, recorded};
-    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
+    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false, fullUrl: null});
     return retryUpload();
   }
 
@@ -225,7 +228,10 @@
     $("workingText").textContent = tr("Listening to {label}…", {label});
     render();
     try {
-      if (!state.draft) state.draft = await api(`/api/voices${recorded ? "?recorded=1" : ""}`, {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
+      if (!state.draft) {
+        state.draft = await api(`/api/voices${recorded ? "?recorded=1" : ""}`, {method: "POST", headers: {"Content-Type": blob.type || "audio/webm"}, body: blob});
+        if (state.draft.key && typeof Narration !== "undefined") Narration.rememberKey?.(state.draft.id, state.draft.key);
+      }
       $("workingText").textContent = tr("Finding the clearest parts…");
       await loadPeaks();
       const best = [...state.draft.suggestions].sort((a, b) => b.speech - a.speech)[0];
@@ -244,9 +250,11 @@
   $("retryUpload").onclick = retryUpload;
 
   async function loadPeaks() {
-    const response = await fetch(`${server}/api/voices/${state.draft.id}/full.wav`, {signal: AbortSignal.timeout(15000)});
+    const response = await fetch(`${server}/api/voices/${state.draft.id}/full.wav`, {headers: keyHeader(), signal: AbortSignal.timeout(15000)});
     if (!response.ok) throw new Error(tr("The recording could not be loaded. Try this recording again."));
     const data = await response.arrayBuffer();
+    // Played from this copy: an <audio> address cannot carry the voice key the hosted server asks for.
+    state.fullUrl = URL.createObjectURL(new Blob([data], {type: "audio/wav"}));
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let audio;
     try { audio = await ctx.decodeAudioData(data); }
@@ -428,7 +436,7 @@
   function playClip() {
     stopAudio();
     const {start, end} = state.clip;
-    const audio = new Audio(`${server}/api/voices/${state.draft.id}/full.wav`);
+    const audio = new Audio(state.fullUrl || `${server}/api/voices/${state.draft.id}/full.wav`);
     player = audio;
     const head = $("head");
     audio.addEventListener("loadedmetadata", () => { audio.currentTime = start; audio.play(); }, {once: true});
@@ -554,7 +562,7 @@
 
   $("seeVoices").onclick = $("doneVoices").onclick = () => go("voices");
   $("again").onclick = () => {
-    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
+    Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false, fullUrl: null});
     $("name").value = "";
     $("attest").checked = false;
     document.querySelectorAll("input[name=relation]").forEach(r => { r.checked = false; });

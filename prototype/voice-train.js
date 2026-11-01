@@ -107,7 +107,12 @@
 
   async function call(path, options) {
     let response;
-    try { response = await fetch(server + path, options); }
+    // The key voice.html kept for this voice (see narration.js); the hosted voice server needs it.
+    let keys = {};
+    try { keys = JSON.parse(localStorage.getItem("voice-keys")) || {}; } catch {}
+    const pairs = Object.entries(keys).map(([id, key]) => `${id}:${key}`);
+    const headers = {...(pairs.length ? {"X-Voice-Key": pairs.join(",")} : {}), ...options?.headers};
+    try { response = await fetch(server + path, {...options, headers}); }
     catch { throw new Error(tr("The voice helper on this computer isn't running. Start it, then try again.")); }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error?.message || String(response.status));

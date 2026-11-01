@@ -31,6 +31,9 @@ POST   /api/voices/<id>/preview    a sample story line in the chosen clip's voic
 POST   /api/voices/<id>/save       {"name", "relation", "attested": true}
 DELETE /api/voices/<id>            the voice, its clip and every line read with it
 
+On the hosted address (NARRATION_PUBLIC_HOSTS) a saved voice is listed and usable only with its key, which
+POST /api/voices returns once; pages send it as X-Voice-Key: <id>:<key>[,<id>:<key>…].
+
 Clips are cached in voice/cache/<voice>/ by (role settings, reference clip, text), so a line is generated once.
 The story pages call this server from another local port, so local origins are allowed (CORS).
 """
@@ -82,6 +85,11 @@ PRIORITIES = ("interactive", "ahead", "background")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
 # NARRATION_PUBLIC_ORIGINS: a pattern for the hosted story pages (deploy/modal_voice.py), e.g. the Vercel site.
 PUBLIC_ORIGIN = re.compile(os.environ.get("NARRATION_PUBLIC_ORIGINS") or r"(?!)")
+
+
+def public_hosts():
+    """NARRATION_PUBLIC_HOSTS: the hosted address (deploy/modal_voice.py)."""
+    return {h.strip() for h in os.environ.get("NARRATION_PUBLIC_HOSTS", "").split(",") if h.strip()}
 
 
 def page_origin(origin):
@@ -299,8 +307,7 @@ class Handler(BaseHTTPRequestHandler):
     def guarded(self):
         port = self.server.server_port
         # NARRATION_PUBLIC_HOSTS: the hosted address (deploy/modal_voice.py); pages still have to be local.
-        public = {h.strip() for h in os.environ.get("NARRATION_PUBLIC_HOSTS", "").split(",") if h.strip()}
-        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"} | public:
+        if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"} | public_hosts():
             self.error(403, "invalid_host", "Use the local server address.")
             return False
         origin = self.headers.get("Origin")
@@ -308,6 +315,23 @@ class Handler(BaseHTTPRequestHandler):
             self.error(403, "invalid_origin", "Only StoryShaper pages can use this server.")
             return False
         return True
+
+    def own(self, voice_id):
+        """On the hosted address anyone can open the pages, so a saved voice answers only to the browser that made it:
+        the page sends the key it got back from POST /api/voices in X-Voice-Key ("<id>:<key>,…"). Local servers
+        trust every local page. Voices made before keys existed are not reachable from the hosted address."""
+        if self.headers.get("Host") not in public_hosts() or voice_id in (None, "default") or voice_id in BUILTIN_VOICES:
+            return True
+        keys = dict(pair.split(":", 1) for pair in self.headers.get("X-Voice-Key", "").split(",") if ":" in pair)
+        try:
+            return self.server.library.owned(voice_id, keys.get(voice_id))
+        except VoiceError:
+            return False
+
+    def owned(self, voice_id):
+        if not self.own(voice_id):
+            raise VoiceError(404, "voice_not_found", "No voice with this id.")
+        return voice_id
 
     def body(self, limit):
         try:
@@ -370,7 +394,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.cors()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Voice-Key")
         self.end_headers()
 
     def do_GET(self):
@@ -394,8 +418,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, training_catalog(language))
         if url.path == "/api/voices":
             builtin = [{"id": voice_id, "name": voice["name"], "builtin": True} for voice_id, voice in BUILTIN_VOICES.items()]
-            return self.reply(200, {"voices": builtin + self.server.library.saved()})
+            return self.reply(200, {"voices": builtin + [v for v in self.server.library.saved() if self.own(v["id"])]})
         route = VOICE_ROUTE.match(url.path)
+        if route:
+            self.owned(route.group(1))
         if route and route.group(2) == "train" and route.group(4):
             return self.reply(200, self.server.library.training_audio(route.group(1), int(route.group(3))), "audio/wav")
         if route and route.group(2) == "train" and not route.group(3):
@@ -448,7 +474,7 @@ class Handler(BaseHTTPRequestHandler):
             priority = body.get("priority", "interactive")
             if priority not in ("interactive", "background"):
                 raise VoiceError(400, "invalid_priority", "Priority must be interactive or background.")
-            voice, ref = self.parent_ref(body.get("voiceId"))
+            voice, ref = self.parent_ref(self.owned(body.get("voiceId")))
             try:
                 for line in lines:
                     narrator.line_settings(line, ref, body.get("allRoles") is True, language)
@@ -478,7 +504,7 @@ class Handler(BaseHTTPRequestHandler):
                 lines = [line for page in pages for line in page]
             else:                                 # every next page's first sentence before the rest of any page
                 lines = [page[0] for page in pages] + [line for page in pages for line in page[1:]]
-            voice, ref = self.parent_ref(body.get("voiceId"))
+            voice, ref = self.parent_ref(self.owned(body.get("voiceId")))
             clips = narrator.submit(lines, voice, ref, body.get("allRoles") is True, enqueue=body.get("peek") is not True,
                                     language=language, t3=self.finetuned(body.get("voiceId")),
                                     priority="background" if body.get("book") is True else "ahead",
@@ -495,6 +521,7 @@ class Handler(BaseHTTPRequestHandler):
         if not route or not route.group(2):
             raise VoiceError(404, "not_found", "Not found.")
         voice_id, action, number, _ = route.groups()
+        self.owned(voice_id)
         if action == "train" and not number:
             kind = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
             if not kind.startswith(("audio/", "video/")):
@@ -546,7 +573,7 @@ class Handler(BaseHTTPRequestHandler):
         route = VOICE_ROUTE.match(urlsplit(self.path).path)
         if not route or route.group(2) or route.group(3) or route.group(4):
             raise VoiceError(404, "not_found", "Not found.")
-        self.server.library.delete(route.group(1))
+        self.server.library.delete(self.owned(route.group(1)))
         self.server.narrator.forget(route.group(1))
         self.reply(200, {"deleted": route.group(1)})
 

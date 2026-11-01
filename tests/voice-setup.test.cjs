@@ -53,7 +53,7 @@ async function harness() {
       micCalls++;
       return {getTracks: () => [{stop() { tracks.push('stopped'); }}]};
     }}},
-    MediaRecorder, Blob, URLSearchParams, AbortController, AbortSignal, Float32Array, console,
+    MediaRecorder, Blob, URL, URLSearchParams, AbortController, AbortSignal, Float32Array, console,
     Audio: class {
       play() { queueMicrotask(() => this.onended?.()); return Promise.resolve(); }
       pause() {}
