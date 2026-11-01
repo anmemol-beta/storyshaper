@@ -431,8 +431,18 @@ const Narration = (() => {
 
   // One scene sentence as a local blob URL. The server holds each ask up to LINE_WAIT s while it voices the line.
   async function fetchLine(url, signal) {
+    let hiccups = 0;
     for (let attempt = 0; attempt < LINE_TRIES; attempt++) {
-      const response = await abortable(fetch(`${server}${url}?wait=${LINE_WAIT}`, {signal}), signal);
+      let response;
+      try {
+        response = await abortable(fetch(`${server}${url}?wait=${LINE_WAIT}`, {signal}), signal);
+      } catch (error) {
+        // A brief hosting-gateway error reaches the page as a network error (its reply carries no CORS header),
+        // though the line is fine on the server: ask again shortly, twice at most.
+        if (signal?.aborted || error?.message === "narration_cancelled" || ++hiccups > 2) throw error;
+        await abortable(new Promise(resolve => setTimeout(resolve, 1500)), signal);
+        continue;
+      }
       if (response.status === 504) continue;              // still being voiced: ask again
       if (!response.ok) throw new Error(`scene_line_${response.status}`);
       const blob = await abortable(response.blob(), signal);

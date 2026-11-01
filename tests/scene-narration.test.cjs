@@ -14,7 +14,7 @@ const LINES = [
 // voice(k) makes sentence k answer with audio. Blob URLs play at once; play() "ends" when the test calls end().
 function sceneHarness({voiced = [0], pack = null, missingFiles = []} = {}) {
   const played = [], spoken = [], audios = [], requests = [], timers = [], revoked = [];
-  const ready = new Set(voiced), waiting = new Map();
+  const ready = new Set(voiced), waiting = new Map(), failing = new Map();
   const storage = new Map();
   let blobNumber = 0;
   class Audio {
@@ -53,7 +53,7 @@ function sceneHarness({voiced = [0], pack = null, missingFiles = []} = {}) {
       const k = Number(/line(\d+)\.mp3/.exec(url)[1]);
       if (ready.has(k)) return answer(k);
       return new Promise((resolve, reject) => {          // the server holds the ask while it voices the line
-        waiting.set(k, resolve);
+        waiting.set(k, resolve); failing.set(k, reject);
         options.signal?.addEventListener('abort', () => reject(new Error('aborted')), {once: true});
       });
     },
@@ -67,9 +67,12 @@ function sceneHarness({voiced = [0], pack = null, missingFiles = []} = {}) {
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../prototype/narration.js'), 'utf8') + '\nthis.Narration = Narration;', sandbox);
   return {
-    Narration: sandbox.Narration, played, spoken, audios, requests, revoked, storage,
+    Narration: sandbox.Narration, played, spoken, audios, requests, revoked, storage, timers,
     voice(k) { ready.add(k); waiting.get(k)?.(answer(k)); waiting.delete(k); },
     stillVoicing(k) { const resolve = waiting.get(k); waiting.delete(k); resolve?.({ok: false, status: 504}); },
+    // The hosting gateway's own error reply has no CORS header: the page only sees a network error.
+    gatewayError(k) { const reject = failing.get(k); waiting.delete(k); failing.delete(k); reject?.(new TypeError('Failed to fetch')); },
+    runTimers(ms) { for (const timer of timers) if (timer.fn && timer.ms === ms) { const fn = timer.fn; timer.fn = null; fn(); } },
     playing: () => audios.at(-1),
   };
 }
@@ -109,6 +112,20 @@ test('a sentence the server is still voicing is asked for again rather than give
   assert.equal(h.requests.filter(url => url.endsWith('line1.mp3?wait=30')).length, 2);
   h.voice(1); await tick();
   const reading = h.Narration.speak(LINES, {scene: true, prepared, key: 'asked-again', language: 'en'});
+  await tick(); h.playing().end(); await tick(); h.playing().end();
+  await reading;
+  assert.equal(h.played.length, 2);
+});
+
+test('a gateway error while a sentence is fetched is asked again, not shown as a failed voice', async () => {
+  const h = sceneHarness();
+  const prepared = await h.Narration.prepareScene(LINES, {language: 'en'});
+  h.gatewayError(1); await tick();
+  assert.equal(h.requests.filter(url => url.endsWith('line1.mp3?wait=30')).length, 1, 'waits a moment first');
+  h.runTimers(1500); await tick();
+  assert.equal(h.requests.filter(url => url.endsWith('line1.mp3?wait=30')).length, 2);
+  h.voice(1); await tick();
+  const reading = h.Narration.speak(LINES, {scene: true, prepared, key: 'gateway', language: 'en'});
   await tick(); h.playing().end(); await tick(); h.playing().end();
   await reading;
   assert.equal(h.played.length, 2);
