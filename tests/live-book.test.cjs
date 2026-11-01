@@ -11,11 +11,18 @@ class Element {
   constructor() {
     this.children = []; this.hidden = false; this.disabled = false; this.value = ''; this.dataset = {};
     this.textContent = ''; this.checked = false;
-    this.classList = {toggle() {}};
+    const classes = new Set();
+    this.classList = {toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); },
+      add:name => classes.add(name), contains:name => classes.has(name)};
   }
   setAttribute(key, value) { this[key] = value; }
+  getAttribute(key) { return this[key] ?? null; }
+  focus() { this.focused = true; }
+  contains(target) { return this === target || this.children.some(child => child.contains(target)); }
   removeAttribute(key) { delete this[key]; }
   replaceChildren(...children) { this.children = children; }
+  append(child) { this.children.push(child); child.parentElement = this; }
+  remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this); }
   pause() {}
   load() {}
   play() { return Promise.resolve(); }
@@ -51,18 +58,20 @@ function preparedChoiceResult(snapshot, overrides = {}) {
     image:{url:'/prototype/img/paper_house.jpg'}, ...overrides});
 }
 
-async function harness(request = null) {
+async function harness(request = null, {withMotion = false} = {}) {
   const elements = new Map(), calls = [], shows = [], reveals = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
   element('readerSettings').hidden = true;
+  element('imgCur').parentElement = element('art');
+  element('imgCur').src = 'img/intro.jpg';
   const voiceSetupCalls = [];
   const settings = {answer:null, advance:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
     transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper', voiceId:null,
     voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null, scenePreparation:null, speakError:null};
   const preparedScenes = new Map();
   const sceneKey = (lines, options) => JSON.stringify([settings.voiceId, options.language, lines]);
-  const playbackCalls = [], prefetched = [];
+  const playbackCalls = [], prefetched = [], motionCalls = [];
   let playbackListener = () => {};
   const playback = state => { settings.playback = state; playbackListener(state); };
   let timerId = 0;
@@ -73,6 +82,14 @@ async function harness(request = null) {
     AbortController, Date, localStorage:{getItem:key => storage.get(key) ?? null, setItem:(key, value) => storage.set(key, value)},
     setTimeout:(callback, ms) => { const id = ++timerId; timers.set(id, {callback, ms}); return id; },
     clearTimeout:id => timers.delete(id),
+    StoryMotion: withMotion ? class {
+      stop() { motionCalls.push('stop'); }
+      scene(options) { motionCalls.push(['scene', options.action]); }
+      cue(index, key, sentence) { motionCalls.push(['cue', index, sentence]); return /ate the wall/.test(sentence); }
+      pause() { motionCalls.push('pause'); }
+      resume() { motionCalls.push('resume'); }
+      start() { motionCalls.push('start'); }
+    } : undefined,
     StoryImageTransition:class {
       constructor(current, next) { this.current = current; this.next = next; }
       cancel() {}
@@ -152,7 +169,7 @@ async function harness(request = null) {
     await flush();
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
-  return {element, calls, settings, shows, reveals, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls,
+  return {element, calls, settings, shows, reveals, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, motionCalls,
     document, start, submit, playback, playbackCalls, prefetched, expireSceneCache:() => preparedScenes.clear()};
 }
 
@@ -199,6 +216,33 @@ test('playback is gated during next-picture preparation and prefetch never start
   assert.equal(h.narrations.length, readings + 1);
 });
 
+test('the start screen makes the story together by default and shows one play button only while reading', async () => {
+  const h = await harness();
+  assert.equal(h.element('mode').value, 'live', 'AI is the default when it is available');
+  assert.equal(h.element('narrationControls').hidden, true, 'nothing to play on the start screen');
+  await h.start('mock');
+  assert.equal(h.element('setup').hidden, true);
+  assert.equal(h.element('narrationControls').hidden, false);
+  assert.deepEqual([h.element('pauseNarration').hidden, h.element('playNarration').hidden], [false, true]);
+  h.element('pauseNarration').onclick();
+  assert.deepEqual([h.element('pauseNarration').hidden, h.element('playNarration').hidden], [true, false]);
+  assert.equal(h.element('mic').classList.contains('choose'), true, 'offline answers open the choices, not a microphone');
+});
+
+test('the start screen lists every voice as a card that chooses it', async () => {
+  const h = await harness();
+  h.settings.voices = [{id:'000000007127', name:'Storybook voice (male)', builtin:true}, {id:'dad', name:'Dad'}];
+  await h.element('settingsButton').onclick();
+  const names = () => h.element('voiceCards').children.map(card => card.children[0].textContent);
+  const checked = () => h.element('voiceCards').children.map(card => card.children[0]['aria-checked']);
+  assert.deepEqual(names(), ['Storybook voice', 'Storybook voice (male)', 'Dad']);
+  assert.deepEqual(checked(), ['true', 'false', 'false']);
+  h.element('voiceCards').children[2].children[0].onclick();
+  assert.equal(h.settings.voiceId, 'dad');
+  assert.deepEqual(checked(), ['false', 'false', 'true']);
+  assert.match(h.element('readBy').textContent, /Dad/);
+});
+
 test('settings selects saved voices immediately without opening registration', async () => {
   const h = await harness(); await h.start();
   h.settings.voices = [{id:'mom', name:'Mom'}, {id:'dad', name:'Dad'}];
@@ -207,11 +251,46 @@ test('settings selects saved voices immediately without opening registration', a
   assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom', 'dad']);
   h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
   assert.equal(h.settings.voiceId, 'dad');
+  assert.equal(h.element('addVoice').hidden, false, 'Adding another voice stays available for a saved voice');
   assert.match(h.element('readerName').textContent, /Dad/);
   assert.match(h.element('readBy').textContent, /Dad/);
   assert.equal(h.narrations.length, 2, 'Current passage restarts with the chosen voice');
   h.element('voiceSelect').value = ''; h.element('voiceSelect').onchange();
   assert.equal(h.settings.voiceId, null);
+});
+
+test('settings can close with its button, Escape or an outside press without swallowing inside interactions', async () => {
+  const h = await harness();
+  await h.element('settingsButton').onclick();
+  assert.equal(h.element('settingsButton')['aria-expanded'], 'true');
+  assert.equal(h.element('closeSettings').focused, true);
+  h.document.pointerdown({target:h.element('readerSettings')});
+  assert.equal(h.element('readerSettings').hidden, false);
+  h.document.pointerdown({target:h.element('settingsButton')});
+  assert.equal(h.element('readerSettings').hidden, false);
+  h.document.pointerdown({target:h.element('book')});
+  assert.equal(h.element('readerSettings').hidden, true);
+  assert.equal(h.element('settingsButton')['aria-expanded'], 'false');
+  await h.element('settingsButton').onclick();
+  let prevented = false;
+  h.document.keydown({key:'Escape', preventDefault() {prevented = true;}});
+  assert.equal(prevented, true);
+  assert.equal(h.element('readerSettings').hidden, true);
+  assert.equal(h.element('settingsButton').focused, true);
+  await h.element('settingsButton').onclick();
+  h.element('closeSettings').onclick();
+  assert.equal(h.element('readerSettings').hidden, true);
+});
+
+test('closing the settings popover prevents a late voice-list response from resetting the saved selection', async () => {
+  const h = await harness();
+  h.settings.voiceId = 'jiho'; h.settings.voiceName = 'Jiho';
+  const response = deferred(); h.settings.voiceList = response;
+  const opening = h.element('settingsButton').onclick();
+  h.element('closeSettings').onclick();
+  response.resolve([]); await opening;
+  assert.equal(h.settings.voiceId, 'jiho');
+  assert.equal(h.element('addVoice').hidden, false);
 });
 
 test('settings keeps the current voice on list failure and forgets a deleted saved voice on refresh', async () => {
@@ -247,9 +326,9 @@ test('merged parent voice registration, return links and warmup remain available
   h.settings.voiceName = 'Mom';
   h.element('language').value = 'ko';
   await h.element('language').onchange();
-  assert.equal(h.element('addVoice').hidden, true);
+  assert.equal(h.element('addVoice').hidden, false);
   assert.match(h.element('readerName').textContent, /Mom/);
-  assert.equal(h.element('changeVoice').href, 'voice.html?return=index.html&lang=ko');
+  assert.equal(h.element('addVoice').href, 'voice.html?return=index.html&lang=ko');
   await h.start();
   h.settings.answer = accepted();
   await h.submit();
@@ -968,6 +1047,22 @@ test('replay asks the authoritative cache and prepares again after a page is evi
   assert.equal(h.narrations.at(-1).options.prepared.fresh, true);
 });
 
+test('a missing page voice says whether the server was unreachable, the line failed or it is just slow', async () => {
+  for (const [error, text, button] of [
+    [new TypeError('Failed to fetch'), /Couldn't reach the voice server/, /Try the voice again/],
+    [new Error('scene_line_500'), /couldn't be made/, /Make the voice again/],
+    [new Error('scene_line_timeout'), /longer than usual/, /Keep waiting/]]) {
+    const h = await harness(); await h.start();
+    const voice = deferred(); h.settings.scenePreparation = voice;
+    h.settings.answer = accepted(); h.settings.media = imageResult(h.settings.answer);
+    await h.submit();
+    voice.reject(error); await flush();
+    assert.match(h.element('loadingText').textContent, text);
+    assert.match(h.element('retryMedia').textContent, button);
+    assert.equal(h.element('retryMedia').hidden, false);
+  }
+});
+
 test('a failed prepared playback exposes retry instead of leaving a silently idle page', async () => {
   const h = await harness(); await h.start();
   h.settings.speakError = new Error('local audio failed'); h.playback('idle');
@@ -1052,4 +1147,32 @@ test('an external voice change turns both a stale success and failure into recov
     assert.equal(h.element('question').textContent, 'What will happen?');
     assert.equal(h.element('send').disabled, false);
   }
+});
+
+test('an outcome picture remains covered until its spoken action sentence starts', async () => {
+  const h = await harness(null, {withMotion:true});
+  await h.start('mock');
+  const build = accepted('mock', {mediaPlan:{action:'build'}});
+  h.settings.answer = build;
+  h.settings.media = imageResult(build, {generated:false, generationRequested:false});
+  await h.submit('paper');
+  h.shows.at(-1).onComplete();
+
+  const outcome = state('mock', {version:2, sceneId:'house1_reflect', decision:'accept',
+    mediaPlan:{action:'eaten'}, lines:[{speakerId:'narrator', text:'The wolf smelled the cookie. Then he ate the wall.'}]});
+  h.settings.answer = outcome;
+  h.settings.media = imageResult(outcome, {generated:false, generationRequested:false});
+  await h.submit('the wolf will eat it');
+  h.shows.at(-1).onComplete();
+  assert.ok(h.element('art').children.some(child => child.className === 'story-cue-cover'));
+  assert.equal(h.element('answer').disabled, true);
+  const spoken = h.narrations.at(-1).options.onSentence;
+  spoken(0, 'The wolf smelled the cookie.');
+  assert.equal(h.element('answer').disabled, true);
+  spoken(0, 'Then he ate the wall.');
+  const fade = [...h.timers.values()].find(timer => timer.ms === 280);
+  assert.ok(fade);
+  fade.callback();
+  assert.equal(h.element('answer').disabled, false);
+  assert.equal(h.element('art').children.some(child => child.className === 'story-cue-cover'), false);
 });

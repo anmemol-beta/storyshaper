@@ -10,12 +10,30 @@ import uuid
 from .assets import AssetRegistry, LocalProvider
 from .contracts import normalize
 from .image_provider import MAX_IMAGE, ImageError, scene_facts
+from story_agent.engine import MockProvider, StoryEngine
 
 MAX_IMAGE_RETRIES = 2
 
 
 class JobError(ValueError):
     pass
+
+
+def fixed_followers(snapshot):
+    """The next pages after a live build page, whose pictures the chosen material already fixes: the house's
+    outcome, then the next house's site or the ending. The child's later answers are text only; they never
+    change these pictures (scene_facts), so the pictures can be drawn while the child reads and answers."""
+    state = snapshot.get('storyState') or {}
+    if snapshot.get('providerMode') != 'live' or state.get('stage') != 'predict':
+        return []
+    engine = StoryEngine(MockProvider(), state['language'])
+    followers, current = [], snapshot
+    for _ in range(2):
+        updated, draft, facts = engine._transition(current['storyState'], None)
+        current = engine._accepted_snapshot(current, updated, draft, facts, authored_fallback=True)
+        current['providerMode'] = 'live'
+        followers.append(current)
+    return followers
 
 
 class MediaJobs:
@@ -98,6 +116,8 @@ class MediaJobs:
             # Local work may restart for a new binding. Paid image work retains
             # its cancellation tombstone even across language-only versions.
             reused = retry_of is None and key in self.works and (live_image or self.works[key]['status'] != 'cancelled')
+            if reused and self.works[key].get('ahead') and self.works[key]['status'] in {'failed', 'cancelled'}:
+                reused = False                    # a picture drawn ahead that failed is drawn again on request
             if not reused:
                 if retry_of is not None:
                     old_work = previous['work']
@@ -129,6 +149,42 @@ class MediaJobs:
                 timer.start()
                 self.pool.submit(self._run, work)
             return self._view(job)
+
+    def draw_ahead(self, snapshot, followers):
+        """After this build page's picture is drawn, draw its followers' pictures (fixed_followers). The outcome
+        picture edits the generated house, so both start only then, never competing with the page the child waits
+        for. A later request for the same scene facts reuses the drawing, in progress or done."""
+        if self.image_provider is None or not followers:
+            return
+        spec = normalize(snapshot)
+        with self.lock:
+            job = self.jobs.get(self.requests.get(spec.token)) if spec else None
+            if job is None or not job['work']['live_image']:
+                return
+            build = job['work']
+            for follower in followers:
+                ahead = normalize(follower)
+                key = hashlib.sha256(json.dumps([ahead.session_id, scene_facts(ahead, follower['mediaPlan'])],
+                                                sort_keys=True).encode()).hexdigest()
+                if key in self.works or any(item[0] == key for item in build.get('then', [])):
+                    continue
+                work = {'spec': ahead, 'status': 'queued', 'video': None, 'reason': None,
+                        'event': threading.Event(), 'timer': None, 'live_image': True, 'prepared_choice': False,
+                        'plan': deepcopy(follower['mediaPlan']), 'image': None, 'retry_attempt': 0, 'ahead': True}
+                build.setdefault('then', []).append((key, work))
+            if build['status'] == 'ready':
+                self._start_followers(build)
+
+    def _start_followers(self, build):
+        for key, work in build.pop('then', []):
+            if key in self.works:
+                continue
+            self.works[key] = work
+            timer = threading.Timer(self.image_timeout, self._expire, args=(work,))
+            timer.daemon = True
+            work['timer'] = timer
+            timer.start()
+            self.pool.submit(self._run, work)
 
     def _run(self, work):
         with self.lock:
@@ -198,6 +254,7 @@ class MediaJobs:
             if previous is None or previous[0] < spec.version:
                 self.last_images[(spec.session_id, spec.house_id)] = (spec.version, image)
             work['status'], work['reason'] = 'ready', 'generated_image_reviewed'
+            self._start_followers(work)
 
     def image(self, image_id, session_id):
         with self.lock:

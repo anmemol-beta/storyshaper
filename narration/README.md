@@ -2,13 +2,15 @@
 
 Story lines are read in each character's voice with Chatterbox:
 
-| `speakerId` | Voice | Settings |
-|---|---|---|
-| `narrator` (and any unknown id) | Parent (`voice/ref_clip.wav`) | exaggeration 0.7, cfg_weight 0.3, 0.84× tempo |
-| `pig1`, `pig2`, `pig3` | Parent, acted (one voice for all three pigs) | exaggeration 0.8, cfg_weight 0.3, 0.92× tempo |
-| `wolf` | LibriTTS-R speaker 1188 (`voice/characters/`, CC BY 4.0) | exaggeration 0.7 |
+| `speakerId` | Voice (LibriTTS-R, `voice/characters/`, CC BY 4.0) |
+|---|---|
+| `narrator` (and any unknown id) | The saved parent voice; without one, speaker 121 (or the male option, speaker 7127) |
+| `pig1`, `pig2`, `pig3` | Speakers 237, 5683 and 4507: one voice per pig, also when a parent voice is saved |
+| `wolf` | Speaker 1188 |
 
-The casting comes from a listening test of four options (roadmap §5, `voice/characters.html`). Settings live in `casting.json`. English narrator and pig settings were changed on 10/31 to match the parent's real reading (slower, livelier; voice worklog §9, §16); Korean uses them too, not yet checked by ear.
+Chosen by ear on 10/31. Clips live in `casting.json`; how each line is delivered (expression, cfg weight, tempo)
+comes from the script's tone and emotion (`story_agent/performance.json`). The male narrator is a built-in voice
+(`BUILTIN_VOICES` in `server.py`) listed first by `GET /api/voices`.
 
 ## Run
 
@@ -80,7 +82,7 @@ A registered voice replaces the parent roles (narrator and pigs); the wolf keeps
 
 ## Languages
 
-The current reader prepares a complete scene before showing it: `POST /api/voice/scene` accepts the passage and its question with the same speaker/delivery fields, returns `pending` with no audio URL until every part is ready, then returns one PCM WAV and line timing segments. `Narration.prepareScene()` downloads the entire file and preloads playback before the page transition. Reading the scene makes no further per-line requests. Images and voice prepare in parallel; cold synthesis time is shown before entering the page. `retry:true` is an explicit recovery action, while polling never resubmits synthesis. The earlier `/api/voice/lines` helper remains for registration previews, warmup and immediate choice invitations. See [the current narration design](../docs/internal/narration-design.md).
+The current reader opens a page as soon as its first sentence is voiced: `Narration.prepareScene()` queues every sentence with `/api/voice/lines`, downloads them in order while the earlier ones play, and never falls back to the browser voice mid-scene. While a page is showing, `POST /api/voice/ahead` voices the authored pages its three choices can open (each page's first sentence first), ranked after the page being opened and before warmup; `{"book": true}` queues the whole book in reading order after a voice is saved. Fixed lines in the storybook voice ship with the app: `python -m narration.pack --server <url>` voices every authored sentence, filler, choice prompt and choice word into `prototype/audio/pack/` with a `manifest.json`, and the reader plays those files without asking the server (parents' voices always use the server). Run it again after the script or voice settings change; `tests/test_narration.py` fails while the pack is out of date. `/api/voice/scene` (one complete WAV per scene) is no longer used by the reader. See [the current narration design](../docs/internal/narration-design.md).
 
 The parent records once, using the passage in their selected language, and the same voice reads **English and Korean**: English with Chatterbox, Korean with Chatterbox Multilingual from the same reference clip (`cfg_weight` 0.5, chosen by ear on `voice/korean.html`). Send `"language": "ko"` with `/api/voice/lines`; English cache keys are unchanged. `narration.warm.authored_book()` collects the current engine's English and Korean dialogue, questions and choice keywords across all 50 authored material paths without a model call. Warmup preserves each speaker and delivery label and splits sentences like the reader, so the wolf uses its own role and the cached text matches playback. Newly generated wording and custom materials are still prepared as needed. The older `prototype/audio/lines*.json` files belong to the earlier fixed book. Korean fillers: `FILLERS_KO`.
 

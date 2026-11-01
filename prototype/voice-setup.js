@@ -32,12 +32,13 @@
     "The yellow part will be the voice we learn from. Tap a part to hear it, or slide it along the recording.":
       "노란 부분의 목소리를 배워요. 눌러서 들어 보고, 옆으로 밀어서 옮길 수 있어요.",
     "Hear {name} read": "{name} 목소리로 들어 보기", "Play the story line": "동화 문장 재생",
-    "Voices on this device": "이 기기의 목소리", "Read every character in this voice": "모든 등장인물을 이 목소리로 읽기",
-    "Off: the wolf has his own voice, so children always know who is talking.": "끄면 늑대는 다른 목소리로 읽어서 아이가 누가 말하는지 알 수 있어요.",
+    "Voices on this device": "이 기기의 목소리",
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
-    "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
-    "Make it sound even more like them (10 min)": "더 닮게 만들기 (10분 녹음)",
-    "Trained voice (beta)": "학습한 목소리 사용 (베타)",
+    "See all voices": "목소리 목록 보기", "+ Add a new voice": "+ 새 목소리 추가하기", "Back to the story": "동화로 돌아가기",
+    "Listen to or remove saved voices ›": "저장된 목소리 듣기·지우기 ›",
+    "Choose who reads the stories. Tap ▶ to hear the story's first line in that voice.": "동화를 읽어 줄 목소리를 골라요. ▶를 누르면 그 목소리로 동화 첫 문장을 들려줘요.",
+    "Hear {name}": "{name} 목소리 들어 보기", "Couldn't play this voice. Try again.": "이 목소리를 들려주지 못했어요. 다시 눌러 주세요.",
+    "The voice is ready": "목소리가 준비됐어요",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "Try this recording again": "이 녹음으로 다시 시도하기",
     "The voice helper took too long. Your recording is still here. Try again.": "목소리 처리가 오래 걸려요. 녹음은 보관 중이니 다시 시도해 주세요.",
@@ -69,7 +70,7 @@
     "Tonight's story will be read in {name}’s voice. Only the ten-second part was kept.": "오늘 밤 동화는 {name} 목소리로 읽어요. 10초 구간만 남겨 두었어요.",
     "The whole storybook is ready.": "동화책 전체가 준비됐어요.",
     "Getting the storybook ready: {ready} of {total} lines. You can start reading now.": "동화책 준비 중: {total}줄 중 {ready}줄. 지금 바로 읽기 시작해도 돼요.",
-    "Storybook voice": "기본 목소리", "The built-in reader": "기본으로 들어 있는 목소리", "My own voice": "내 목소리",
+    "Storybook voice": "기본 목소리", "Storybook voice (male)": "기본 목소리 (남성)", "The built-in reader": "기본으로 들어 있는 목소리", "My own voice": "내 목소리",
     "Delete": "지우기",
     "Delete {name}'s voice? The ten-second part and every story line read with it will be removed.": "{name} 목소리를 지울까요? 10초 구간과 이 목소리로 읽은 모든 문장이 지워져요.",
     "them": "그분", "their": "그분",
@@ -83,7 +84,19 @@
   const tr = (source, values = {}) => (language === "ko" ? KO[source] || source : source)
     .replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? `{${key}}`));
 
-  const server = new URLSearchParams(location.search).get("voiceServer") || "http://127.0.0.1:8100";
+  // The voice server: Modal (deploy/modal_voice.py) unless ?voiceServer= names another, e.g. http://127.0.0.1:8100 for
+  // the server on this Mac. The choice is remembered so links between pages keep it; ?voiceServer=modal goes back.
+  // Same in narration.js, voice-setup.js and voice-train.js.
+  const server = (() => {
+    const MODAL = "https://shj0213--storyshaper-voice.us-east.modal.run";
+    const asked = new URLSearchParams(location.search).get("voiceServer");
+    const chosen = asked && asked !== "modal" ? asked.replace(/\/$/, "") : null;
+    try {
+      if (asked === "modal") localStorage.removeItem("voice-server");
+      else if (chosen) localStorage.setItem("voice-server", chosen);
+      return chosen || localStorage.getItem("voice-server") || MODAL;
+    } catch { return chosen || MODAL; }
+  })();
   const $ = id => document.getElementById(id);
   const STEPS = ["who", "find", "pick", "listen", "done"];
   const RECORD_SECONDS = 30;
@@ -91,8 +104,8 @@
   // Where "Start a story" and the logo lead: the page that sent the parent here (?return=live.html), else the live book.
   const RETURN = (r => (/^[a-z-]+\.html$/.test(r || "") ? r : "live.html"))(new URLSearchParams(location.search).get("return"));
   const PREVIEW = {
-    en: "Once upon a time, a mother pig lived with her three little pigs.",
-    ko: "옛날 옛적에 엄마 돼지와 아기돼지 삼형제가 살았어요.",
+    en: "Once upon a time, three little pigs set out to build homes.",
+    ko: "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요.",
   };
   const state = { step: "who", draft: null, peaks: null, duration: 0, clip: null, checked: null, previewed: false };
   let player = null;
@@ -156,8 +169,8 @@
       li.className = i < index ? "past" : i === index ? "now" : "";
       li.toggleAttribute("aria-current", i === index);
     });
-    $("pages").hidden = state.step === "done";
-    $("actions").hidden = state.step === "done" || recordingActive;
+    $("pages").hidden = state.step === "done" || state.step === "voices";
+    $("actions").hidden = state.step === "done" || state.step === "voices" || recordingActive;
     $("back").style.visibility = index === 0 ? "hidden" : "visible";
     $("next").textContent = state.step === "listen" ? tr("Save {possessive} voice", names()) : tr("Continue");
     $("next").disabled = uploading || !canContinue();
@@ -168,7 +181,7 @@
     document.querySelectorAll("[data-lang]").forEach(button => { button.disabled = uploading || openingMic || recordingActive; });
     // Choosing a file moves on by itself, so an empty "find" step shows no Continue button.
     $("next").style.visibility = state.step === "find" && !state.draft ? "hidden" : "visible";
-    $("voicesBox").hidden = !(state.step === "who" || state.step === "done") || $("voicesBox").dataset.empty === "1";
+    $("manageVoices").hidden = state.step !== "who" || $("voicesBox").dataset.empty === "1";
     $("findTitle").textContent = tr("Find {possessive} voice", names());
     $("listenTitle").textContent = tr("Hear {name} read", names());
   }
@@ -466,9 +479,10 @@
       if (meta.transcript) {
         heard.append(`“${meta.transcript}”`);
         heard.prepend(Object.assign(document.createElement("small"), {textContent: tr("We heard")}));
-      } else {
+      } else if (meta.transcript === "") {       // null: this server has no transcription, so say nothing
         heard.append(Object.assign(document.createElement("small"), {textContent: tr("We couldn't make out the words, but the voice can still be used.")}));
       }
+      heard.hidden = !heard.children.length;       // every message starts with a <small> label
       if (!q.ok) showError("pickError", tr("This part might not sound right. You can still try it, or slide to another part."));
       state.checked = {start, end};
     } catch (error) {
@@ -486,9 +500,8 @@
     $("ask").hidden = true;
     $("listenStatus").textContent = tr("Reading it in {possessive} voice. This takes about ten seconds…", names());
     try {
-      // Voice the rest of the first page too. The preview is the book's first line and is asked for last,
-      // because the server reads the newest request first.
-      if (typeof Narration !== "undefined") await Narration.prepare((await bookLines(language)).slice(1, FIRST_PAGE), {voice: state.draft.id, language});
+      // The story's opening page follows the preview, so a parent who saves and starts at once hears it sooner.
+      if (typeof Narration !== "undefined") Narration.ahead?.(null, language, {voice: state.draft.id});
       const clip = await api(`/api/voices/${state.draft.id}/preview`, post({language}));
       const url = `${server}${clip.url}?wait=30`;
       play.onclick = () => playPreview(url);
@@ -539,6 +552,7 @@
     }
   }
 
+  $("seeVoices").onclick = $("doneVoices").onclick = () => go("voices");
   $("again").onclick = () => {
     Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
     $("name").value = "";
@@ -547,56 +561,51 @@
     go("who");
   };
 
-  // Every line of the picture book, in story order (prototype/audio/lines.json).
-  const FIRST_PAGE = 8;
-  const books = {};
-  async function bookLines(lang = "en") {
-    if (!books[lang]) {
-      try { books[lang] = (await (await fetch(lang === "ko" ? "audio/lines.ko.json" : "audio/lines.json")).json()).map(l => l.text); }
-      catch { books[lang] = []; }
-    }
-    return books[lang];
-  }
-
   // Show how much of the book is voiced, until all of it is or the page changes.
   // Counts the book in the page's language, the one the family is about to hear.
   async function watchBook(id) {
-    const lines = await bookLines(language);
-    if (typeof Narration === "undefined" || !lines.length) return;
+    if (typeof Narration === "undefined" || !Narration.voiceBook) return;
     const status = $("bookStatus");
     while (state.step === "done" && store.get() === id) {
-      let ready = 0;
-      for (let i = 0; i < lines.length; i += 20) {
-        const n = await Narration.readyCount(lines.slice(i, i + 20), {language});
-        if (n === null) { status.textContent = ""; return; }
-        ready += n;
-      }
-      if (ready >= lines.length) { status.textContent = tr("The whole storybook is ready."); status.classList.add("all"); return; }
-      status.textContent = tr("Getting the storybook ready: {ready} of {total} lines. You can start reading now.", {ready, total: lines.length});
+      const count = await Narration.voiceBook(language, {peek: true});
+      if (!count) { status.textContent = ""; return; }
+      if (count.ready >= count.lines) { status.textContent = tr("The whole storybook is ready."); status.classList.add("all"); return; }
+      status.textContent = tr("Getting the storybook ready: {ready} of {total} lines. You can start reading now.", {ready: count.ready, total: count.lines});
       await new Promise(r => setTimeout(r, 2500));
     }
   }
 
-  // Voice the "let's see…" lines and the whole picture book now, in the background, so they play without waiting.
-  async function prepareBook() {
-    if (typeof Narration === "undefined") return;
+  // Voice the "let's see…" lines and the whole storybook now, in the background, so they play without waiting.
+  function prepareBook() {
+    if (typeof Narration === "undefined" || !Narration.voiceBook) return;
     try {
       // The same voice reads both books. The server voices the newest request first, so send the other
-      // language's book first and the page language's book last (each from its last page to its opening);
-      // the short fillers go last of all.
+      // language's book first and the page language's book last (the server keeps each in reading order,
+      // opening page first); the short fillers go last of all.
       // Sent as beacons, so they still arrive if the parent leaves this page right away.
-      const chunks = lines => { const out = []; for (let i = 0; i < lines.length; i += 20) out.push(lines.slice(i, i + 20)); return out.reverse(); };
       const order = language === "ko" ? ["en", "ko"] : ["ko", "en"];
-      const books = {en: await bookLines("en"), ko: await bookLines("ko")};
-      for (const lang of order) for (const chunk of chunks(books[lang])) Narration.voiceAhead(chunk, {language: lang});
+      for (const lang of order) Narration.voiceBook(lang);
       for (const lang of order) Narration.voiceAhead(Narration.fillers(lang), {language: lang});
     } catch {}
   }
 
-  $("allRoles").checked = (() => { try { return localStorage.getItem("story-voice-all") === "1"; } catch { return false; } })();
-  $("allRoles").onchange = () => { try { localStorage.setItem("story-voice-all", $("allRoles").checked ? "1" : "0"); } catch {} };
+  // The parent reads the narration; the pigs and the wolf keep their own voices (10/31). The old "read every character
+  // in this voice" switch is gone, so forget it where it was turned on.
+  try { localStorage.removeItem("story-voice-all"); } catch {}
 
   /* ---------- voices on this device ---------- */
+
+  // The story's first line in a saved or built-in voice (Narration.sample: the app's file or the server).
+  async function hear(id, button) {
+    if (typeof Narration === "undefined" || !Narration.sample) return;
+    stopAudio();
+    button.classList.add("busy");
+    try {
+      player = new Audio(await Narration.sample(id, language));
+      await player.play();
+    } catch { alert(tr("Couldn't play this voice. Try again.")); }
+    finally { button.classList.remove("busy"); }
+  }
 
   async function loadVoices() {
     let voices;
@@ -604,7 +613,8 @@
     catch { $("voicesBox").dataset.empty = "1"; $("voices").replaceChildren(); render(); return; }
     const active = store.get();
     if (active && !voices.some(v => v.id === active)) store.set(null);
-    const rows = [{id: null, name: tr("Storybook voice"), note: tr("The built-in reader")}, ...voices].map(voice => {
+    const rows = [{id: null, name: tr("Storybook voice"), note: tr("The built-in reader")},
+      ...voices.map(v => v.builtin ? {...v, name: tr(v.name), note: tr("The built-in reader")} : v)].map(voice => {
       const row = document.createElement("div");
       row.className = "voice";
       const pick = document.createElement("label");
@@ -617,19 +627,11 @@
           voice.consent?.relation === "me" ? "My own voice" : "A parent who is away")}));
       pick.append(radio, text);
       row.append(pick);
-      // A fine-tuned voice (narration/finetune_merge.py) can be switched on and off to compare by ear.
-      if (voice.finetune) {
-        const tune = document.createElement("label");
-        tune.className = "tuned";
-        const box = Object.assign(document.createElement("input"), {type: "checkbox", checked: Boolean(voice.finetune.enabled)});
-        box.onchange = async () => {
-          try { await api(`/api/voices/${voice.id}/finetune`, post({enabled: box.checked})); }
-          catch (error) { box.checked = !box.checked; alert(error.message); }
-        };
-        tune.append(box, tr("Trained voice (beta)"));
-        row.append(tune);                         // beside the name, not inside its label (no nested labels)
-      }
-      if (voice.id) {
+      const listen = Object.assign(document.createElement("button"), {type: "button", className: "btn small listen", textContent: "▶"});
+      listen.setAttribute("aria-label", tr("Hear {name}", {name: voice.name}));
+      listen.onclick = () => hear(voice.id, listen);
+      row.append(listen);
+      if (voice.id && !voice.builtin) {
         const remove = Object.assign(document.createElement("button"), {type: "button", className: "btn small", textContent: tr("Delete")});
         remove.onclick = async () => {
           if (!confirm(tr("Delete {name}'s voice? The ten-second part and every story line read with it will be removed.", {name: voice.name}))) return;
@@ -641,7 +643,7 @@
       return row;
     });
     $("voices").replaceChildren(...rows);
-    $("voicesBox").dataset.empty = voices.length ? "" : "1";
+    $("voicesBox").dataset.empty = voices.some(v => !v.builtin) ? "" : "1";
     render();
   }
 
@@ -659,7 +661,6 @@
     $("previewLine").textContent = `“${PREVIEW[language]}”`;
     if (!$("record").textContent.startsWith("■")) $("record").textContent = recordLabel();
     document.querySelectorAll("[data-return]").forEach(a => { a.href = RETURN; });
-    $("practice").href = `voice-train.html?lang=${language}`;
     render();
     loadVoices();
   }
@@ -672,4 +673,5 @@
   });
 
   applyCopy();
+  if (location.hash === "#voices") go("voices");
 })();

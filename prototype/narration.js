@@ -1,24 +1,40 @@
 /* Story voices from the local narration server (narration/server.py).
-   The reader prepares an entire scene as one local WAV before revealing the page,
-   then calls speak(..., {scene:true, prepared}). No line downloads occur during it.
+   The reader prepares a scene (prepareScene) before revealing the page, then calls speak(..., {scene:true, prepared}).
+   The page opens as soon as the scene's first sentence is voiced; the others are voiced and downloaded, in order,
+   while the first ones play (10/31: waiting for a whole scene took 20-100 s).
    Narration.speak(lines, {key, language, onLine}) queues every line at once, then plays them in order.
    A line that is not voiced yet is waited for, so the story stays in the parent's voice; only a server error or a line
    still not voiced after LINE_WAIT seconds is read by the browser voice, so the story never stops.
    Narration.interject() says a short "let's see…" line in the parent's voice right away, to fill the wait after an answer.
    Narration.prepare(lines) only returns clip URLs, for pages that play audio themselves (the picture book).
    Narration.stop() cuts everything, e.g. when the child starts talking or the page changes.
+   Fixed lines in the storybook voices play from files shipped with the app (audio/pack); only the rest go to the server.
    The parent's voice and "every character in this voice" come from voice.html (localStorage). */
 const Narration = (() => {
   "use strict";
 
-  const params = new URLSearchParams(location.search);
-  const server = params.get("voiceServer") || "http://127.0.0.1:8100";
+  // The voice server: Modal (deploy/modal_voice.py) unless ?voiceServer= names another, e.g. http://127.0.0.1:8100 for
+  // the server on this Mac. The choice is remembered so links between pages keep it; ?voiceServer=modal goes back.
+  // Same in narration.js, voice-setup.js and voice-train.js.
+  const server = (() => {
+    const MODAL = "https://shj0213--storyshaper-voice.us-east.modal.run";
+    const asked = new URLSearchParams(location.search).get("voiceServer");
+    const chosen = asked && asked !== "modal" ? asked.replace(/\/$/, "") : null;
+    try {
+      if (asked === "modal") localStorage.removeItem("voice-server");
+      else if (chosen) localStorage.setItem("voice-server", chosen);
+      return chosen || localStorage.getItem("voice-server") || MODAL;
+    } catch { return chosen || MODAL; }
+  })();
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
-  const REQUEST_MS = 600, CLIP_LOAD_MS = 800;
+  // A hosted server (deploy/modal_voice.py) is ~1 s away from Korea; a server that is down fails at once anyway.
+  const REQUEST_MS = 4000, CLIP_LOAD_MS = 800;
+  // A page's first ask may wake the hosted server (tens of seconds after a few idle minutes): wait for it.
+  const SCENE_QUEUE_MS = 60000;
   // Seconds a line that isn't voiced yet may wait before the browser voice reads it (the server's maximum). The parent
   // chose a pause over a machine voice (10/31); a line takes ~2.5 s to voice in English, ~5-9 s in Korean on a Mac.
   const LINE_WAIT = 30;
-  const SCENE_PREP_MS = 180000, SCENE_POLL_MS = 400;
+  const LINE_TRIES = 6;     // asks of LINE_WAIT seconds each before a scene sentence counts as failed
   const sceneCache = new Map();
   // Said the moment a child answers, while the next page is being written and drawn. Generated ahead (warm()).
   const FILLERS = [
@@ -108,8 +124,7 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  // beforePlay: called once the clip has loaded (the server may still be making it), right before it plays.
-  // onPlaying: called once the browser has accepted play(), i.e. the clip is really heard.
+  // beforePlay: awaited once the clip has loaded (the server may still be making it), right before it plays.
   function playClip(url, my, loadMs = CLIP_LOAD_MS, beforePlay = null, onPlaying = null) {
     return new Promise(resolve => {
       const clip = new Audio(url);
@@ -128,14 +143,18 @@ const Narration = (() => {
       finish = done;
       clip.onended = () => done(true);
       clip.onerror = () => done(false);
+      clip.addEventListener("playing", () => {
+        if (settled || my !== token) return;
+        beforePlay?.();
+        setPlayback("playing", "parent");
+        onPlaying?.();
+      }, {once: true});
       clip.addEventListener("canplay", async () => {
         clearTimeout(timer);
         await untilResumed();
         if (settled || my !== token) return done(false);
         started = true;
-        beforePlay?.();
-        setPlayback("playing", "parent");
-        clip.play().then(() => { if (!settled && my === token) onPlaying?.(); }, () => done(false));
+        clip.play().catch(() => done(false));
       }, {once: true});
       clip.load();
     });
@@ -147,7 +166,7 @@ const Narration = (() => {
     if (filler) { filler.audio.pause(); filler.end(); }
   }
 
-  function browserSay(text, language) {
+  function browserSay(text, language, onStart = () => {}) {
     return new Promise(resolve => {
       if (!("speechSynthesis" in window)) return setTimeout(resolve, 1500);
       const say = new SpeechSynthesisUtterance(text);
@@ -166,6 +185,7 @@ const Narration = (() => {
       speechFinish = done;
       speechPause = () => clearTimeout(guard);
       speechResume = arm;
+      say.onstart = () => { if (!settled) { setPlayback("playing", "browser"); onStart(); } };
       say.onend = done;
       say.onerror = done;
       speechSynthesis.speak(say);
@@ -187,25 +207,76 @@ const Narration = (() => {
     } finally { clearTimeout(timer); signal?.removeEventListener("abort", cancel); }
   }
 
-  async function queue(lines, {voice = null, peek = false, language = "en", background = false, signal} = {}) {
+  async function queue(lines, {voice = null, peek = false, language = "en", background = false, signal, timeout} = {}) {
     const id = voice || voiceId();
     const {response, body} = await request("/api/voice/lines", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({lines, language, ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {}), ...(peek ? {peek} : {}),
         ...(background ? {priority: "background"} : {})})
-    }, {signal});
+    }, {signal, ...(timeout ? {timeout} : {})});
     if (!response.ok) {
       // The saved voice was deleted on the server: forget it and read with the sample voice.
       if (!voice && id && (response.status === 404 || response.status === 409)) {
         if (id === voiceId()) {
           try { localStorage.removeItem("story-voice"); localStorage.removeItem("story-voice-name"); } catch {}
         }
-        return queue(lines, {peek, language, background, signal});
+        return queue(lines, {peek, language, background, signal, timeout});
       }
       throw new Error(`narration ${response.status}`);
     }
     return body.clips;
   }
+
+  // Fixed lines in the storybook voice and the built-in male narrator ship with the app (prototype/audio/pack, made by
+  // narration/pack.py), so they play without asking the server. A parent's voice is always voiced by the server.
+  // A built-in narrator's characters sound the same as the storybook voice's, so they share its files.
+  const PACK = "audio/pack/";
+  let pack = null;
+  const packKey = (line, language) => [language, line.speakerId || "narrator", line.kind || "", line.tone || "",
+    line.emotion || "", line.text].join("|");
+  function packed(lines, language, voice = voiceId()) {
+    if (allRoles()) return Promise.resolve(lines.map(() => null));
+    pack ||= fetch(PACK + "manifest.json").then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    return pack.then(({voices = {}}) => lines.map(line => {
+      const own = voices[voice || "default"];
+      const key = packKey(line, language);
+      const file = own && (own[key] || ((line.speakerId || "narrator") !== "narrator" && voices.default?.[key]));
+      return file ? PACK + file : null;
+    }));
+  }
+
+  // The three choices as one sentence (narration/warm.py choice_prompt). Words voiced one by one came out clipped.
+  function choicePrompt(labels, language = "en") {
+    if (language === "ko") return `${labels.join(", ")} 중에서 하나를 골라 줘!`;
+    const words = labels.map(label => label.slice(0, 1).toLowerCase() + label.slice(1));
+    return `Tap one: ${words.slice(0, -1).join(", ")}, or ${words.at(-1)}.`;
+  }
+
+  // A voice's sample for the start screen: the story's first line (the same line the registration preview reads).
+  // A storybook voice plays the app's own file; a parent's voice is voiced by the server.
+  const FIRST_LINE = {en: "Once upon a time, three little pigs set out to build homes.",
+    ko: "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요."};
+  async function sample(id = null, language = "en") {
+    const line = {speakerId: "narrator", text: FIRST_LINE[language] || FIRST_LINE.en, kind: "narration", tone: "warm", emotion: "calm"};
+    const [file] = await packed([line], language, id);
+    if (file) return file;
+    if (!id) throw new Error("sample_unavailable");
+    const {response, body} = await request(`/api/voices/${id}/preview`, {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({language})}, {timeout: REQUEST_MS});
+    if (!response.ok) throw new Error(`sample_${response.status}`);
+    return `${server}${body.url}?wait=${LINE_WAIT}`;
+  }
+
+  // Clips for these lines, in order: the app's own file where there is one ({packed: true}), the server for the rest.
+  async function clipsFor(lines, options) {
+    const files = await packed(lines, options.language);
+    const missing = lines.filter((_, k) => !files[k]);
+    const clips = missing.length ? await queue(missing, options) : [];
+    if (!Array.isArray(clips) || clips.length !== missing.length) throw new Error("invalid_scene_audio");
+    let i = 0;
+    return files.map(file => file ? {url: file, ready: true, packed: true} : clips[i++]);
+  }
+  const clipUrl = (clip, wait) => clip.packed ? clip.url : `${server}${clip.url}?wait=${wait}`;
 
   const asLines = lines => lines.map(line => {
     if (typeof line === "string") return {speakerId: "narrator", text: line};
@@ -235,6 +306,31 @@ const Narration = (() => {
     catch { return false; }
   }
 
+  // Voice the authored pages that can open next (the opening page without a story state) before the child
+  // answers, so a tapped choice opens without waiting. The page actually opened is still asked for first.
+  function ahead(storyState = null, language = "en", {voice = null} = {}) {
+    if (!LANGUAGES.includes(language)) return;
+    const id = voice || voiceId();
+    request("/api/voice/ahead", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({language, ...(storyState ? {storyState} : {}), ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})})
+    }).catch(() => {});
+  }
+
+  // The whole authored book in reading order, as warmup (a beacon, like voiceAhead). With peek, nothing is
+  // queued and the reply says how much is voiced: {pages, lines, ready}, or null if the server is unavailable.
+  async function voiceBook(language = "en", {voice = null, peek = false} = {}) {
+    const id = voice || voiceId();
+    const body = JSON.stringify({language, book: true, ...(peek ? {peek} : {}), ...(id ? {voiceId: id} : {}), ...(allRoles() ? {allRoles: true} : {})});
+    if (!peek) {
+      try { return navigator.sendBeacon(`${server}/api/voice/ahead`, new Blob([body], {type: "text/plain"})); }
+      catch { return false; }
+    }
+    try {
+      const {response, body: count} = await request("/api/voice/ahead", {method: "POST", headers: {"Content-Type": "application/json"}, body});
+      return response.ok ? count : null;
+    } catch { return null; }
+  }
+
   // How many of these lines are already voiced (null if the server is unavailable). Queues nothing.
   async function readyCount(lines, {voice = null, language = "en"} = {}) {
     try { return (await queue(asLines(lines), {voice, peek: true, language})).filter(c => c.ready).length; }
@@ -257,10 +353,10 @@ const Narration = (() => {
     const list = fillers(language);
     lastFiller = (lastFiller + 1 + Math.floor(Math.random() * (list.length - 1))) % list.length;
     let clip;
-    try { [clip] = await queue([{speakerId: "narrator", text: list[lastFiller]}], {language, background: true}); } catch { return; }
+    try { [clip] = await clipsFor([{speakerId: "narrator", text: list[lastFiller]}], {language, background: true}); } catch { return; }
     if (!clip.ready || !waiting) return;
     if (filler) filler.end();
-    const sound = new Audio(`${server}${clip.url}`);
+    const sound = new Audio(clipUrl(clip, 0));
     let resolve;
     const current = {audio: sound, done: new Promise(r => { resolve = r; }), end: () => { resolve(); if (filler === current) filler = null; }};
     filler = current;
@@ -272,7 +368,7 @@ const Narration = (() => {
   // Every language unless one is given.
   function warm(language = null) {
     for (const lang of language ? [language] : LANGUAGES) {
-      queue(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang, background: true}).catch(() => {});
+      clipsFor(fillers(lang).map(text => ({speakerId: "narrator", text})), {language: lang, background: true}).catch(() => {});
     }
   }
 
@@ -301,7 +397,8 @@ const Narration = (() => {
     const asset = sceneCache.get(signature);
     if (!asset || (expected && asset !== expected)) return;
     asset.invalid = true;
-    URL.revokeObjectURL(asset.url);
+    asset.controller.abort();
+    for (const url of asset.urls) if (url) URL.revokeObjectURL(url);
     sceneCache.delete(signature);
   }
   function getPreparedScene(lines, {language = "en"} = {}) {
@@ -319,119 +416,80 @@ const Narration = (() => {
     });
   }
 
-  function pollDelay(signal) {
-    return new Promise((resolve, reject) => {
+  // One scene sentence as a local blob URL. The server holds each ask up to LINE_WAIT s while it voices the line.
+  async function fetchLine(url, signal) {
+    for (let attempt = 0; attempt < LINE_TRIES; attempt++) {
+      const response = await abortable(fetch(`${server}${url}?wait=${LINE_WAIT}`, {signal}), signal);
+      if (response.status === 504) continue;              // still being voiced: ask again
+      if (!response.ok) throw new Error(`scene_line_${response.status}`);
+      const blob = await abortable(response.blob(), signal);
+      if (!blob.size || blob.size > 8 * 1024 * 1024) throw new Error("invalid_scene_line");
       cancelled(signal);
-      const abort = () => { clearTimeout(timer); reject(new Error("narration_cancelled")); };
-      const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, SCENE_POLL_MS);
-      signal.addEventListener("abort", abort, {once: true});
-    });
+      return URL.createObjectURL(blob);
+    }
+    throw new Error("scene_line_timeout");
   }
 
-  function preloadScene(clip, signal) {
-    return new Promise((resolve, reject) => {
-      cancelled(signal);
-      let settled = false;
-      const done = error => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener("abort", abort);
-        error ? reject(error) : resolve();
-      };
-      const abort = () => { clip.pause(); done(new Error("narration_cancelled")); };
-      clip.addEventListener("canplay", () => done(), {once: true});
-      clip.addEventListener("error", () => done(new Error("scene_audio_decode_failed")), {once: true});
-      signal.addEventListener("abort", abort, {once: true});
-      clip.preload = "auto";
-      clip.load();
-      if (clip.readyState >= 3) done();
-    });
+  async function fetchPacked(url, signal) {
+    const response = await abortable(fetch(url, {signal}), signal);
+    if (!response.ok) throw new Error(`packed_line_${response.status}`);
+    const blob = await abortable(response.blob(), signal);
+    if (!blob.size) throw new Error("invalid_packed_line");
+    cancelled(signal);
+    return URL.createObjectURL(blob);
   }
 
-  // All generation and network/decode waiting is on this side of the scene boundary.
-  // Callers may cancel a stale scene; existing server jobs remain deduplicated for reuse.
+  // Resolves once the first sentence is downloaded. The rest keep downloading in order on the asset's own
+  // controller, so they survive the caller moving on and stop only when the asset is discarded.
   async function prepareScene(lines, {language = "en", signal, retry = false, onProgress = () => {}} = {}) {
     if (!LANGUAGES.includes(language)) throw new Error("scene_language_unavailable");
     cancelled(signal);
     const parts = sceneParts(lines);
     if (!parts.length || parts.length > 64) throw new Error("invalid_scene_lines");
     const signature = sceneSignature(parts, language);
-    const requestedVoice = voiceId() || "default";
-    const forceReload = retry;
     if (retry) discardScene(signature);
     if (sceneCache.has(signature)) return sceneCache.get(signature);
     const controller = new AbortController();
-    let timedOut = false, localUrl = null;
     const abort = () => controller.abort();
     signal?.addEventListener("abort", abort, {once: true});
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, SCENE_PREP_MS);
+    const asset = {signature, parts, urls: [], controller, loads: []};
     try {
-      let scene;
-      do {
-        cancelled(controller.signal);
-        if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
-        const id = voiceId();
-        const {response, body} = await request("/api/voice/scene", {
-          method: "POST", headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({lines: asLines(parts), language, ...(id ? {voiceId: id} : {}),
-            ...(allRoles() ? {allRoles: true} : {}), ...(retry ? {retry: true} : {})})
-        }, {signal: controller.signal, timeout: 5000});
-        retry = false;
-        if (!response.ok) throw new Error(`scene_narration_${response.status}`);
-        if (body.status === "failed") throw new Error("scene_generation_failed");
-        if (!["pending", "ready"].includes(body.status)) throw new Error("invalid_scene_audio");
-        onProgress({ready: body.ready, total: body.total});
-        scene = body;
-        if (scene.status !== "ready") await pollDelay(controller.signal);
-      } while (scene.status !== "ready");
-      const route = /^\/audio\/(default|[a-f0-9]{12})\/scene-([a-f0-9]{16,64})\.wav$/.exec(scene.url || "");
-      if (!route || route[1] !== requestedVoice || route[2] !== scene.sceneKey
-          || scene.ready !== parts.length || scene.total !== parts.length
-          || !Array.isArray(scene.segments) || scene.segments.length !== parts.length
-          || !Number.isFinite(scene.duration) || scene.duration <= 0) throw new Error("invalid_scene_audio");
-      let end = 0;
-      for (let i = 0; i < scene.segments.length; i++) {
-        const segment = scene.segments[i];
-        if (segment.lineIndex !== i || !Number.isFinite(segment.start) || !Number.isFinite(segment.end)
-            || segment.text !== parts[i].text || segment.speakerId !== parts[i].speakerId
-            || Math.abs(segment.start - end) > 0.001 || segment.end <= segment.start
-            || segment.end > scene.duration + 0.001) throw new Error("invalid_scene_timing");
-        end = segment.end;
-      }
-      if (Math.abs(end - scene.duration) > 0.001) throw new Error("invalid_scene_timing");
-      const response = await abortable(fetch(server + scene.url, {
-        signal: controller.signal, ...(forceReload ? {cache: "reload"} : {})
-      }), controller.signal);
-      if (!response.ok) throw new Error("scene_audio_download_failed");
-      const blob = await abortable(response.blob(), controller.signal);
-      if (!blob.size || blob.size > 32 * 1024 * 1024) throw new Error("invalid_scene_audio_size");
-      cancelled(controller.signal);
-      localUrl = URL.createObjectURL(blob);
-      const clip = new Audio(localUrl);
-      await preloadScene(clip, controller.signal);
+      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: SCENE_QUEUE_MS});
+      if (!Array.isArray(clips) || clips.length !== parts.length) throw new Error("invalid_scene_audio");
+      if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
+      let previous = Promise.resolve();
+      asset.loads = clips.map((clip, k) => previous = previous.then(() => clip.packed
+        ? fetchPacked(clip.url, controller.signal).catch(error => {
+          if (controller.signal.aborted) throw error;     // a missing app file: the server voices it instead
+          return queue(asLines([parts[k]]), {language, signal: controller.signal}).then(([c]) => fetchLine(c.url, controller.signal));
+        })
+        : fetchLine(clip.url, controller.signal)).then(url => {
+        asset.urls[k] = url;
+        onProgress({ready: k + 1, total: clips.length});
+        return url;
+      }));
+      for (const load of asset.loads) load.catch(() => {});   // a failure surfaces when that sentence is played
+      await asset.loads[0];
       cancelled(controller.signal);
       if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
-      const prepared = {signature, audio: clip, url: localUrl, duration: scene.duration,
-        segments: scene.segments.map(segment => ({...segment, lineIndex: parts[segment.lineIndex].line}))};
-      sceneCache.set(signature, prepared);
-      // Keep a few complete pages for back/replay without retaining the whole book's PCM.
-      for (const [key, asset] of sceneCache) {
-        if (sceneCache.size <= 6) break;
-        if (asset.audio === audio || key === signature) continue;
-        discardScene(key, asset);
-      }
-      return prepared;
-    } catch (error) {
-      if (localUrl) URL.revokeObjectURL(localUrl);
-      if (timedOut) throw new Error("scene_prepare_timeout");
-      throw error;
-    } finally {
-      clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
+      sceneCache.set(signature, asset);
+      // Keep a few pages for back/replay.
+      for (const [key, kept] of sceneCache) {
+        if (sceneCache.size <= 6) break;
+        if (kept.playing || key === signature) continue;
+        discardScene(key, kept);
+      }
+      return asset;
+    } catch (error) {
+      controller.abort();
+      for (const url of asset.urls) if (url) URL.revokeObjectURL(url);
+      signal?.removeEventListener("abort", abort);
+      throw error;
     }
   }
 
-  async function speakPrepared(lines, {key, language, onLine, onSpeak = () => {}, prepared}) {
+  async function speakPrepared(lines, {key, language, onLine, onSpeak, onSentence, prepared}) {
     if (key !== null && key === lastKey) return;
     lastKey = key;
     stopReading();
@@ -444,39 +502,22 @@ const Narration = (() => {
       if (my !== token) return;
       if (asset.invalid) throw new Error("scene_audio_expired");
       if (asset.signature !== sceneSignature(sceneParts(lines), language)) throw new Error("scene_voice_changed");
-      await untilResumed();
-      if (my !== token) return;
+      asset.playing = true;
       firstLineReady();
-      const clip = asset.audio;
-      clip.currentTime = 0;
-      let previousLine = -1, heardLine = -1, playing = false;
-      const highlight = () => {
+      let previousLine = -1;
+      for (let k = 0; k < asset.parts.length; k++) {
+        await untilResumed();
         if (my !== token) return;
-        const now = Number(clip.currentTime) || 0;
-        const segment = asset.segments.find(part => now >= part.start && now < part.end);
-        if (segment && segment.lineIndex !== previousLine) { previousLine = segment.lineIndex; onLine(previousLine); }
-        if (playing && segment && segment.lineIndex !== heardLine) { heardLine = segment.lineIndex; onSpeak(heardLine); }
-      };
-      await new Promise((resolve, reject) => {
-        let settled = false;
-        const done = ok => {
-          if (settled) return;
-          settled = true;
-          clip.pause();
-          clip.ontimeupdate = clip.onended = clip.onerror = null;
-          if (audio === clip) audio = null;
-          if (finish === done) finish = null;
-          ok ? resolve() : reject(new Error("scene_audio_playback_failed"));
-        };
-        audio = clip;
-        finish = done;
-        clip.ontimeupdate = highlight;
-        clip.onended = () => done(true);
-        clip.onerror = () => done(false);
-        highlight();
-        setPlayback("playing", "parent");
-        clip.play().then(() => { playing = true; highlight(); }, () => done(false));
-      });
+        const url = await abortable(asset.loads[k], readingController.signal);   // waits only if not downloaded yet
+        if (my !== token) return;
+        const part = asset.parts[k];
+        const played = await playClip(url, my, CLIP_LOAD_MS, null, () => {
+          if (part.line !== previousLine) { previousLine = part.line; onLine(part.line); onSpeak(part.line); }
+          onSentence(part.line, part.text);
+        });
+        if (my !== token) return;
+        if (!played) throw new Error("scene_audio_playback_failed");
+      }
       if (my === token) { onLine(-1); setPlayback("idle", null); }
     } catch (error) {
       if (my !== token) return;
@@ -484,13 +525,13 @@ const Narration = (() => {
       lastKey = null;
       setPlayback("idle", null);
       throw error;
+    } finally {
+      if (asset) asset.playing = false;
     }
   }
 
-  // onLine: a line is next (its voice may still be on its way). onSpeak: a line is actually heard now, for pictures that
-  // move with the story (story-motion.js); each line once, even if the browser voice takes over from a failed clip.
-  async function speak(lines, {key = null, language = "en", onLine = () => {}, onSpeak = () => {}, scene = false, prepared = null} = {}) {
-    if (scene || prepared) return speakPrepared(lines, {key, language, onLine, onSpeak, prepared});
+  async function speak(lines, {key = null, language = "en", onLine = () => {}, onSpeak = () => {}, onSentence = () => {}, scene = false, prepared = null} = {}) {
+    if (scene || prepared) return speakPrepared(lines, {key, language, onLine, onSpeak, onSentence, prepared});
     if (key !== null && key === lastKey) return;
     lastKey = key;
     stopReading();
@@ -501,27 +542,28 @@ const Narration = (() => {
     const parts = usable.flatMap((line, i) => sentences(String(line.text).trim()).map(text => ({...line, text, line: i})));
     let clips = null;
     if (LANGUAGES.includes(language)) {
-      try { clips = await queue(asLines(parts), {language, signal: readingController.signal}); } catch {}
+      try { clips = await clipsFor(asLines(parts), {language, signal: readingController.signal}); } catch {}
     }
     if (my !== token) return;
     let heard = -1;
-    const announce = line => { if (line !== heard) { heard = line; onSpeak(line); } };
+    const announce = part => {
+      if (part.line !== heard) { heard = part.line; onSpeak(part.line); }
+      onSentence(part.line, part.text);
+    };
     for (let k = 0; k < parts.length; k += 1) {
       await untilResumed();
       if (my !== token) return;
       if (k === 0 || parts[k].line !== parts[k - 1].line) onLine(parts[k].line);
       const clip = clips?.[k];
       const wait = clip?.ready ? 0 : LINE_WAIT;
-      const played = clip ? await playClip(`${server}${clip.url}?wait=${wait}`, my, wait * 1000 + CLIP_LOAD_MS,
-        k === 0 ? firstLineReady : null, () => announce(parts[k].line)) : false;
+      const played = clip ? await playClip(clipUrl(clip, wait), my, wait * 1000 + CLIP_LOAD_MS,
+        k === 0 ? firstLineReady : null, () => announce(parts[k])) : false;
       if (my !== token) return;
       if (!played) {
         if (k === 0) firstLineReady();
         await untilResumed();
         if (my !== token) return;
-        setPlayback("playing", "browser");
-        announce(parts[k].line);
-        await browserSay(parts[k].text, language);
+        await browserSay(parts[k].text, language, () => announce(parts[k]));
       }
     }
     if (my === token) { onLine(-1); setPlayback("idle", null); }
@@ -548,7 +590,7 @@ const Narration = (() => {
     } catch {}
   }
 
-  return {speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+  return {choicePrompt, sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
     playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};

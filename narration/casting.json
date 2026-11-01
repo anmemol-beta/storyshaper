@@ -1,5 +1,7 @@
 {
-  "narrator": {"ref": "voice/ref_clip.wav", "exaggeration": 0.7, "exclaim_exaggeration": 0.7, "cfg_weight": 0.3, "tempo": 0.84},
-  "pig":      {"ref": "voice/ref_clip.wav", "exaggeration": 0.8, "exclaim_exaggeration": 0.8, "cfg_weight": 0.3, "tempo": 0.92},
+  "narrator": {"ref": "voice/characters/narrator_libritts_121.wav", "exaggeration": 0.5, "exclaim_exaggeration": 0.7, "cfg_weight": 0.5, "tempo": 1.0},
+  "pig1":     {"ref": "voice/characters/pig1_libritts_237.wav", "exaggeration": 0.72, "exclaim_exaggeration": 0.72, "cfg_weight": 0.4, "tempo": 1.06},
+  "pig2":     {"ref": "voice/characters/pig2_libritts_5683.wav", "exaggeration": 0.68, "exclaim_exaggeration": 0.68, "cfg_weight": 0.4, "tempo": 1.03},
+  "pig3":     {"ref": "voice/characters/pig3_libritts_4507.wav", "exaggeration": 0.55, "exclaim_exaggeration": 0.55, "cfg_weight": 0.45, "tempo": 0.96},
   "wolf":     {"ref": "voice/characters/wolf_libritts_1188.wav", "exaggeration": 0.7, "exclaim_exaggeration": 0.7, "cfg_weight": 0.5, "tempo": 1.0}
 }

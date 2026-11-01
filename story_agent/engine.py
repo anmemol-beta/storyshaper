@@ -791,6 +791,10 @@ class StoryEngine:
                 labels = keywords[meta["outcome"]][int(korean)]
                 if korean:
                     answers = KOREAN_REFLECTIONS[meta["outcome"]]
+                if material in {"paper", "straw"} and meta["outcome"] == "blown_away":
+                    answers = list(answers)
+                    answers[2] = ("지붕 조각이 날아갔지만 돼지들은 안전하게 비켜섰어요." if korean else
+                                  "Loose roof pieces flew away while the pigs stepped safely aside.")
             choices = [_public_choice(f"{stage}_{i + 1}", label, answer)
                        for i, (label, answer) in enumerate(zip(labels, answers))]
             if material == CUSTOM_MATERIAL:
