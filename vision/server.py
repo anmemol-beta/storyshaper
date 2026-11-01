@@ -9,6 +9,7 @@ import errno
 from http.server import ThreadingHTTPServer
 import os
 import shutil
+import socket
 from urllib.parse import parse_qs, urlsplit
 
 from speech.server import SpeechHandler, SpeechPlayground
@@ -99,7 +100,9 @@ def main():
     except KeyboardInterrupt:
         pass
     except OSError as exc:
-        if exc.errno != errno.EADDRINUSE:
+        with socket.socket() as probe:
+            port_occupied = probe.connect_ex(("127.0.0.1", args.port)) == 0
+        if exc.errno != errno.EADDRINUSE and not (getattr(exc, "winerror", None) == 10013 and port_occupied):
             raise
         parser.exit(1, (
             f"Port {args.port} is already in use.\n"
