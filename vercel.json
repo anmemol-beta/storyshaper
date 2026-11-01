@@ -1,0 +1,17 @@
+{
+  "buildCommand": "rm -rf public && mkdir public && cp -R prototype public/prototype",
+  "outputDirectory": "public",
+  "installCommand": "",
+  "framework": null,
+  "redirects": [
+    {"source": "/", "destination": "/prototype/index.html", "permanent": false},
+    {"source": "/prototype", "destination": "/prototype/index.html", "permanent": false},
+    {"source": "/prototype/", "destination": "/prototype/index.html", "permanent": false}
+  ],
+  "rewrites": [
+    {"source": "/api/:path*", "destination": "https://shj0213--storyshaper-story.us-east.modal.run/api/:path*"}
+  ],
+  "headers": [
+    {"source": "/prototype/(.*)", "headers": [{"key": "Cache-Control", "value": "public, max-age=0, must-revalidate"}]}
+  ]
+}

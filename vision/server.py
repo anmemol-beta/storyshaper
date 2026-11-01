@@ -80,6 +80,7 @@ class VisionServer(ThreadingHTTPServer):
 def main():
     parser = argparse.ArgumentParser(prog="python3 -m src.server", description=__doc__)
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", default="127.0.0.1", help="0.0.0.0 only on the hosted server (deploy/modal_story.py)")
     args = parser.parse_args()
     assert shutil.which("ffmpeg"), "ffmpeg converts browser recordings to WAV; install it first (brew install ffmpeg)."
     load_env(ROOT / ".env")
@@ -91,7 +92,7 @@ def main():
                            media=MediaJobs(image_provider=MuseImageProvider(
                                key, reasoning_strength=os.environ.get("STORY_IMAGE_REASONING_STRENGTH", "low")) if key else None))
     try:
-        with VisionServer(("127.0.0.1", args.port), app) as server:
+        with VisionServer((args.host, args.port), app) as server:
             print(f"Story + media + speech + camera: http://127.0.0.1:{server.server_port}/", flush=True)
             print("Camera, speech and live story: " + ("configured" if key else "not configured; set MODEL_API_KEY in .env"), flush=True)
             with managed_narration():

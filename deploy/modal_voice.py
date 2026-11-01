@@ -44,5 +44,6 @@ def voice():
         " && ln -sfn /data/cache /app/voice/cache && ln -sfn /data/profiles /app/voice/profiles"
         " && cd /app && exec python -m narration.server --host 0.0.0.0 --port 8100",
         shell=True,
-        env={**os.environ, "HF_HOME": "/data/models", "NARRATION_PUBLIC_HOSTS": PUBLIC_HOSTS},
+        env={**os.environ, "HF_HOME": "/data/models", "NARRATION_PUBLIC_HOSTS": PUBLIC_HOSTS,
+             "NARRATION_PUBLIC_ORIGINS": r"^https://storyshaper[-a-z0-9]*\.vercel\.app$"},   # the Vercel site
     )

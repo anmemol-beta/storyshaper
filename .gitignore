@@ -20,3 +20,5 @@ KakaoTalk_Chat_*.csv
 voice/finetune-kit/
 voice/finetune-data/
 voice/finetune-runs/
+public/
+.vercel/

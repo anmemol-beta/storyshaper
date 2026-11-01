@@ -80,6 +80,12 @@ LANGUAGES = ("en", "ko")
 # Queue ranks: the page being opened, the pages that can open next, then the rest of the book.
 PRIORITIES = ("interactive", "ahead", "background")
 LOCAL_ORIGIN = re.compile(r"^http://(127\.0\.0\.1|localhost)(:\d+)?$")
+# NARRATION_PUBLIC_ORIGINS: a pattern for the hosted story pages (deploy/modal_voice.py), e.g. the Vercel site.
+PUBLIC_ORIGIN = re.compile(os.environ.get("NARRATION_PUBLIC_ORIGINS") or r"(?!)")
+
+
+def page_origin(origin):
+    return bool(LOCAL_ORIGIN.match(origin) or PUBLIC_ORIGIN.match(origin))
 AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/([0-9a-f]{16})\.mp3$")
 SCENE_AUDIO = re.compile(r"^/audio/(default|[0-9a-f]{12})/scene-([0-9a-f]{16})\.wav$")
 VOICE_ROUTE = re.compile(r"^/api/voices/([0-9a-f]{12})(?:/(full\.wav|clip|preview|save|train|finetune|sample)(?:/(\d{1,4})(\.wav)?)?)?$")
@@ -272,7 +278,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def cors(self):
         origin = self.headers.get("Origin")
-        if origin and LOCAL_ORIGIN.match(origin):
+        if origin and page_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
 
@@ -298,8 +304,8 @@ class Handler(BaseHTTPRequestHandler):
             self.error(403, "invalid_host", "Use the local server address.")
             return False
         origin = self.headers.get("Origin")
-        if origin and not LOCAL_ORIGIN.match(origin):
-            self.error(403, "invalid_origin", "Only local pages can use this server.")
+        if origin and not page_origin(origin):
+            self.error(403, "invalid_origin", "Only StoryShaper pages can use this server.")
             return False
         return True
 
