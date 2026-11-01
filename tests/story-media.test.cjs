@@ -9,7 +9,8 @@ function setup() {
   const calls = [], states = [], shows = [], timers = new Map();
   let nextTimer = 0;
   const fetch = (url, options) => new Promise((resolve, reject) => {
-    calls.push({url, options, resolve: data => resolve({ok:true, json:async () => data}), reject});
+    calls.push({url, options, resolve: data => resolve({ok:true, json:async () => data}), reject,
+      error: (status, code) => resolve({ok:false, status, json:async () => ({error:{code}})})});
   });
   const transition = {cancel() {}, show:(url, options = {}) => shows.push({url, ...options})};
   const context = vm.createContext({AbortController, Date, setTimeout:(callback, ms) => {
@@ -293,4 +294,28 @@ test('restart while reattaching a failed job cannot trigger late paid regenerati
   assert.equal(calls.filter(call => call.url === '/api/media/jobs').length, 2, 'No paid regeneration after leaving');
   assert.equal(calls.at(-1).url, '/api/media/cancel');
   assert.equal(shows.at(-1).url, 'img/intro.jpg');
+});
+
+test('a job lost to a server restart is asked for again once, never in a loop', async () => {
+  const {player, calls, timers, states, shows} = setup();
+  const state = snapshot();
+  const pending = player.update(state);
+  calls[0].resolve(result(state, {status:'running', generated:false, image:null}));
+  await pending;
+  let poll = [...timers.values()].at(-1).callback();
+  calls[1].error(404, 'job_not_found');           // the restarted server no longer knows the job
+  await flush();
+  assert.equal(calls[2].options.method, 'POST');
+  assert.equal(calls[2].options.body, JSON.stringify({sessionId:'session', sceneId:'scene-1', version:1}));
+  assert.equal(states.at(-1).state, 'generating');
+  assert.equal(states.at(-1).retrying, true);
+  calls[2].resolve(result(state, {jobId:'job-2', status:'running', generated:false, image:null}));
+  await poll;
+  poll = [...timers.values()].at(-1).callback();
+  assert.match(calls[3].url, /^\/api\/media\/jobs\/job-2\?/);
+  calls[3].error(404, 'job_not_found');           // lost again: no endless loop
+  await poll;
+  assert.equal(states.at(-1).state, 'failed');
+  assert.equal(calls.filter(call => call.options.method === 'POST').length, 2);
+  assert.equal(shows.length, 0);
 });

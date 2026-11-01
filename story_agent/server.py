@@ -55,6 +55,24 @@ class Session:
     touched: float = field(default_factory=time.monotonic)
 
 
+SESSION_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+class Sessions(dict):
+    """Sessions in memory. A session missing here is looked up in the saved copies (Playground.restore), so a
+    restarted server (a deploy, or the hosted container sleeping after idle minutes) continues the same story."""
+    def __init__(self, restore):
+        super().__init__()
+        self.restore = restore
+
+    def get(self, session_id, default=None):
+        if session_id not in self and isinstance(session_id, str):
+            session = self.restore(session_id)
+            if session is not None:
+                self[session_id] = session
+        return super().get(session_id, default)
+
+
 class Playground:
     def __init__(self, api_key="", model="muse-spark-1.3", provider_factory=None, *,
                  pipeline="adaptive", compose_reasoning_effort="low", review_reasoning_effort="low",
@@ -69,7 +87,10 @@ class Playground:
         self.compose_reasoning_effort = compose_reasoning_effort
         self.review_reasoning_effort = review_reasoning_effort
         self.structured_output = structured_output
-        self.sessions = {}
+        # STORY_SESSION_DIR: where each session's latest snapshot is saved (deploy/modal_story.py: a Volume).
+        folder = os.environ.get("STORY_SESSION_DIR")
+        self.saved = Path(folder) if folder else None
+        self.sessions = Sessions(self.restore)
         self.lock = threading.Lock()
 
     def config(self):
@@ -82,6 +103,21 @@ class Playground:
         if mode not in ("mock", "live"):
             raise APIError(400, "invalid_mode", "Choose mock or live mode.")
         self._validate_language(language)
+        engine = self.engine(mode, language)
+        session_id = str(uuid.uuid4())
+        snapshot = engine.start(session_id)
+        with self.lock:
+            now = time.monotonic()
+            for key in [key for key, value in self.sessions.items()
+                        if not value.lock.locked() and now - value.touched >= SESSION_TTL]:
+                del self.sessions[key]
+            if len(self.sessions) >= 100:
+                raise APIError(429, "session_limit", "Too many sessions. Restart the local server to clear them.")
+            self.sessions[session_id] = Session(engine, snapshot)
+            self.save(session_id)
+        return deepcopy(snapshot)
+
+    def engine(self, mode, language):
         if mode == "live" and not self.api_key:
             raise APIError(503, "missing_api_key", "Set MODEL_API_KEY on the server, then restart it.")
         provider = (self.provider_factory(mode) if self.provider_factory else
@@ -89,17 +125,34 @@ class Playground:
                                  compose_reasoning_effort=self.compose_reasoning_effort,
                                  review_reasoning_effort=self.review_reasoning_effort,
                                  structured_output=self.structured_output) if mode == "live" else MockProvider())
-        engine = StoryEngine(provider, language, pipeline=self.pipeline)
-        session_id = str(uuid.uuid4())
-        snapshot = engine.start(session_id)
-        with self.lock:
-            now = time.monotonic()
-            self.sessions = {key: value for key, value in self.sessions.items()
-                             if value.lock.locked() or now - value.touched < SESSION_TTL}
-            if len(self.sessions) >= 100:
-                raise APIError(429, "session_limit", "Too many sessions. Restart the local server to clear them.")
-            self.sessions[session_id] = Session(engine, snapshot)
-        return deepcopy(snapshot)
+        return StoryEngine(provider, language, pipeline=self.pipeline)
+
+    def save(self, session_id):
+        """Keep the session's latest approved snapshot. Called with self.lock held after every commit."""
+        if self.saved is None:
+            return
+        session = self.sessions[session_id]
+        self.saved.mkdir(parents=True, exist_ok=True)
+        part = self.saved / f"{session_id}.part"
+        part.write_text(json.dumps({"mode": session.engine._mode(), "turns": session.turns,
+                                    "snapshot": session.snapshot}, ensure_ascii=False), encoding="utf-8")
+        part.replace(self.saved / f"{session_id}.json")
+
+    def restore(self, session_id):
+        """The saved session, if it was used within SESSION_TTL. Its request-ID cache starts empty."""
+        if self.saved is None or not SESSION_ID.match(session_id):
+            return None
+        path = self.saved / f"{session_id}.json"
+        try:
+            if time.time() - path.stat().st_mtime >= SESSION_TTL:
+                return None
+            data = json.loads(path.read_text(encoding="utf-8"))
+            snapshot = data["snapshot"]
+            if snapshot["sessionId"] != session_id:
+                return None
+            return Session(self.engine(data["mode"], snapshot["language"]), snapshot, turns=data["turns"])
+        except (OSError, ValueError, KeyError, TypeError, APIError):
+            return None
 
     @staticmethod
     def _validate_language(language):
@@ -135,6 +188,7 @@ class Playground:
                     raise APIError(409, "turn_cancelled", "This turn was interrupted by page navigation.",
                                    deepcopy(self.sessions[session_id].snapshot))
                 session.snapshot = deepcopy(result)
+                self.save(session_id)
                 session.touched = time.monotonic()
             return deepcopy(result)
         finally:
@@ -187,6 +241,7 @@ class Playground:
                     raise APIError(409, "turn_cancelled", "This turn was interrupted by page navigation.",
                                    deepcopy(self.sessions[session_id].snapshot))
                 session.snapshot = deepcopy(result)
+                self.save(session_id)
                 session.touched = time.monotonic()
                 session.requests[request_id] = (fingerprint, deepcopy(result))
                 if len(session.requests) > 80:
@@ -235,6 +290,7 @@ class Playground:
             while len(replacement.requests) > 80:
                 replacement.requests.popitem(last=False)
             self.sessions[session_id] = replacement
+            self.save(session_id)
             return current
 
 

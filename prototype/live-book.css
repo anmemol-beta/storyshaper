@@ -40,7 +40,7 @@
 .camera-panel video { display: block; max-height: 180px; width: 100%; border-radius: 12px; object-fit: contain; background: #232a24; }
 .camera-panel > div { display: flex; justify-content: center; gap: 8px; margin-top: 6px; }
 .text-panel { overflow: auto; }
-.text-panel > .status { margin: 0; padding: 4px 0; }
+.text-panel .status { margin: 0; padding: 4px 0; }
 .live-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 2; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* Keep reader geometry independent of the legacy demo's landscape/fold rules.
@@ -143,6 +143,28 @@
 .reader-app .live-overlay { overflow-wrap: anywhere; }
 .reader-app .live-overlay button { max-width: 100%; }
 .reader-app :is(button, select, input, a):focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+
+/* The child's turn (.child-turn, set once the question is being read or the reading has stopped): the story text
+   steps back and the question, the ways to answer and the status rise together as one card at the bottom of the
+   screen. The picture stays in view: most questions are about it. */
+.reader-app .ask-card { display: flex; flex-direction: column; gap: 14px; }
+.reader-app .ask-card > * { min-width: 0; flex-shrink: 0; }
+.reader-app .live-narrative { transition: opacity 300ms ease; }
+.reader-app .book.child-turn .live-narrative { opacity: .45; }
+.reader-app .book.child-turn .ask-card {
+  position: sticky; bottom: max(10px, var(--safe-b)); z-index: 3;
+  padding: clamp(16px, 2.4vw, 24px); border-radius: var(--radius-card);
+  background: var(--bg-story); border: 3px solid var(--accent-question);
+  box-shadow: 0 -6px 30px rgb(82 64 38 / 18%), var(--shadow-book);
+  animation: ask-rise 380ms cubic-bezier(.2, .8, .2, 1);
+}
+.reader-app .book.child-turn .live-question { font-size: clamp(21px, 2.6vw, 30px); }
+.reader-app .book.child-turn .live-question.speaking { background: none; }
+@keyframes ask-rise { from { transform: translateY(28px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .reader-app .book.child-turn .ask-card { animation: none; }
+  .reader-app .live-narrative { transition: none; }
+}
 
 /* A two-page spread when both columns have room; short windows scroll as one page. */
 @media (min-width: 600px) and (min-aspect-ratio: 4/3), (min-width: 1180px) {

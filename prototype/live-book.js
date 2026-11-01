@@ -126,6 +126,7 @@
       : playback === "playing" ? browserVoice ? t("Reading with the browser voice", "기본 음성으로 읽는 중")
         : t("Reading aloud", "읽는 중")
       : "";
+    syncTurn();
   }
 
   function stopNarration() {
@@ -400,6 +401,14 @@
   function highlight(index) {
     [...ui.narrative.children].forEach((paragraph, i) => paragraph.classList.toggle("speaking", i === index));
     ui.question.classList.toggle("speaking", index === ui.narrative.children.length);
+    syncTurn();
+  }
+
+  // The answer card rises when the reading reaches the question, or when nothing is being read.
+  function syncTurn() {
+    const asking = ["ASKING", "LISTENING"].includes(ui.book.dataset.state) && !reviewing();
+    const reading = ["playing", "loading"].includes(playback) && !ui.question.classList.contains("speaking");
+    ui.book.classList.toggle("child-turn", asking && !reading);
   }
 
   function passageLines(state) {
