@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import os
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -880,6 +881,33 @@ class HttpTest(unittest.TestCase):
         self.assertTrue(json.loads(self.request("POST", f"/api/voices/{vid}/train/1002", {"excluded": True})[2])["excluded"])
         self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1003", {"excluded": True})[0], 404)
         self.assertEqual(self.request("POST", f"/api/voices/{vid}/train/1001", {"text": ""})[0], 400)
+
+    def test_on_the_hosted_address_a_saved_voice_answers_only_to_its_key(self):
+        public = "voice.example"
+        with patch.dict(os.environ, {"NARRATION_PUBLIC_HOSTS": public}):
+            hosted = lambda method, path, body=None, key=None, **kw: self.request(
+                method, path, body, headers={"Host": public, **({"X-Voice-Key": key} if key else {}), **kw.pop("headers", {})}, **kw)
+            # A voice made on this computer before keys existed: the hosted pages never see it.
+            self.request("POST", "/api/voices", raw=self.wav.read_bytes(), headers={"Content-Type": "audio/wav"})
+            status, _, body = hosted("POST", "/api/voices", raw=self.wav.read_bytes(), headers={"Content-Type": "audio/wav"})
+            self.assertEqual(status, 201)
+            draft = json.loads(body)
+            vid, key = draft["id"], f"{draft['id']}:{draft['key']}"
+            self.assertNotIn("owner", draft)
+            self.assertEqual(hosted("POST", f"/api/voices/{vid}/clip", draft["suggestions"][0])[0], 404)
+            self.assertEqual(hosted("POST", f"/api/voices/{vid}/clip", draft["suggestions"][0], key)[0], 200)
+            self.assertEqual(hosted("POST", f"/api/voices/{vid}/save", {"name": "Dad", "relation": "me", "attested": True}, key)[0], 200)
+            listed = lambda key=None: [v["id"] for v in json.loads(hosted("GET", "/api/voices", key=key)[2])["voices"]]
+            self.assertEqual(listed(), ["000000007127"])
+            self.assertEqual(listed(f"{vid}:wrong"), ["000000007127"])
+            self.assertEqual(listed(f"other:x,{key}"), ["000000007127", vid])
+            line = {"voiceId": vid, "lines": [{"speakerId": "narrator", "text": "Once."}]}
+            self.assertEqual(hosted("POST", "/api/voice/lines", line)[0], 404)
+            self.assertEqual(hosted("POST", "/api/voice/lines", line, key)[0], 200)
+            self.assertEqual(hosted("DELETE", f"/api/voices/{vid}")[0], 404)
+            self.assertEqual(len(self.saved_voices()), 1, "the local server still sees every saved voice")
+            self.assertEqual(hosted("DELETE", f"/api/voices/{vid}", key=key)[0], 200)
+            self.assertEqual(self.saved_voices(), [])
 
     def test_preflight_allows_local_origin_only(self):
         status, headers, _ = self.request("OPTIONS", "/api/voice/lines", headers={"Origin": "http://localhost:5173"})

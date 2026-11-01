@@ -8,8 +8,11 @@ A profile lives in voice/profiles/<id>/ (git-ignored):
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -193,6 +196,10 @@ def clip_quality(clip, sr, whole):
             "ok": not problems, "problems": problems}
 
 
+def key_hash(key):
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
 class VoiceLibrary:
     def __init__(self, root, transcribe):
         self.root, self.transcribe = Path(root), transcribe
@@ -229,7 +236,8 @@ class VoiceLibrary:
             samples, sr = read_wav(folder / "full.wav")
             if len(samples) < sr * CLIP_MIN:
                 raise VoiceError(400, "too_short", f"The recording needs at least {CLIP_MIN:.0f} seconds of audio.")
-            meta = {"id": voice_id, "status": "draft", "createdAt": int(time.time()),
+            key = secrets.token_urlsafe(24)
+            meta = {"id": voice_id, "status": "draft", "createdAt": int(time.time()), "owner": key_hash(key),
                     "source": "video" if content_type.startswith("video/") else "audio",
                     "sourceSeconds": round(len(samples) / sr, 1)}
             if check_consent:
@@ -241,7 +249,13 @@ class VoiceLibrary:
         except Exception:
             shutil.rmtree(folder, ignore_errors=True)
             raise
-        return {**meta, "suggestions": suggest_clips(samples, sr)}
+        # The key is shown once: on the hosted server only the browser holding it can list, use or delete the voice.
+        return {**{k: v for k, v in meta.items() if k != "owner"}, "key": key, "suggestions": suggest_clips(samples, sr)}
+
+    def owned(self, voice_id, key):
+        """True when key is the one given when this voice was made. Voices made before keys existed have none."""
+        owner = self.meta(voice_id).get("owner")
+        return bool(owner and isinstance(key, str) and hmac.compare_digest(owner, key_hash(key)))
 
     def choose(self, voice_id, start, end):
         """Cut the clip, check its quality and transcribe it with Muse Voice Transcribe."""
