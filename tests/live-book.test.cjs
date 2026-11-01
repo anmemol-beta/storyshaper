@@ -233,8 +233,10 @@ test('the answer card rises only once the reading reaches the question or stops'
   const raised = () => h.element('book').classList.contains('child-turn');
   assert.equal(h.settings.playback, 'playing');
   assert.equal(raised(), false, 'while the passage is read the story text keeps the focus');
+  assert.equal(h.element('book').classList.contains('card-waiting'), true, 'the question card is not shown yet');
   h.narrations.at(-1).options.onLine(h.element('narrative').children.length);   // reading the question
   assert.equal(raised(), true);
+  assert.equal(h.element('book').classList.contains('card-waiting'), false, 'it pops up with the question');
   h.narrations.at(-1).options.onLine(0);
   assert.equal(raised(), false);
   h.playback('idle');
