@@ -43,9 +43,9 @@ jobs:
         if: steps.changed.outputs.story == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           modal deploy deploy/modal_story.py
-          modal container list --json | python -c "import json,sys;[print(c['Container ID']) for c in json.load(sys.stdin) if c.get('App Name')=='storyshaper-story']" | xargs -r -n1 modal container stop -y
+          modal container list --json | python -c "import json,sys;[print(c['container_id']) for c in json.load(sys.stdin) if c.get('app_name')=='storyshaper-story']" | xargs -r -n1 modal container stop -y
       - name: Voice server
         if: steps.changed.outputs.voice == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           modal deploy deploy/modal_voice.py
-          modal container list --json | python -c "import json,sys;[print(c['Container ID']) for c in json.load(sys.stdin) if c.get('App Name')=='storyshaper-voice']" | xargs -r -n1 modal container stop -y
+          modal container list --json | python -c "import json,sys;[print(c['container_id']) for c in json.load(sys.stdin) if c.get('app_name')=='storyshaper-voice']" | xargs -r -n1 modal container stop -y
