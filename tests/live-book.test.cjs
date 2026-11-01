@@ -597,7 +597,7 @@ test('exhausted retries or missing generation cannot leave a useless retry butto
     await h.submit();
     assert.equal(h.element('retryMedia').hidden, true);
     assert.equal(h.element('retryMedia').disabled, true);
-    assert.match(h.element('status').textContent, /▶/);
+    assert.match(h.element('status').textContent, /Restart the story/);
     const count = h.calls.length;
     await h.element('retryMedia').onclick();
     assert.equal(h.calls.length, count);
