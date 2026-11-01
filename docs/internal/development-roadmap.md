@@ -763,3 +763,9 @@
 - **대기 시간:** 에이전트 15~30초와 그림 12~20초가 순서대로 이어지면 한 턴이 30초를 넘을 수 있다. 서로 다른 실험의 수치이므로 통합 후 다시 잰다.
 - **모델 표현 한계:** "비닐"을 못 알아들음, "시멘트"를 "모르타르"로 바꿈, 아이의 예측에 공감만 하고 결론으로 넘어감(지호님 관찰, 한국어).
 - **공동 작업 시간 부족:** 금요일 밤 이후 넷이 함께 일할 시간이 없다. 통합 결과와 막힌 점은 카톡에 바로 공유한다.
+
+### Block progression after image-generation failure or timeout (2026-11-01 user requirement)
+
+- Keep the current scene and question when image generation fails or times out. Do not advance to the next scene or accept an answer while the required image is unavailable.
+- Offer image retry when possible; otherwise show recovery guidance on the current scene.
+- Disable page navigation that can bypass the pending scene while image generation is in a failed state. A timeout must reach a failure state within a finite period, never wait forever.

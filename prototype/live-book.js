@@ -100,8 +100,10 @@
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? scenePreparation && !scenePreparation.audioReady ? "VOICING" : "DRAWING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
-    ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0);
-    ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question);
+    ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0)
+      || Boolean(pending && scenePreparation?.waitForImage && scenePreparation.imageFailure);
+    ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question)
+      || Boolean(pending && scenePreparation?.waitForImage && scenePreparation.imageFailure);
     syncPlayback();
   }
 
@@ -711,6 +713,7 @@
     } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
       if (scenePreparation) {
         scenePreparation.imageFailure = result;
+        syncControls(); // A failed image cannot be skipped by advancing to the next scene.
         if (!scenePreparation.audioReady) return;
       }
       ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");
@@ -718,8 +721,8 @@
       ui.retryMedia.hidden = result.retryable === false;
       ui.retryMedia.disabled = result.retryable === false;
       say(result.retryable === false
-        ? t("Couldn't finish the picture. Tap ▶ to keep reading.", "그림을 완성하지 못했어요. ▶를 누르면 계속 읽을 수 있어요.")
-        : t("Reload the picture, or tap ▶ to keep reading.", "그림을 다시 불러오거나 ▶를 눌러 계속 읽을 수 있어요."));
+        ? t("Couldn't finish the picture. Restart the story to try again.", "그림을 완성하지 못했어요. 이야기를 다시 시작해 주세요.")
+        : t("Reload the picture to continue.", "계속하려면 그림을 다시 불러와 주세요."));
       syncControls(); // A failed live generation's substitute picture keeps the next turn locked.
     }
   }
