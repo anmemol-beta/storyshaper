@@ -1,0 +1,51 @@
+# Deploy the Modal servers when their code changes on main (Vercel deploys the pages by itself).
+# Needs the repository secrets MODAL_TOKEN_ID and MODAL_TOKEN_SECRET.
+name: Deploy Modal servers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "vision/**"
+      - "speech/**"
+      - "story_agent/**"
+      - "media/**"
+      - "narration/**"
+      - "prototype/**"
+      - "voice/ref_clip.wav"
+      - "voice/characters/**"
+      - "deploy/**"
+  workflow_dispatch:
+
+concurrency: modal-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changed
+        with:
+          filters: |
+            story: ["src/**", "vision/**", "speech/**", "story_agent/**", "media/**", "narration/**", "prototype/**", "deploy/modal_story.py"]
+            voice: ["narration/**", "story_agent/**", "prototype/audio/training-sentences.json", "voice/ref_clip.wav", "voice/characters/**", "deploy/modal_voice.py"]
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install modal==1.6.3
+      # A running container keeps the old code until it stops, so stop it after each deploy.
+      - name: Story server
+        if: steps.changed.outputs.story == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          modal deploy deploy/modal_story.py
+          modal container list --json | python -c "import json,sys;[print(c['Container ID']) for c in json.load(sys.stdin) if c.get('App Name')=='storyshaper-story']" | xargs -r -n1 modal container stop -y
+      - name: Voice server
+        if: steps.changed.outputs.voice == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          modal deploy deploy/modal_voice.py
+          modal container list --json | python -c "import json,sys;[print(c['Container ID']) for c in json.load(sys.stdin) if c.get('App Name')=='storyshaper-voice']" | xargs -r -n1 modal container stop -y
