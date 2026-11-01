@@ -224,6 +224,18 @@ class LanguageTests(unittest.TestCase):
         self.assertEqual(result['diagnostics']['phase'], 'compose')
         self.assertEqual(result['storyState'], predict['storyState'])
 
+    def test_korean_line_with_a_misgenerated_syllable_is_not_read_to_the_child(self):
+        # Seen on the hosted AI version: "봐야 해 볼까" came back as "뷔야 해 볼껈".
+        def broken(result):
+            result['lines'][0]['text'] = '날아갈 것 같구나! 자, 뷔야 해 볼껈.'
+            return result
+        engine = StoryEngine(MockProvider(), 'ko')
+        predict = engine.answer(engine.start('broken'), '종이')
+        result = StoryEngine(RecordingProvider(broken), 'ko').answer(predict, '날아갈 것 같아')
+        self.assertEqual(result['decision'], 'service_error')
+        self.assertEqual(result['storyState'], predict['storyState'])
+        self.assertNotIn('볼껈', str(result['lines']))
+
     def test_unsupported_language_is_explicit(self):
         for language in ('fr', None, ['ko']):
             with self.subTest(language=language), self.assertRaises(ValueError):
