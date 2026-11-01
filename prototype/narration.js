@@ -435,7 +435,8 @@ const Narration = (() => {
     for (let attempt = 0; attempt < LINE_TRIES; attempt++) {
       let response;
       try {
-        response = await abortable(fetch(`${server}${url}?wait=${LINE_WAIT}`, {signal}), signal);
+        // no-store: a copy cached from an <audio> tag (the voice's sample is the story's first line) has no CORS header.
+        response = await abortable(fetch(`${server}${url}?wait=${LINE_WAIT}`, {signal, cache: "no-store"}), signal);
       } catch (error) {
         // A brief hosting-gateway error reaches the page as a network error (its reply carries no CORS header),
         // though the line is fine on the server: ask again shortly, twice at most.

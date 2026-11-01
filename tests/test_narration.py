@@ -909,6 +909,16 @@ class HttpTest(unittest.TestCase):
             self.assertEqual(hosted("DELETE", f"/api/voices/{vid}", key=key)[0], 200)
             self.assertEqual(self.saved_voices(), [])
 
+    def test_a_clip_loaded_without_origin_is_not_reused_for_a_page_fetch(self):
+        # voice.html plays the sample (the story's first line) with an <audio> tag, without an Origin; the reader then
+        # fetch()es the same clip. Without Vary the browser served the cached copy that has no CORS header.
+        clips = json.loads(self.request("POST", "/api/voice/lines", {"lines": [{"speakerId": "narrator", "text": "Once."}]})[2])["clips"]
+        status, headers, _ = self.request("GET", clips[0]["url"] + "?wait=5")
+        self.assertEqual((status, headers.get("Vary")), (200, "Origin"))
+        self.assertNotIn("Access-Control-Allow-Origin", headers)
+        status, headers, _ = self.request("GET", clips[0]["url"], headers={"Origin": "http://127.0.0.1:8000"})
+        self.assertEqual((headers.get("Vary"), headers.get("Access-Control-Allow-Origin")), ("Origin", "http://127.0.0.1:8000"))
+
     def test_preflight_allows_local_origin_only(self):
         status, headers, _ = self.request("OPTIONS", "/api/voice/lines", headers={"Origin": "http://localhost:5173"})
         self.assertEqual(status, 204)
