@@ -151,6 +151,7 @@
 .reader-app .ask-card > * { min-width: 0; flex-shrink: 0; }
 .reader-app .live-narrative { transition: opacity 300ms ease; }
 .reader-app .book.child-turn .live-narrative { opacity: .45; }
+.reader-app .book.card-waiting .ask-card { display: none; }   /* until the reading reaches the question */
 .reader-app .book.child-turn .ask-card {
   position: sticky; bottom: max(10px, var(--safe-b)); z-index: 3;
   padding: clamp(16px, 2.4vw, 24px); border-radius: var(--radius-card);

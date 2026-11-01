@@ -418,11 +418,15 @@
     syncTurn();
   }
 
-  // The answer card rises when the reading reaches the question, or when nothing is being read.
+  // The answer card stays away while the passage is read and pops up when the reading reaches the question, or when
+  // nothing is being read. Touch choices come up at once: their reading names them.
   function syncTurn() {
-    const asking = ["ASKING", "LISTENING"].includes(ui.book.dataset.state) && !reviewing();
-    const reading = ["playing", "loading"].includes(playback) && !ui.question.classList.contains("speaking");
-    ui.book.classList.toggle("child-turn", asking && !reading);
+    const page = ["ASKING", "LISTENING", "PAINTING"].includes(ui.book.dataset.state) && !reviewing();
+    const reading = ["playing", "loading"].includes(playback) && !ui.question.classList.contains("speaking")
+      && !choiceOnly(displayed);
+    const turn = page && ui.book.dataset.state !== "PAINTING" && !reading;
+    ui.book.classList.toggle("child-turn", turn);
+    ui.book.classList.toggle("card-waiting", page && !turn);
   }
 
   function passageLines(state) {
