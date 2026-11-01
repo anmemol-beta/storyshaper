@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import re
 from pathlib import Path
 import threading
 import time
@@ -267,10 +268,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def guard(self):
         allowed_hosts = {f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"}
-        if self.headers.get("Host") not in allowed_hosts:
+        # STORY_PUBLIC_HOSTS / STORY_PUBLIC_ORIGINS: the hosted server and the pages that proxy to it (deploy/modal_story.py).
+        public = {h.strip() for h in os.environ.get("STORY_PUBLIC_HOSTS", "").split(",") if h.strip()}
+        if self.headers.get("Host") not in allowed_hosts | public:
             raise APIError(403, "invalid_host", "Use the local server address.")
         origin = self.headers.get("Origin")
-        if origin and origin not in {"http://" + host for host in allowed_hosts}:
+        pages = os.environ.get("STORY_PUBLIC_ORIGINS")
+        if origin and origin not in {"http://" + host for host in allowed_hosts} and not (pages and re.match(pages, origin)):
             raise APIError(403, "invalid_origin", "Open the playground from the local server.")
 
     def do_GET(self):
