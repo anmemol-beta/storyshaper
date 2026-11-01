@@ -101,7 +101,8 @@
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
     ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0);
-    ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question);
+    ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question)
+      || Boolean(pending && scenePreparation?.waitForImage && scenePreparation.imageFailure);
     syncPlayback();
   }
 
@@ -711,6 +712,7 @@
     } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
       if (scenePreparation) {
         scenePreparation.imageFailure = result;
+        syncControls(); // A failed image cannot be skipped by advancing to the next scene.
         if (!scenePreparation.audioReady) return;
       }
       ui.retryMedia.textContent = t("Reload picture", "그림 다시 불러오기");

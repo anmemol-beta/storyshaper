@@ -808,19 +808,26 @@ test('page navigation handles image failure and ending boundaries without changi
   assert.equal(h.element('nextPage').disabled, true);
 });
 
-test('next interrupts running or failed pictures and immediately opens the approved next page', async () => {
+test('next interrupts a running picture but cannot skip a failed picture', async () => {
   for (const failed of [false, true]) {
     const h = await harness(); await h.start();
     const next = accepted(); h.settings.answer = next;
     h.settings.media = imageResult(next, {status:failed ? 'failed' : 'running', image:null, generated:false});
     await h.submit();
-    assert.equal(h.element('nextPage').disabled, false, 'A picture must never trap manual navigation');
+    assert.equal(h.element('nextPage').disabled, failed, 'Failed art cannot be skipped');
     await h.element('nextPage').onclick(); await flush();
-    assert.equal(h.element('question').textContent, next.question.text);
-    assert.equal(h.element('loading').hidden, true);
-    assert.equal(h.element('send').disabled, false);
-    assert.equal(h.calls.filter(call => call.url === '/api/media/cancel').length, 1);
-    assert.match(h.element('status').textContent, /picture/i, 'Skipped art must be explained');
+    if (failed) {
+      assert.equal(h.element('question').textContent, 'What material?');
+      assert.equal(h.element('send').disabled, true, 'Answers remain locked until the failed picture is retried');
+      assert.equal(h.calls.filter(call => call.url === '/api/media/cancel').length, 0);
+      assert.match(h.element('status').textContent, /picture/i);
+    } else {
+      assert.equal(h.element('question').textContent, next.question.text);
+      assert.equal(h.element('loading').hidden, true);
+      assert.equal(h.element('send').disabled, false);
+      assert.equal(h.calls.filter(call => call.url === '/api/media/cancel').length, 1);
+      assert.match(h.element('status').textContent, /picture/i, 'Skipped art must be explained');
+    }
   }
 });
 
