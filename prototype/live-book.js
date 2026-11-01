@@ -9,7 +9,7 @@
     "loading", "loadingText", "retryMedia", "addVoice", "voiceSelect", "voiceSelectLabel", "voiceSelectStatus",
     "narrationControls", "playNarration", "pauseNarration", "narrationStatus",
     "pageNavigation", "previousPage", "nextPage", "pictureNotice",
-    "manageVoices", "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
+    "manageVoices", "micLabel", "typeAnswer", "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
   const say = message => { ui.status.textContent = message; };
@@ -19,13 +19,14 @@
   let restartOnRetry = false; // The picture can never come (e.g. the server restarted): the button starts over.
   let requestController = null, inputController = null, inputToken = 0, recording = null, camera = null;
   let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
-  let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "en" ? "en" : "ko";
+  let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "ko" ? "ko" : "en"; // English until Korean is chosen
   let savedVoices = [], voiceListLoading = false, voiceListRequest = 0;
   let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
   let advancePayload = null;
   let scenePreparation = null, preparedPassage = null, stagedPicture = null, pictureSerial = 0;
   // A page whose words and voice are ready before its picture: it is read now, and answering waits for the picture.
   let pictureWait = null;
+  let typing = false; // the grown-up's typing box, opened with "Type it"
   let cueCover = null, cueCoverTimer = null;
   let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
@@ -73,8 +74,17 @@
     const locked = !canAnswer();
     const visible = displayed || snapshot;
     const choices = !reviewing() && choiceOnly(visible);
-    ui.freeInput.hidden = !visible?.question || choices || reviewing();
+    // Speaking (or picking, offline) is the child's answer; the typing box opens on request, or by itself when the
+    // AI version has nothing to listen with.
+    const mustType = selectedMode === "live" && !voiceSupported();
     ui.inputActions.hidden = !visible?.question || choices || reviewing();
+    ui.freeInput.hidden = ui.inputActions.hidden || (!mustType && !typing);
+    ui.typeAnswer.hidden = mustType;
+    ui.typeAnswer.setAttribute("aria-expanded", String(!ui.freeInput.hidden));
+    ui.typeAnswer.textContent = typing ? t("⌨️ Close typing", "⌨️ 글쓰기 닫기") : t("⌨️ Type it", "⌨️ 글로 쓰기");
+    ui.micLabel.hidden = selectedMode === "mock";
+    ui.micLabel.textContent = activity === "recording" ? t("Listening… tap when you're done", "듣고 있어… 다 말하면 눌러 줘")
+      : t("Answer by speaking", "말로 대답하기");
     ui.answer.disabled = locked || choices;
     ui.send.disabled = locked || choices;
     ui.mic.disabled = choices || (activity === "recording" ? false : locked);
@@ -939,6 +949,11 @@
   }
 
   ui.send.onclick = () => answer(ui.answer.value);
+  ui.typeAnswer.onclick = () => {
+    typing = !typing;
+    syncControls();
+    if (typing && !ui.answer.disabled) ui.answer.focus?.();
+  };
   ui.answer.onkeydown = event => {
     if (event.key === "Enter") { event.preventDefault(); return answer(ui.answer.value); }
   };
