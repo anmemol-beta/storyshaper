@@ -768,4 +768,4 @@
 
 - Keep the current scene and question when image generation fails or times out. Do not advance to the next scene or accept an answer while the required image is unavailable.
 - Offer image retry when possible; otherwise show recovery guidance on the current scene.
-- Disable manual next-page navigation while image generation is in a failed state. A timeout must reach a failure state within a finite period, never wait forever.
+- Disable page navigation that can bypass the pending scene while image generation is in a failed state. A timeout must reach a failure state within a finite period, never wait forever.

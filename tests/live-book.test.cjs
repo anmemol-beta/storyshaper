@@ -817,6 +817,8 @@ test('next interrupts a running picture but cannot skip a failed picture', async
     assert.equal(h.element('nextPage').disabled, failed, 'Failed art cannot be skipped');
     await h.element('nextPage').onclick(); await flush();
     if (failed) {
+      assert.equal(h.element('previousPage').disabled, true, 'History cannot bypass a failed image');
+      h.element('previousPage').onclick();
       assert.equal(h.element('question').textContent, 'What material?');
       assert.equal(h.element('send').disabled, true, 'Answers remain locked until the failed picture is retried');
       assert.equal(h.calls.filter(call => call.url === '/api/media/cancel').length, 0);
