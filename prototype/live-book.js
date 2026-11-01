@@ -24,6 +24,8 @@
   let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
   let advancePayload = null;
   let scenePreparation = null, preparedPassage = null, stagedPicture = null, pictureSerial = 0;
+  // A page whose words and voice are ready before its picture: it is read now, and answering waits for the picture.
+  let pictureWait = null;
   let cueCover = null, cueCoverTimer = null;
   let playback = typeof Narration !== "undefined" ? Narration.playbackState?.() || "idle" : "idle";
   ui.language.value = selectedLanguage;
@@ -62,7 +64,7 @@
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
   const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
-  const canAnswer = () => configured && activity === "idle" && !pending && !cueCover
+  const canAnswer = () => configured && activity === "idle" && !pending && !pictureWait && !cueCover
     && displayed === snapshot && Boolean(snapshot?.question);
   const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
   const cameraSupported = () => typeof CameraInput !== "undefined" && CameraInput.supported();
@@ -85,7 +87,7 @@
     ui.cameraButton.disabled = locked || choices;
     ui.choices.hidden = !choices;
     for (const button of ui.choices.children) button.disabled = locked;
-    ui.language.disabled = ui.mode.disabled = !configured || activity !== "idle" || Boolean(pending);
+    ui.language.disabled = ui.mode.disabled = !configured || activity !== "idle" || Boolean(pending || pictureWait);
     ui.language.disabled ||= reviewing();
     ui.cover.disabled = !configured || activity !== "idle" || Boolean(pending);
     for (const button of ui.languageCards.children || []) {
@@ -99,12 +101,13 @@
     ui.restart.disabled = !configured;
     ui.book.setAttribute("aria-busy", String(Boolean(pending) || ["request", "navigation"].includes(activity)));
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? scenePreparation && !scenePreparation.audioReady ? "VOICING" : "DRAWING"
+      : pictureWait ? "PAINTING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
-    ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending);
+    ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending || pictureWait);
     ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0)
-      || Boolean(pending && scenePreparation?.waitForImage && scenePreparation.imageFailure);
+      || Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure);
     ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question)
-      || Boolean(pending && scenePreparation?.waitForImage && scenePreparation.imageFailure);
+      || Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure);
     syncPlayback();
   }
 
@@ -203,6 +206,7 @@
     stopVideo();
     motion?.stop();
     clearCueCover();
+    pictureWait = null;
     if (scenePreparation) {
       scenePreparation.cancelled = true;
       clearTimeout(scenePreparation.timer);
@@ -430,10 +434,12 @@
   function finishPresentation(preparation) {
     if (scenePreparation === preparation && preparation.epoch === epoch && !preparation.cancelled
         && preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
-    if (!preparationLive(preparation) || !preparation.audioReady || (preparation.waitForImage && !preparation.imageReady)) return;
+    if (!preparationLive(preparation) || !preparation.audioReady) return;
+    if (preparation.waitForImage && !preparation.imageReady) return readBeforePicture(preparation);
     clearTimeout(preparation.timer);
     scenePreparation = null;
     pending = null;
+    pictureWait = null;
     ui.loading.hidden = true;
     ui.retryMedia.hidden = true;
     preparedPassage = preparation.asset ? {key: preparation.key, asset: preparation.asset} : null;
@@ -453,6 +459,24 @@
     }
   }
 
+  // Reading the passage takes about as long as drawing its picture, so the words and voice come first. The previous
+  // picture stays, with a note that the new one is coming; answering opens when it arrives (finishPresentation).
+  function readBeforePicture(preparation) {
+    if (pictureWait === preparation) return;
+    clearTimeout(preparation.timer);
+    pictureWait = preparation;
+    pending = null;
+    preparedPassage = preparation.asset ? {key: preparation.key, asset: preparation.asset} : null;
+    render(preparation.state, {remember: preparation.remember});
+    if (preparation.imageFailure) return mediaState(preparation.imageFailure);
+    ui.loading.hidden = false;
+    ui.retryMedia.hidden = true;
+    ui.loadingText.textContent = t("🎨 Swish, swish… the picture is being painted!", "🎨 쓱쓱 싹싹, 그림을 그리고 있어!");
+    say(t("Listen to the story while you wait. You can answer when the picture is ready!",
+      "이야기를 들으면서 기다려 줘. 그림이 완성되면 대답할 수 있어!"));
+    syncControls();
+  }
+
   function narrationReady(preparation, asset) {
     if (scenePreparation !== preparation || preparation.epoch !== epoch || preparation.cancelled) return;
     if (preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
@@ -462,12 +486,7 @@
     preparation.audioReady = true;
     preparation.failed = false;
     if (stagedPicture?.preparation === preparation) stagedPicture.reveal();
-    if (!preparation.waitForImage) finishPresentation(preparation);
-    else if (preparation.imageFailure) mediaState(preparation.imageFailure);
-    else {
-      ui.loadingText.textContent = t("Loading your picture…", "그림을 불러오고 있어요…");
-      syncControls();
-    }
+    finishPresentation(preparation); // without its picture yet: read now (readBeforePicture)
   }
 
   // Why a page's voice is missing decides what the parent is told: the voice server could not be reached,
@@ -549,6 +568,7 @@
 
   function preparePresentation(state, {remember = true, image = displayedImage, waitForImage = false,
     after = null, deferAudio = false} = {}) {
+    pictureWait = null;
     if (scenePreparation) {
       scenePreparation.cancelled = true;
       clearTimeout(scenePreparation.timer);
@@ -691,7 +711,7 @@
     }
     if (!translationOnly && state.mediaPlan && ["accept", "complete"].includes(state.decision)) {
       preparePresentation(state, {waitForImage: true});
-      if (scenePreparation?.audioReady) {
+      if (scenePreparation?.audioReady && !pictureWait) {
         ui.loadingText.textContent = t("Drawing your next page…", "다음 그림을 그리고 있어요…");
         say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
       }
@@ -701,9 +721,10 @@
   }
 
   function mediaState(result) {
-    if (!pending) return;
+    if (!pending && !pictureWait) return;
     if (["generating", "loading"].includes(result.state)) {
       if (scenePreparation && !scenePreparation.audioReady) return;
+      if (pictureWait && !result.retrying) return; // keep the painting note
       ui.retryMedia.hidden = true;
       ui.retryMedia.disabled = true;
       ui.loadingText.textContent = result.retrying
@@ -712,7 +733,7 @@
       return;
     }
     const prepared = result.state === "prepared";
-    const ready = pending.providerMode === "live"
+    const ready = (pending || pictureWait.state).providerMode === "live"
       ? result.state === "generated" || (prepared && result.source === "prepared_choice") : prepared;
     if (ready) {
       const preparation = scenePreparation;
@@ -795,7 +816,7 @@
 
   function showPage(target) {
     if (target < 0 || target >= pages.length) return;
-    cancelWork({server: Boolean(pending)});
+    cancelWork({server: Boolean(pending || pictureWait)});
     const token = epoch, page = pages[target];
     pageIndex = target;
     ui.language.value = page.state.language;
@@ -835,8 +856,8 @@
   ui.nextPage.onclick = () => {
     if (ui.nextPage.disabled) return;
     if (!snapshot) return begin();
-    if (pending) {
-      rememberPage(pending, null);
+    if (pending || pictureWait) {   // skip the picture still being drawn; the question stays
+      rememberPage(pending || pictureWait.state, null);
       latestDraft = "";
       return showPage(pages.length - 1);
     }
@@ -1006,12 +1027,12 @@
 
   ui.retryMedia.onclick = () => {
     if (restartOnRetry && !ui.retryMedia.disabled) { restartOnRetry = false; return begin(); }
-    if (!pending || ui.retryMedia.disabled) return;
+    if ((!pending && !pictureWait) || ui.retryMedia.disabled) return;
     if (scenePreparation?.failed) return prepareAudio(scenePreparation, {retry: true});
     ui.retryMedia.hidden = true;
     ui.retryMedia.disabled = true;
     ui.loadingText.textContent = t("Loading the picture…", "그림을 다시 불러오고 있어요…");
-    media.retry(pending);
+    media.retry(pending || pictureWait.state);
   };
   ui.restart.onclick = ui.cover.onclick = begin;
   for (const button of ui.languageCards.children || []) button.onclick = () => {
@@ -1088,9 +1109,7 @@
         preparation.failed = false;
         preparation.asset = null;
         if (stagedPicture?.preparation === preparation) stagedPicture.reveal();
-        if (!preparation.waitForImage) finishPresentation(preparation);
-        else if (preparation.imageFailure) mediaState(preparation.imageFailure);
-        else syncControls();
+        finishPresentation(preparation);
       }
     } else if (displayed && !pending) {
       replay++;
