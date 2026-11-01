@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from story_agent.server import APIError, Handler, MAX_BODY, Playground, SESSION_TTL
 from .contracts import InvalidPlan
-from .jobs import JobError, MediaJobs
+from .jobs import JobError, MediaJobs, fixed_followers
 
 
 class MediaPlayground(Playground):
@@ -65,7 +65,10 @@ class MediaPlayground(Playground):
                 raise APIError(409, 'stale_snapshot', 'Use the current story snapshot.')
             if snapshot['diagnostics'].get('manualNavigation', {}).get('skippedPicture'):
                 return {'status': 'no_new_media', 'jobId': None, 'apply': False, 'reason': 'manual_navigation'}
-            return self.media.request(snapshot, retry_of=body.get('retryOf'))
+            view = self.media.request(snapshot, retry_of=body.get('retryOf'))
+        # Draw the pictures this page already fixes while the child reads it (fixed_followers).
+        self.media.draw_ahead(snapshot, fixed_followers(snapshot))
+        return view
 
     def media_status(self, job_id, session_id, cancel=False):
         self.media.activate(self.media_snapshot(session_id))

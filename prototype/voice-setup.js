@@ -34,7 +34,11 @@
     "Hear {name} read": "{name} 목소리로 들어 보기", "Play the story line": "동화 문장 재생",
     "Voices on this device": "이 기기의 목소리",
     "Back": "뒤로", "Continue": "다음", "Save {possessive} voice": "{name} 목소리 저장하기", "Start a story": "동화 시작하기",
-    "Add another voice": "다른 목소리 추가하기", "The voice is ready": "목소리가 준비됐어요",
+    "See all voices": "목소리 목록 보기", "+ Add a new voice": "+ 새 목소리 추가하기", "Back to the story": "동화로 돌아가기",
+    "Listen to or remove saved voices ›": "저장된 목소리 듣기·지우기 ›",
+    "Choose who reads the stories. Tap ▶ to hear the story's first line in that voice.": "동화를 읽어 줄 목소리를 골라요. ▶를 누르면 그 목소리로 동화 첫 문장을 들려줘요.",
+    "Hear {name}": "{name} 목소리 들어 보기", "Couldn't play this voice. Try again.": "이 목소리를 들려주지 못했어요. 다시 눌러 주세요.",
+    "The voice is ready": "목소리가 준비됐어요",
     "The voice helper on this computer isn't running. Start it, then try again.": "이 컴퓨터의 목소리 서버가 꺼져 있어요. 켠 다음 다시 해 주세요.",
     "Try this recording again": "이 녹음으로 다시 시도하기",
     "The voice helper took too long. Your recording is still here. Try again.": "목소리 처리가 오래 걸려요. 녹음은 보관 중이니 다시 시도해 주세요.",
@@ -165,8 +169,8 @@
       li.className = i < index ? "past" : i === index ? "now" : "";
       li.toggleAttribute("aria-current", i === index);
     });
-    $("pages").hidden = state.step === "done";
-    $("actions").hidden = state.step === "done" || recordingActive;
+    $("pages").hidden = state.step === "done" || state.step === "voices";
+    $("actions").hidden = state.step === "done" || state.step === "voices" || recordingActive;
     $("back").style.visibility = index === 0 ? "hidden" : "visible";
     $("next").textContent = state.step === "listen" ? tr("Save {possessive} voice", names()) : tr("Continue");
     $("next").disabled = uploading || !canContinue();
@@ -177,7 +181,7 @@
     document.querySelectorAll("[data-lang]").forEach(button => { button.disabled = uploading || openingMic || recordingActive; });
     // Choosing a file moves on by itself, so an empty "find" step shows no Continue button.
     $("next").style.visibility = state.step === "find" && !state.draft ? "hidden" : "visible";
-    $("voicesBox").hidden = !(state.step === "who" || state.step === "done") || $("voicesBox").dataset.empty === "1";
+    $("manageVoices").hidden = state.step !== "who" || $("voicesBox").dataset.empty === "1";
     $("findTitle").textContent = tr("Find {possessive} voice", names());
     $("listenTitle").textContent = tr("Hear {name} read", names());
   }
@@ -548,6 +552,7 @@
     }
   }
 
+  $("seeVoices").onclick = $("doneVoices").onclick = () => go("voices");
   $("again").onclick = () => {
     Object.assign(state, {draft: null, peaks: null, clip: null, checked: null, previewed: false});
     $("name").value = "";
@@ -590,6 +595,18 @@
 
   /* ---------- voices on this device ---------- */
 
+  // The story's first line in a saved or built-in voice (Narration.sample: the app's file or the server).
+  async function hear(id, button) {
+    if (typeof Narration === "undefined" || !Narration.sample) return;
+    stopAudio();
+    button.classList.add("busy");
+    try {
+      player = new Audio(await Narration.sample(id, language));
+      await player.play();
+    } catch { alert(tr("Couldn't play this voice. Try again.")); }
+    finally { button.classList.remove("busy"); }
+  }
+
   async function loadVoices() {
     let voices;
     try { ({voices} = await api("/api/voices")); }
@@ -610,6 +627,10 @@
           voice.consent?.relation === "me" ? "My own voice" : "A parent who is away")}));
       pick.append(radio, text);
       row.append(pick);
+      const listen = Object.assign(document.createElement("button"), {type: "button", className: "btn small listen", textContent: "▶"});
+      listen.setAttribute("aria-label", tr("Hear {name}", {name: voice.name}));
+      listen.onclick = () => hear(voice.id, listen);
+      row.append(listen);
       if (voice.id && !voice.builtin) {
         const remove = Object.assign(document.createElement("button"), {type: "button", className: "btn small", textContent: tr("Delete")});
         remove.onclick = async () => {
@@ -652,4 +673,5 @@
   });
 
   applyCopy();
+  if (location.hash === "#voices") go("voices");
 })();

@@ -1047,6 +1047,22 @@ test('replay asks the authoritative cache and prepares again after a page is evi
   assert.equal(h.narrations.at(-1).options.prepared.fresh, true);
 });
 
+test('a missing page voice says whether the server was unreachable, the line failed or it is just slow', async () => {
+  for (const [error, text, button] of [
+    [new TypeError('Failed to fetch'), /Couldn't reach the voice server/, /Try the voice again/],
+    [new Error('scene_line_500'), /couldn't be made/, /Make the voice again/],
+    [new Error('scene_line_timeout'), /longer than usual/, /Keep waiting/]]) {
+    const h = await harness(); await h.start();
+    const voice = deferred(); h.settings.scenePreparation = voice;
+    h.settings.answer = accepted(); h.settings.media = imageResult(h.settings.answer);
+    await h.submit();
+    voice.reject(error); await flush();
+    assert.match(h.element('loadingText').textContent, text);
+    assert.match(h.element('retryMedia').textContent, button);
+    assert.equal(h.element('retryMedia').hidden, false);
+  }
+});
+
 test('a failed prepared playback exposes retry instead of leaving a silently idle page', async () => {
   const h = await harness(); await h.start();
   h.settings.speakError = new Error('local audio failed'); h.playback('idle');

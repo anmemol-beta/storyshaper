@@ -29,6 +29,8 @@ const Narration = (() => {
   const WAIT = 20;          // seconds the server may hold a request while the line is generated
   // A hosted server (deploy/modal_voice.py) is ~1 s away from Korea; a server that is down fails at once anyway.
   const REQUEST_MS = 4000, CLIP_LOAD_MS = 800;
+  // A page's first ask may wake the hosted server (tens of seconds after a few idle minutes): wait for it.
+  const SCENE_QUEUE_MS = 60000;
   // Seconds a line that isn't voiced yet may wait before the browser voice reads it (the server's maximum). The parent
   // chose a pause over a machine voice (10/31); a line takes ~2.5 s to voice in English, ~5-9 s in Korean on a Mac.
   const LINE_WAIT = 30;
@@ -243,6 +245,13 @@ const Narration = (() => {
     }));
   }
 
+  // The three choices as one sentence (narration/warm.py choice_prompt). Words voiced one by one came out clipped.
+  function choicePrompt(labels, language = "en") {
+    if (language === "ko") return `${labels.join(", ")} 중에서 하나를 골라 줘!`;
+    const words = labels.map(label => label.slice(0, 1).toLowerCase() + label.slice(1));
+    return `Tap one: ${words.slice(0, -1).join(", ")}, or ${words.at(-1)}.`;
+  }
+
   // A voice's sample for the start screen: the story's first line (the same line the registration preview reads).
   // A storybook voice plays the app's own file; a parent's voice is voiced by the server.
   const FIRST_LINE = {en: "Once upon a time, three little pigs set out to build homes.",
@@ -445,7 +454,7 @@ const Narration = (() => {
     signal?.addEventListener("abort", abort, {once: true});
     const asset = {signature, parts, urls: [], controller, loads: []};
     try {
-      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: REQUEST_MS});
+      const clips = await clipsFor(asLines(parts), {language, signal: controller.signal, timeout: SCENE_QUEUE_MS});
       if (!Array.isArray(clips) || clips.length !== parts.length) throw new Error("invalid_scene_audio");
       if (signature !== sceneSignature(parts, language)) throw new Error("scene_voice_changed");
       let previous = Promise.resolve();
@@ -581,7 +590,7 @@ const Narration = (() => {
     } catch {}
   }
 
-  return {sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
+  return {choicePrompt, sample, speak, stop, pause, resume, prepare, prepareScene, getPreparedScene, prefetch, voiceAhead, ahead, voiceBook, readyCount, interject, warm, fillers, sentences, listVoices, selectVoice, voiceId,
     playbackState: () => playback, voiceSource: () => source,
     subscribe(listener) { listeners.add(listener); listener(playback); return () => listeners.delete(listener); },
     usesParentVoice: () => Boolean(voiceId()), voiceName: () => (voiceId() && stored("story-voice-name")) || null};
