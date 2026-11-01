@@ -159,6 +159,7 @@
   .reader-app .logo { font-size: 18px; }
   .reader-app .live-choices { gap: 6px; }
   .reader-app .live-choices button { padding: 10px 6px; }
+  .reader-app .mode-cards { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 360px) { .reader-app .live-choices { grid-template-columns: minmax(0, 1fr); } }
 
