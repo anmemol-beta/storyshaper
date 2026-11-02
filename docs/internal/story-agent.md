@@ -219,16 +219,17 @@ python3 -m src.server
 | `GET /api/config` | `{liveAvailable, model}`. 키 자체는 반환하지 않는다. |
 | `POST /api/sessions` | `{mode: "mock" 또는 "live", language?: "en" 또는 "ko"}` → 초기 상태 |
 | `POST /api/language` | `{sessionId, version, language}` → 진행을 유지한 언어별 상태 |
-| `POST /api/answer` | `{sessionId, version, questionId, requestId, answer, choiceId?}` → 처리 후 상태 |
+| `POST /api/answer` | `{sessionId, version, questionId, requestId, answer, choiceId?, revisitVersion?}` → 처리 후 상태 |
 
 반환 상태는 `language`, `sessionId`, `version`, `sceneId`, `question`, `lines`, `decision`, `reason`, `attempts`, `choiceMode`, `storyState`, `mediaPlan`, `diagnostics`, `providerMode`를 포함한다. 대사는 `{speakerId, text}`, 질문은 `{id, text, intent, choices}`다. 다음 질문이 없으면 `question`은 `null`이다.
 
 - `decision`: `ready`, `accept`, `clarify`, `redirect`, `service_error`, `complete`.
 - `requestId`: 같은 발화를 네트워크 재시도할 때 같은 값을 사용한다. 동일 요청은 다시 집계·생성하지 않는다. 다른 내용에는 새 ID를 사용한다.
-- `version`·`questionId`: 서버의 현재 상태와 일치해야 한다. 오래된 질문에 답하면 HTTP 409와 현재 상태를 반환한다. 클라이언트가 보낸 이야기 상태는 신뢰하지 않는다.
-- `choiceId`: 서버가 발급한 현재 질문의 검증된 선택지 ID만 받는다. 로컬 마이크·인식 오류에서도 바로 터치할 수 있도록 서버의 `choiceMode`가 아직 꺼져 있어도 같은 세션·질문·버전의 허용 ID는 수용한다. 클라이언트가 함께 보낸 재료·표시 문구 대신 서버의 선택값을 사용한다.
+- `revisitVersion`: 이전 질문에 다시 답할 때만 해당 질문의 과거 버전을 보낸다. `version`은 현재 서버 진행 버전이고 `questionId`는 돌아온 질문의 ID다. 서버가 보관한 같은 세션의 승인 상태만 사용하며 클라이언트가 보낸 상태·재료는 직접 적용하지 않는다. 새 답을 제출하면 그 질문 뒤의 기록을 교체하고 버전을 계속 증가시킨다. 새 분기는 `branchId`로 구분해 이전 그림 작업·미리 그리기·캐시가 섞이지 않게 한다. 새 시도는 음성 답이 가능하고 첫 실패 후 터치 선택 규칙을 다시 적용한다. 과거 질문을 보기만 하는 이동에는 이 필드를 보내지 않는다.
+- `version`·`questionId`: 일반 답은 서버의 현재 상태와 일치해야 한다. 과거 질문 재응답은 최신 `version`과 저장된 질문의 `revisitVersion`·`questionId`를 함께 사용한다. 승인 기록에 없는 과거 질문이나 이전 분기의 요청은 HTTP 409와 현재 상태를 반환한다. 클라이언트가 보낸 이야기 상태는 신뢰하지 않는다.
+- `choiceId`: 서버가 발급한 답할 질문의 검증된 선택지 ID만 받는다. 과거 재응답도 해당 저장 질문의 보기를 대조한다. 로컬 마이크·인식 오류에서도 바로 터치할 수 있도록 서버의 `choiceMode`가 아직 꺼져 있어도 허용 ID는 수용한다. 클라이언트가 함께 보낸 재료·표시 문구 대신 서버의 선택값을 사용한다.
 - 제출된 답을 처음 미수용하면 `attempts:1`, `choiceMode:true`다. 이 상태에서 `choiceId` 없는 답은 HTTP 400 `choice_required`와 현재 상태를 반환한다. 마이크·인식 오류는 추가 빈 답 요청 없이 로컬에서 세 키워드 전용으로 전환하며 그 자체로 서버 횟수를 늘리지 않는다. 모델·네트워크 오류도 `attempts`에 포함하지 않는다. 같은 질문의 언어 전환에도 잠금을 유지한다.
-- 서버는 세션별 동시 요청을 차단하고 세션당 최대 60회 시도를 허용한다. 메모리 세션은 2시간 후 만료되며 서버 재시작 시 사라진다. 이는 운영용 영속 저장·계정·가족 권한 구현이 아니다.
+- 서버는 세션별 중복 처리를 막고 세션당 최대 60회 시도를 허용하며 재응답도 이 한도에 포함한다. 세션은 2시간 후 만료된다. `STORY_SESSION_DIR`가 있으면 최신 상태와 최대 256개의 승인 기록을 저장·복원하며 각 장면의 최신 질문 기록을 유지한다. 새 분기는 버전과 `branchId`로 구분한다. 이는 운영 계정·가족 권한 구현이 아니다.
 - 모델 장애나 출력 검증 실패에는 아이 실패 횟수를 올리지 않고 준비된 키워드 세 개를 제공한다. 해당 선택지는 추가 이야기 모델 호출 없이 검증된 대사·분기로 진행하며 `diagnostics.authoredFallback`에서 구분한다. 아이용 화면에서는 같은 질문에 자유 입력으로 다시 시도하지 않는다. AI 모드는 선택 후 그림 생성·표시 완료까지 기다린다.
 
 `mediaPlan`은 승인된 사건·변경값을 미디어 서비스에 넘기는 데이터다. 터치 수용 응답의 `selection`과 `mediaPlan.selection`에는 서버가 확정한 `{choiceId, label, answer, sessionId, sceneId, questionId, version, language}`가 들어간다. 이 문맥은 **선택한 원래 질문**의 버전·언어이며, 미디어 계획 자체의 장면·버전은 진행 후 상태다. 언어 전환에서도 원래 선택 기록을 보존하고 미디어 작업의 `spec.selection`에 전달한다. 다음 자유 발화 턴에서는 이전 터치를 새 입력의 출처로 재사용하지 않는다. 통합 서버의 실제 AI 모드는 승인된 재료·사건·배역으로 이미지 생성과 별도 검수를 요청한다. 상세 계약은 [미디어 API](../../media/API.md)를 따른다.

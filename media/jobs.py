@@ -33,6 +33,8 @@ def fixed_followers(snapshot):
         updated, draft, facts = engine._transition(current['storyState'], None)
         current = engine._accepted_snapshot(current, updated, draft, facts, authored_fallback=True)
         current['providerMode'] = 'live'
+        if snapshot.get('branchId'):
+            current['branchId'] = snapshot['branchId']
         followers.append(current)
     return followers
 
@@ -112,7 +114,7 @@ class MediaJobs:
             plan = snapshot['mediaPlan']
             # No cross-session reuse of generated content. A language-only version
             # change reuses this same accepted scene, including an in-flight request.
-            key = (hashlib.sha256(json.dumps([spec.session_id, scene_facts(spec, plan)],
+            key = (hashlib.sha256(json.dumps([spec.session_id, snapshot.get('branchId'), scene_facts(spec, plan)],
                                             sort_keys=True).encode()).hexdigest() if live_image
                    else self.registry.content_key(spec))
             if manual_backup:
@@ -137,6 +139,7 @@ class MediaJobs:
                                    'reason': None, 'event': threading.Event(), 'timer': None,
                                    'live_image': live_image, 'prepared_choice': prepared_choice,
                                    'manual_backup': manual_backup,
+                                   'branch_id': snapshot.get('branchId'),
                                    'plan': deepcopy(plan), 'image': None,
                                    'retry_attempt': retry_attempt}
             work = self.works[key]
@@ -164,18 +167,20 @@ class MediaJobs:
         spec = normalize(snapshot)
         with self.lock:
             job = self.jobs.get(self.requests.get(spec.token)) if spec else None
-            if job is None or not job['work']['live_image']:
+            if (job is None or job['cancelled'] or self.closed or not job['work']['live_image']
+                    or self.current.get(spec.session_id) != spec.token):
                 return
             build = job['work']
             for follower in followers:
                 ahead = normalize(follower)
-                key = hashlib.sha256(json.dumps([ahead.session_id, scene_facts(ahead, follower['mediaPlan'])],
+                key = hashlib.sha256(json.dumps([ahead.session_id, follower.get('branchId'), scene_facts(ahead, follower['mediaPlan'])],
                                                 sort_keys=True).encode()).hexdigest()
                 if key in self.works or any(item[0] == key for item in build.get('then', [])):
                     continue
                 work = {'spec': ahead, 'status': 'queued', 'video': None, 'reason': None,
                         'event': threading.Event(), 'timer': None, 'live_image': True, 'prepared_choice': False,
-                        'plan': deepcopy(follower['mediaPlan']), 'image': None, 'retry_attempt': 0, 'ahead': True}
+                        'plan': deepcopy(follower['mediaPlan']), 'image': None, 'retry_attempt': 0, 'ahead': True,
+                        'branch_id': follower.get('branchId')}
                 build.setdefault('then', []).append((key, work))
             if build['status'] == 'ready' or build.get('backup') is not None:
                 self._start_followers(build)
@@ -248,7 +253,7 @@ class MediaJobs:
     def _generate_image(self, work, cancelled):
         spec = work['spec']
         with self.lock:
-            prior = self.last_images.get((spec.session_id, spec.house_id))
+            prior = self.last_images.get((spec.session_id, work.get('branch_id'), spec.house_id))
         if prior and spec.action not in {'build', 'move_to_next_house'}:
             source = prior[1]
         else:
@@ -282,9 +287,10 @@ class MediaJobs:
             work['image'] = {'url': f'/api/media/images/{image_id}?sessionId={spec.session_id}',
                              'sha256': hashlib.sha256(image).hexdigest(),
                              'cast': scene_facts(spec, work['plan'])['cast'], 'reviewed': True}
-            previous = self.last_images.get((spec.session_id, spec.house_id))
+            image_key = (spec.session_id, work.get('branch_id'), spec.house_id)
+            previous = self.last_images.get(image_key)
             if previous is None or previous[0] < spec.version:
-                self.last_images[(spec.session_id, spec.house_id)] = (spec.version, image)
+                self.last_images[image_key] = (spec.version, image)
             work['status'], work['reason'] = 'ready', 'generated_image_reviewed'
             self._start_followers(work)
 
@@ -306,12 +312,21 @@ class MediaJobs:
                 raise JobError('job_not_found')
             return self._view(job)
 
-    def cancel_session(self, session_id, *, through_version):
+    def cancel_session(self, session_id, *, through_version, include_ahead=False):
         """Manual navigation abandons queued/running media, including superseded jobs."""
         with self.lock:
             for job in list(self.jobs.values()):
                 if job['spec'].session_id == session_id and job['spec'].version <= through_version:
                     self.cancel(job['id'], session_id)
+            if include_ahead:
+                for work in self.works.values():
+                    if work['spec'].session_id == session_id:
+                        work.pop('then', None)
+                        if work['status'] in {'queued', 'running'}:
+                            work['event'].set()
+                            if work['timer'] is not None:
+                                work['timer'].cancel()
+                            work['status'], work['reason'] = 'cancelled', 'user_cancelled'
 
     def cancel(self, job_id, session_id):
         with self.lock:

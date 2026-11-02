@@ -30,6 +30,10 @@ class MediaPlayground(Playground):
         self.media.activate(result)
         return result
 
+    def on_revisit(self, snapshot):
+        self.media.activate(snapshot)
+        self.media.cancel_session(snapshot['sessionId'], through_version=snapshot['version'], include_ahead=True)
+
     def change_language(self, body):
         result = super().change_language(body)
         self.media.activate(result)

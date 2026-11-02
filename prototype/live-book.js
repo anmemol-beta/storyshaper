@@ -67,27 +67,28 @@
   };
   const media = new StoryMediaPlayer(ui.imgCur, ui.imgNext, {onState: mediaState, transition: stagedTransition});
   const motion = typeof StoryMotion !== "undefined" ? new StoryMotion(ui.imgCur.parentElement) : null;
-  const choiceOnly = (state = snapshot) => Boolean(state?.question &&
-    (state.choiceMode || choiceLocks.has(questionKey(state))));
   const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
+  const choiceLockKey = state => reviewing() ? `${questionKey(state)}:revisit:${state?.version}` : questionKey(state);
+  const choiceOnly = (state = displayed || snapshot) => Boolean(state?.question &&
+    ((!reviewing() && state.choiceMode) || choiceLocks.has(choiceLockKey(state))));
   const atFirstPage = () => {
     if (!pending) return pageIndex <= 0;
     const first = pages[0]?.state;
     return !first || (pending.sessionId === first.sessionId && pending.sceneId === first.sceneId);
   };
   const canAnswer = () => configured && activity === "idle" && !pending && !pictureWait && !cueCover
-    && displayed === snapshot && Boolean(snapshot?.question);
+    && Boolean(displayed?.question) && (reviewing() || displayed === snapshot);
   const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
   const cameraSupported = () => typeof CameraInput !== "undefined" && CameraInput.supported();
 
   function syncControls() {
     const locked = !canAnswer();
     const visible = displayed || snapshot;
-    const choices = !reviewing() && choiceOnly(visible);
+    const choices = choiceOnly(visible);
     // Speaking (or picking, offline) is the child's answer; the typing box opens on request, or by itself when the
     // AI version has nothing to listen with.
     const mustType = selectedMode === "live" && !voiceSupported();
-    ui.inputActions.hidden = !visible?.question || choices || reviewing();
+    ui.inputActions.hidden = !visible?.question || choices;
     ui.freeInput.hidden = ui.inputActions.hidden || (!mustType && !typing);
     ui.typeAnswer.hidden = mustType;
     ui.typeAnswer.setAttribute("aria-expanded", String(!ui.freeInput.hidden));
@@ -122,7 +123,7 @@
     ui.book.setAttribute("aria-busy", String(Boolean(pending) || ["request", "navigation"].includes(activity)));
     ui.book.dataset.state = !snapshot ? "COVER" : pending ? scenePreparation && !scenePreparation.audioReady ? "VOICING" : "DRAWING"
       : pictureWait ? "PAINTING"
-      : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
+      : activity === "recording" ? "LISTENING" : visible?.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending || pictureWait);
     ui.previousPage.disabled = !configured || !ui.setup.hidden
       || (!atFirstPage() && Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure));
@@ -473,7 +474,7 @@
   // The answer card stays away while the passage is read and pops up when the reading reaches the question, or when
   // nothing is being read. Touch choices come up at once: their reading names them.
   function syncTurn() {
-    const page = ["ASKING", "LISTENING", "PAINTING"].includes(ui.book.dataset.state) && !reviewing();
+    const page = ["ASKING", "LISTENING", "PAINTING"].includes(ui.book.dataset.state);
     const reading = ["playing", "loading"].includes(playback) && !ui.question.classList.contains("speaking")
       && !choiceOnly(displayed);
     const turn = page && ui.book.dataset.state !== "PAINTING" && !reading;
@@ -675,7 +676,7 @@
   function narrate() {
     if (!displayed || pending || !ui.readAloud.checked || typeof Narration === "undefined") return;
     const state = displayed;
-    const choices = !reviewing() && choiceOnly(state);
+    const choices = choiceOnly(state);
     const key = `${choices ? 'choices:' : ''}${state.sessionId}:${state.version}:${state.language}:${replay}`;
     if (spokenKey === key) return;
     spokenKey = key;
@@ -711,12 +712,8 @@
 
   function pictureVisibility() {
     ui.imgCur.hidden = ui.imgNext.hidden = !displayedImage;
-    const backup = backupPicture(displayedImage);
-    ui.pictureNotice.classList.toggle("is-backup", backup);
-    ui.pictureNotice.hidden = Boolean(displayedImage) && !backup;
-    ui.pictureNotice.textContent = backup
-      ? t("Reading with a prepared picture", "준비된 그림으로 이야기를 이어가요")
-      : t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
+    ui.pictureNotice.hidden = Boolean(displayedImage);
+    ui.pictureNotice.textContent = t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
   }
 
   // Voice the pages a tapped choice can open, once this page is showing (so they never delay its own lines).
@@ -756,7 +753,7 @@
       button.textContent = choice.label;
       const binding = questionKey(state);
       button.onclick = () => {
-        if (binding === questionKey(snapshot) && state.version === snapshot.version) return answer(choice.answer, choice.id);
+        if (displayed === state && binding === questionKey(displayed)) return answer(choice.answer, choice.id);
       };
       return button;
     }));
@@ -764,7 +761,7 @@
       ? t("House ", "집 ") + (state.storyState?.houseIndex || 1) + " / 3"
       : t("Story complete", "동화를 다 읽었어요");
     activity = "idle";
-    say(reviewing() ? t("An earlier page. Tap ▶ to return to your question.", "앞에서 읽은 장면이에요. ▶를 눌러 질문으로 돌아가요.")
+    say(reviewing() ? t("You can answer this question again. Your new answer will change what comes next.", "이 질문에 다시 답할 수 있어요. 새 답으로 다음 이야기가 이어져요.")
       : choiceOnly() ? t("Tap one of the three words.", "세 가지 중 하나를 톡 골라 줘!")
       : state.question ? t("Your turn!", "이제 네 차례야!") : t("Story complete", "이야기 끝"));
     syncControls();
@@ -866,10 +863,10 @@
   }
 
   function openChoices() {
-    if (!snapshot?.question || displayed !== snapshot || pending || reviewing()) return;
+    if (!displayed?.question || pending || pictureWait) return;
     cancelInput();
     stopNarration();
-    choiceLocks.add(questionKey(snapshot));
+    choiceLocks.add(choiceLockKey(displayed));
     activity = "idle";
     ui.answer.value = "";
     retryPayload = null;
@@ -1020,34 +1017,55 @@
     } finally { if (token === epoch) requestController = null; }
   }
 
+  function replaceFuture(originIndex, next) {
+    for (const page of pages.slice(originIndex)) {
+      choiceLocks.delete(questionKey(page.state));
+      choiceLocks.delete(`${questionKey(page.state)}:revisit:${page.state.version}`);
+    }
+    pages = pages.slice(0, originIndex + 1);
+    advancePayload = null;
+    latestDraft = "";
+    selectedLanguage = next.language;
+    ui.language.value = selectedLanguage;
+    localStorage.setItem("story-language", selectedLanguage);
+    labels();
+  }
+
   async function answer(value, choiceId) {
     if (!canAnswer() || (choiceOnly() && !choiceId)) return;
-    if (choiceId && !snapshot.question.choices.some(choice => choice.id === choiceId)) return;
+    const state = displayed, revisiting = reviewing(), originIndex = pageIndex;
+    if (choiceId && !state.question.choices.some(choice => choice.id === choiceId)) return;
     const text = String(value ?? "").trim();
     if (!text && !choiceId) return;
-    cancelInput();
-    stopNarration();
-    stopVideo();
-    const state = snapshot, token = epoch;
+    if (revisiting) cancelWork();
+    else { cancelInput(); stopNarration(); stopVideo(); }
+    const token = epoch, revisitVersion = revisiting ? state.version : undefined;
     const payload = retryPayload && retryPayload.answer === text && retryPayload.choiceId === choiceId
-      ? retryPayload : {sessionId: state.sessionId, version: state.version, questionId: state.question.id,
-        requestId: crypto.randomUUID(), answer: text, ...(choiceId ? {choiceId} : {})};
+      && retryPayload.questionId === state.question.id && retryPayload.version === snapshot.version
+      && retryPayload.revisitVersion === revisitVersion
+      ? retryPayload : {sessionId: state.sessionId, version: snapshot.version, questionId: state.question.id,
+        requestId: crypto.randomUUID(), answer: text, ...(choiceId ? {choiceId} : {}),
+        ...(revisiting ? {revisitVersion} : {})};
     retryPayload = payload; // A lost response can be replayed without advancing twice.
     activity = "request";
     say(t("Writing what happens next…", "다음 이야기를 쓰고 있어요…"));
     if (!choiceId && ui.readAloud.checked && typeof Narration !== "undefined")
-      Narration.interject?.(selectedLanguage);
+      Narration.interject?.(revisiting ? state.language : selectedLanguage);
     syncControls();
     requestController = new AbortController();
     try {
       const next = await api("/api/answer", payload, requestController.signal);
       if (token !== epoch) return;
+      if (!valid(next)) throw new Error("Invalid story state");
+      if (revisiting) replaceFuture(originIndex, next);
       receive(next);
       retryPayload = null;
     } catch (error) {
       if (token !== epoch) return;
       activity = "idle";
       if (valid(error.snapshot)) {
+        if (revisiting && error.snapshot.branchId && error.snapshot.branchId !== snapshot.branchId)
+          replaceFuture(originIndex, error.snapshot);
         retryPayload = null;
         receive(error.snapshot);
       } else {
@@ -1141,7 +1159,7 @@
       if (!current()) return;
       closeCamera();
       inputController = new AbortController();
-      const name = await CameraInput.name(photo, selectedLanguage, {signal: inputController.signal});
+      const name = await CameraInput.name(photo, reviewing() ? displayed.language : selectedLanguage, {signal: inputController.signal});
       if (!current()) return;
       inputController = null;
       activity = "idle";
