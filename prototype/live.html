@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#FFF9EF">
+<script src="theme.js"></script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/storyshaper-192.png">
 <title>StoryShaper · Picture book</title>
@@ -22,6 +23,7 @@
   <p class="current-reader" id="readerName" hidden>읽어주는 목소리: 기본 목소리</p>
   <div class="settings-options">
     <label class="live-select"><span id="languageLabel">언어</span><select id="language"><option value="en">English</option><option value="ko">한국어</option></select></label>
+    <label class="live-select"><span id="themeLabel">화면 모드</span><select id="theme"><option value="light" id="lightModeLabel">라이트 모드</option><option value="dark" id="darkModeLabel">다크 모드</option></select></label>
     <!-- How to read is chosen on the start screen (modeCards); this select keeps the chosen mode. -->
     <label class="live-select" hidden><span id="modeLabel">버전</span><select id="mode"><option value="mock">오프라인 버전</option><option value="live">AI 버전</option></select></label>
   </div>

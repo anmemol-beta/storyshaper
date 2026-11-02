@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFF9EF">
+<script src="theme.js"></script>
 <title>Parent Voice · StoryShaper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,14 +21,12 @@
     --story: "Gowun Dodum", "Pretendard", serif;
     --ui: "Pretendard", "Segoe UI", system-ui, sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      color-scheme: dark;
-      --bg: #202833; --page: #2C3743; --ink: #F7EEDD; --subtle: #C2BDB6;
-      --green: #8CD2B4; --on-green: #202833; --honey: #F2C976; --peach: #644A50; --line: #4A5861;
-      --bar: #5D6B76; --bar-in: #F2C976; --warn: #F2C976;
-      --shadow: 0 14px 40px rgb(0 0 0 / 24%);
-    }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #202833; --page: #2C3743; --ink: #F7EEDD; --subtle: #C2BDB6;
+    --green: #8CD2B4; --on-green: #202833; --honey: #F2C976; --peach: #644A50; --line: #4A5861;
+    --bar: #5D6B76; --bar-in: #F2C976; --warn: #F2C976;
+    --shadow: 0 14px 40px rgb(0 0 0 / 24%);
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
