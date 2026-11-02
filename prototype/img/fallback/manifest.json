@@ -1,0 +1,276 @@
+{
+  "revision": 1,
+  "createdAt": "2026-11-02",
+  "storyId": "three-little-pigs",
+  "status": "assets_ready_not_integrated",
+  "runtimeEnabled": false,
+  "generation": {
+    "tool": "Codex built-in image_gen",
+    "model": null,
+    "originalDirectory": "~/.codex/generated_images/01a19c95-5d4c-7430-8c9b-98801ba7e28b",
+    "originalFilesTrackedByGit": false,
+    "note": "사전 제작 백업 자산. 기존 Muse 실시간 생성 결과나 통합 동작 검증이 아님. 생성 원본은 도구 기본 저장 위치에 보존하고 최종 JPEG를 이 폴더에 저장했다.",
+    "export": {
+      "format": "jpeg",
+      "quality": 90,
+      "width": 1536,
+      "height": 1024
+    }
+  },
+  "scope": {
+    "excludedScenes": [
+      "house1_choose"
+    ],
+    "numberingNote": "사용자 요청의 중복된 3번을 서로 다른 장면으로 보존하여 총 9장 제작.",
+    "materialIndependent": true,
+    "interiorException": "결말은 사용자 요청에 따라 식탁이 있는 실내. 집 외관·노출된 건축 재료·벽 무늬 없이 표현."
+  },
+  "intendedFailurePolicy": {
+    "totalGenerationAttempts": 2,
+    "firstFailure": "retry_once",
+    "secondFailure": "use_scene_specific_backup",
+    "implementationStatus": "deferred_by_current_request"
+  },
+  "visualReview": {
+    "method": "생성 결과 9장 직접 확인",
+    "checks": [
+      "장면별 배역 수와 첫째·파란 모자 둘째·빨간 스카프 셋째 구분",
+      "표정·도구·물음표·좌우 배치·손잡기·어깨동무",
+      "집 외관·건축 재료·잔해 없음",
+      "결말의 재료를 드러내지 않는 실내 식탁",
+      "요청한 물음표 외 글자·워터마크 없음"
+    ]
+  },
+  "images": [
+    {
+      "order": 1,
+      "userItem": "2",
+      "sceneId": "house1_predict",
+      "title": "삽을 든 첫째와 다가오는 늑대",
+      "description": "첫째가 삽을 들고 늠름하게 서 있고, 늑대가 씩 웃으며 다가온다.",
+      "cast": [
+        "pig1",
+        "wolf"
+      ],
+      "props": [
+        "shovel"
+      ],
+      "symbol": null,
+      "references": [
+        "prototype/img/wolf_paper.jpg"
+      ],
+      "file": "house1_predict.jpg",
+      "sourcePngFile": "exec-66240151-f669-45f0-afc6-c2dea18d14f5.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback illustration, scene house1_predict (user item 2).\nInput image: the existing picture-book page is a CHARACTER IDENTITY and WATERCOLOR STYLE reference only. Create a new composition with the same plain pink oldest pig and the same gray wolf. Completely discard the reference house, fence, debris and building materials.\nPrimary request: a close, character-focused view of the oldest pig standing proudly and bravely, chest out, happily holding a single shovel upright beside him. The friendly-looking mischievous gray wolf is walking toward him with a sly broad grin. The pig is the large foreground focus; the approaching wolf is clearly visible farther back.\nStyle/medium: match the reference's delicate hand-painted children's picture-book watercolor, cream textured paper, soft ink/pencil contours, warm golden sunlight, expressive round faces, pink cheeks, forest-green and honey colors. The pig has no clothes, hat or accessories; just the shovel in one hoof. The gray wolf has large pointed ears, rounded lighter muzzle, black nose, fluffy tail and no clothes.\nScene: a simple sunlit grassy meadow with soft distant trees and a few little flowers. Eye-level landscape 3:2 framing, one full-bleed single illustration, no panel borders. Keep faces, ears and the full shovel within the frame.\nConstraints: exactly ONE pig and ONE wolf. NO house, hut, roof, wall, chimney, door, window, fence or structure anywhere. NO building supplies, straw bundles, paper sheets, logs, bricks, stones, cookies, ice cream, rubble or remnants. No wind action, no crying, no harm, no weapon pose. No words, labels, numbers, speech bubbles or watermark. The tools requested are allowed; avoid any other props.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 2,
+      "userItem": "3 (첫 번째)",
+      "sceneId": "house1_reflect",
+      "title": "우는 첫째와 웃는 늑대",
+      "description": "집이 사라진 뒤 첫째는 울고, 곁에 있는 늑대는 웃는다. 집의 흔적과 재료는 그리지 않는다.",
+      "cast": [
+        "pig1",
+        "wolf"
+      ],
+      "props": [],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house1_predict.jpg"
+      ],
+      "file": "house1_reflect.jpg",
+      "sourcePngFile": "exec-55cee254-b52d-49d6-8932-b4ebd4375d18.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house1_reflect, user first item numbered 3. Input 1 is the identity and watercolor style reference for the oldest pig and gray wolf. Change the action and expressions.\nPrimary request: the oldest plain pink pig is in the large foreground, standing and crying, clear tears rolling down his cheeks, rubbing one eye with one hoof, the other arm gently lowered; his little home has disappeared completely and nothing remains visible. The gray wolf is beside him, a little farther back, laughing gleefully with a smug wide smile. The sadness is gentle picture-book disappointment. EXACTLY one plain pink pig and one gray wolf; no other pigs, no hats, no scarf, no tools. Keep it a close character-centered scene, with the wolf's amused face clearly readable.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 3,
+      "userItem": "3 (두 번째)",
+      "sceneId": "house2_choose",
+      "title": "궁금해하는 둘째와 달려오는 첫째",
+      "description": "파란 모자를 쓴 둘째가 물음표와 함께 궁금해하고, 첫째가 달려온다.",
+      "cast": [
+        "pig1",
+        "pig2"
+      ],
+      "props": [],
+      "symbol": "?",
+      "references": [
+        "prototype/img/pig2_empty.jpg",
+        "prototype/img/fallback/house1_predict.jpg"
+      ],
+      "file": "house2_choose.jpg",
+      "sourcePngFile": "exec-ab9345a2-2c30-4a6e-b8c4-d5b351fb8443.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house2_choose, user second item numbered 3. Input 1 is identity reference for the middle pig wearing the blue beanie; Input 2 is identity/style reference for the plain oldest pig ONLY. Ignore the wolf and shovel in Input 2 and all supplies in Input 1.\nPrimary request: the middle pig wearing his blue knitted pompom beanie is prominent in the foreground with a curious puzzled expression, head slightly tilted, one hoof near his chin. Above his head place a single clearly drawn dark watercolor question mark \"?\". The oldest plain pink pig is visibly running toward him from farther back, with outstretched arms and an urgent but safe expression, one foot raised. The middle pig looks toward his arriving brother. EXACTLY two pigs, one blue beanie on the middle pig and no accessories on the oldest pig. No youngest pig, no wolf, no tools.",
+      "refinement": {
+        "reason": "달려오는 첫째의 중복 꼬리 제거",
+        "prompt": "Use case: precise-object-edit. Edit this exact illustration with ONE tiny anatomy correction only: the running plain pig on the LEFT appears to have TWO curly tails, one at the upper back/waist and one at the rump. Remove the upper curly tail that sticks up from the left pig's upper back at the height of his outstretched arms. Keep exactly ONE small curly tail at his left rump, lower down. Restore a natural smooth back silhouette where the extra upper tail was removed. Preserve EVERYTHING else unchanged: the same running pose, faces, two pigs, the blue beanie, question mark, colors, watercolor grain, composition, meadow, no buildings or materials, landscape 3:2. No new objects or text.",
+        "input": "initial output of this entry's prompt"
+      },
+      "visualReview": "passed"
+    },
+    {
+      "order": 4,
+      "userItem": "4",
+      "sceneId": "house2_predict",
+      "title": "망치를 든 둘째와 다가오는 늑대",
+      "description": "2번과 같은 구도에서 둘째가 망치를 들고 늠름하게 서 있고, 늑대가 씩 웃으며 다가온다.",
+      "cast": [
+        "pig2",
+        "wolf"
+      ],
+      "props": [
+        "hammer"
+      ],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house1_predict.jpg",
+        "prototype/img/pig2_empty.jpg"
+      ],
+      "file": "house2_predict.jpg",
+      "sourcePngFile": "exec-364413c8-556c-4eb9-8ed9-3f438a5bdca9.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house2_predict, user item 4. Input 1 provides the EXACT COMPOSITION of the proud oldest pig with shovel and the approaching gray wolf; Input 2 provides the blue beanie middle pig's identity. Match Input 1's composition, viewpoint and pig size as closely as possible. Replace the plain foreground pig with the MIDDLE pig wearing his blue knitted pompom beanie, and replace the upright shovel with a SINGLE small carpenter's claw HAMMER held naturally in one hoof beside his shoulder. The hammer is an ordinary compact tool with one short handle and one small metal head, never a weapon and never shovel-sized. The middle pig stands chest out, looking proud and brave, one hoof on hip. The gray wolf walks toward him farther back with a sly broad grin. Exactly ONE blue-beanie pig and ONE wolf, no other pigs, no red bandana, no shovel and no extra tools. All ears, the hat pompom and the hammer must be fully visible.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 5,
+      "userItem": "5",
+      "sceneId": "house2_reflect",
+      "title": "손잡고 달아나는 형제와 거들먹거리는 늑대",
+      "description": "둘째는 울고, 놀란 첫째가 둘째 손을 잡고 도망간다. 늑대는 팔짱을 끼고 거들먹거린다.",
+      "cast": [
+        "pig1",
+        "pig2",
+        "wolf"
+      ],
+      "props": [],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house2_predict.jpg",
+        "prototype/img/fallback/house1_reflect.jpg"
+      ],
+      "file": "house2_reflect.jpg",
+      "sourcePngFile": "exec-0486e51b-fbe4-4f40-8b2a-e1c37bdf3d39.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house2_reflect, user item 5. Input 1 is identity/style reference for the blue-beanie middle pig and gray wolf; Input 2 provides the oldest plain pig and the gentle crying expression. Create this exact new action, not the reference poses.\nPrimary request: the middle pig wearing his knitted blue pompom beanie is crying with clear tears down both cheeks as he hurries away. The plain oldest pig looks surprised and worried, eyes wide and mouth open, holds his younger brother's hoof firmly, and leads him running toward safety. Their JOINED HANDS/HOOVES must be clearly visible between them; their free arms and one raised foot each make their running movement clear. Both pigs are in the foreground moving to the right, the plain oldest pig slightly ahead. Behind them to the left the gray wolf stands UPRIGHT on two back paws, with his two front arms visibly FOLDED ACROSS HIS CHEST, chin raised, a smug boastful grin. Exactly TWO pigs (one bareheaded, one blue beanie) and ONE wolf. No red-bandana pig, NO shovel or hammer, no other props, no debris, no buildings. Keep the wolf's folded arms anatomically clear; no extra arms or tails.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 6,
+      "userItem": "6",
+      "sceneId": "house3_choose",
+      "title": "삽·망치를 든 형제들과 고민하는 막내",
+      "description": "첫째는 삽, 둘째는 망치를 들고, 빨간 스카프의 셋째는 물음표와 함께 고민한다.",
+      "cast": [
+        "pig1",
+        "pig2",
+        "pig3"
+      ],
+      "props": [
+        "shovel",
+        "hammer"
+      ],
+      "symbol": "?",
+      "references": [
+        "prototype/img/fallback/house1_predict.jpg",
+        "prototype/img/fallback/house2_predict.jpg",
+        "prototype/img/pig3_empty.jpg"
+      ],
+      "file": "house3_choose.jpg",
+      "sourcePngFile": "exec-90b7e761-bff0-4002-b2dd-f77b5f11a8d4.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house3_choose, user item 6. Input 1 provides identity for the plain oldest pig and his shovel; Input 2 provides identity for blue-beanie middle pig and his hammer; Input 3 provides the youngest red-bandana pig. These are character/style references only. Ignore both wolves, all buildings, fencing and supplies.\nPrimary request: the three little pig brothers stand together in a close friendly group, planning. On the left the plain pink oldest pig holds ONE shovel upright. In the middle the middle pig wears his knitted blue pompom beanie and holds ONE compact carpenter's claw hammer down safely beside him. On the right the youngest pig wears his red neck bandana and has a visibly thoughtful, questioning expression, head tilted, one hoof under his chin, looking up. A SINGLE clearly painted dark question mark \"?\" floats just above the youngest pig's head. The two older brothers look toward their thinking youngest brother. All three pigs should have similarly sized bodies. Exactly THREE distinct pigs, one of each identity; ONE shovel, ONE small hammer, ONE question mark. NO wolf, no other pigs, no extra hats/bandanas/tools, no toolboxes or supplies, no construction materials. All tools fully in frame, not covering any face.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 7,
+      "userItem": "7",
+      "sceneId": "house3_predict",
+      "title": "왼쪽 늑대와 오른쪽의 자신만만한 삼형제",
+      "description": "나쁜 표정의 늑대는 왼쪽, 기고만장한 삼형제는 오른쪽에 서서 서로 마주 본다.",
+      "cast": [
+        "pig1",
+        "pig2",
+        "pig3",
+        "wolf"
+      ],
+      "props": [],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house3_choose.jpg",
+        "prototype/img/fallback/house2_reflect.jpg"
+      ],
+      "file": "house3_predict.jpg",
+      "sourcePngFile": "exec-4b704bf3-fc7d-4951-8e77-c6754d92d4b5.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house3_predict, user item 7. Input 1 is the identity/style reference for the THREE pig brothers ONLY; Input 2 is the identity/style reference for the UPRIGHT gray wolf. Remove all reference tools and question marks and change expressions and poses.\nPrimary request: a playful standoff. The gray wolf stands upright on the LEFT side of the picture, facing RIGHT toward the pig brothers. He has a naughty, mean, scheming face, lowered angled eyebrows, narrowed eyes and a crooked smirk, with his front paws on his hips. The three pig brothers stand closely together on the RIGHT side, facing LEFT toward the wolf, looking proud, cocky and very self-confident, with lifted chins, puffed-out chests and smug little smiles. The plain oldest pig stands slightly ahead; the blue-pompom-beanie middle pig and red-bandana youngest pig stand beside him. Their faces are three-quarter profiles so we clearly read their expressions as they look at the wolf, not at the viewer. A little open meadow gap between the wolf and three pigs makes the face-off readable. Exactly ONE wolf on the left and THREE pigs on the right. No fear, no crying, no fighting, no teeth-baring horror. NO tools, question marks, other objects or materials.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 8,
+      "userItem": "8",
+      "sceneId": "house3_reflect",
+      "title": "좌절한 늑대와 어깨동무하는 삼형제",
+      "description": "늑대는 왼쪽 구석에서 좌절하고, 삼형제는 서로 웃으며 어깨동무한다.",
+      "cast": [
+        "pig1",
+        "pig2",
+        "pig3",
+        "wolf"
+      ],
+      "props": [],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house3_choose.jpg",
+        "prototype/img/fallback/house2_reflect.jpg"
+      ],
+      "file": "house3_reflect.jpg",
+      "sourcePngFile": "exec-854a8423-f5da-4b9d-91ef-579fb206a1e9.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback picture-book illustration.\nStyle/medium: match the reference illustrations' soft hand-painted children's book watercolor, warm cream paper grain, delicate pencil/ink contours, round expressive faces, rosy cheeks, honey sunlight, forest greens. A single landscape 3:2 illustration, 1536 by 1024 composition, edge-to-edge scene with softly painted edges, no comic panels. Keep every face, ears, hands/hooves and any requested prop comfortably inside the image.\nCharacter identities are fixed: pig1 = plain pink oldest pig, no clothing, no hat, no neckwear; pig2 = pink middle pig wearing a knitted blue beanie with pompom, no other clothing; pig3 = pink youngest pig wearing a red neck bandana, no hat and no other clothing; wolf = same mischievous gray cartoon wolf, large pointed ears, pale round muzzle, black nose, fluffy tail, no clothes. Draw ONLY the cast explicitly requested for this scene.\nMaterial independence: NO visible house, hut, shelter, roof, wall, chimney, door, window, fence or other structure. NO building materials, straw/paper piles, logs/planks, bricks, stones, cookies, ice cream, debris, ruins, fragments or construction sites. Shovels and hammers are allowed ONLY when explicitly requested. Background is a simple warm sunlit meadow, soft distant trees and a few wildflowers. Discard all buildings, fences and supplies from reference images.\nNo captions, labels, lettering, numbers, watermark or speech bubbles. The only permitted text-like mark is a question mark when explicitly requested. Child-friendly expressions and safe actions, no injury or frightening realism.\nScene house3_reflect, user item 8. Input 1 is identity/style reference for the three pig brothers ONLY; Input 2 provides the same gray wolf. Remove tools and question marks completely.\nPrimary request: the gray wolf is dejected and defeated, small in the far LEFT CORNER, sitting slumped on the grass, head lowered into his two front paws, ears drooping, clearly disappointed. The three pig brothers are the large happy group in the foreground toward center-right. They laugh warmly while looking at EACH OTHER, and have their ARMS DRAPED OVER ONE ANOTHER'S SHOULDERS in a visible friendly shoulder-to-shoulder group embrace. Plain oldest pig on the left of the trio, blue-beanie middle pig in the middle, red-bandana youngest pig on the right. Their hands/hooves rest on their brothers' shoulders. All three smiling faces and the wolf's slumped pose are clearly visible. Exactly THREE pigs with one blue pompom beanie and one red bandana, and ONE gray wolf in the left corner. No other animals, tools, text, questions, structures or materials. Safe cheerful shared victory, no cruelty or injury.",
+      "visualReview": "passed"
+    },
+    {
+      "order": 9,
+      "userItem": "9",
+      "sceneId": "ending",
+      "title": "실내 식탁에서 대화하는 삼형제",
+      "description": "삼형제가 집 안 식탁에 앉아 웃으며 서로 대화한다. 실내 분위기만 남기고 건축 재료·외관은 드러내지 않는다.",
+      "cast": [
+        "pig1",
+        "pig2",
+        "pig3"
+      ],
+      "props": [
+        "covered_dining_table",
+        "chairs",
+        "bowls",
+        "cups",
+        "curtain"
+      ],
+      "symbol": null,
+      "references": [
+        "prototype/img/fallback/house3_reflect.jpg"
+      ],
+      "file": "ending.jpg",
+      "sourcePngFile": "exec-d5301643-ae5d-4091-9924-69b8317a6ec2.png",
+      "width": 1536,
+      "height": 1024,
+      "prompt": "Use case: illustration-story.\nAsset type: StoryShaper material-independent fallback illustration, final scene ending (user item 9).\nInput image: identity and watercolor style reference ONLY for the THREE little pig brothers. Remove the wolf, meadow, shoulder embrace and all outdoor objects. Create a new indoor composition with these same characters.\nPrimary request: inside their cozy home, the three little pig brothers are SITTING ON CHAIRS AT A DINING TABLE, smiling and talking happily with EACH OTHER after their adventure. Plain pink oldest pig at left, pink middle pig with knitted blue pompom beanie in the center, pink youngest pig with red neck bandana at right. They exchange affectionate glances and lively little conversational hoof gestures, clearly conversing rather than posing at the viewer. Exactly three pigs, one blue beanie and one red bandana. No wolf, no mother, no other characters.\nStyle/medium: preserve the reference's detailed soft hand-painted children's book watercolor, warm honey light, cream paper grain, delicate pencil/ink contours, round expressive rosy faces and the same pig identities. Landscape 3:2 composition, one full-bleed single illustration. Close eye-level three-quarter view of the tabletop and the seated pigs, all faces and ears fully visible.\nMaterial-independent interior: communicate cozy indoor dining ONLY through the dining table covered completely by a plain warm ivory tablecloth, three simple softly colored chair backs, three small ceramic bowls and cups, and diffuse warm light. Background is a soft unfocused CREAM watercolor wash with a small plain fabric drape at an outer edge. No identifiable building construction at all: no house exterior, no roof, ceiling beams, door, window frame, chimney, exposed wall pattern, bricks, stonework, boards, timber grain, straw, paper sheets, construction supplies or debris. No wooden texture visible on table or chairs, no building-material clues, no outdoor trees or flowers. No cookie/gingerbread food or ice cream props; the bowls are simple soup bowls.\nNo tools, shovel, hammer, question marks, speech bubbles, captions, labels, writing, numerals or watermark. The joy, eye contact and warm conversation between the seated brothers are the focus.",
+      "visualReview": "passed"
+    }
+  ]
+}
