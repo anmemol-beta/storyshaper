@@ -763,7 +763,7 @@ test('reloading a failed image reattaches its binding and unlocks only after dis
   assert.equal(h.element('send').disabled, false);
 });
 
-test('a scene backup opens answering only after display and identifies itself as prepared art', async () => {
+test('a scene backup opens answering only after display without an image caption', async () => {
   const h = await harness(null, {withMotion:true}); await h.start();
   h.motionCalls.length = 0;
   const next = accepted(); h.settings.answer = next; h.settings.media = backupResult(next);
@@ -774,8 +774,7 @@ test('a scene backup opens answering only after display and identifies itself as
   assert.equal(h.element('send').disabled, false);
   assert.equal(h.element('retryMedia').hidden, true);
   assert.equal(h.element('loading').hidden, true);
-  assert.equal(h.element('pictureNotice').hidden, false);
-  assert.match(h.element('pictureNotice').textContent, /prepared picture/);
+  assert.equal(h.element('pictureNotice').hidden, true);
   assert.equal(h.motionCalls.some(call => Array.isArray(call) && call[0] === 'scene'), false);
   assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, 1);
 });
@@ -810,7 +809,7 @@ test('a manual next backup is revealed before slow narration finishes while answ
   h.shows.at(-1).onComplete();
   assert.equal(h.reveals.length, 1, 'Manual navigation shows a decoded backup without waiting for speech');
   assert.equal(h.element('loading').hidden, true, 'Speech preparation cannot cover the visible backup');
-  assert.equal(h.element('pictureNotice').hidden, false);
+  assert.equal(h.element('pictureNotice').hidden, true);
   assert.equal(h.element('send').disabled, true);
   voice.resolve({ready:true}); await flush();
   assert.equal(h.element('send').disabled, false);
@@ -847,7 +846,7 @@ test('a failed backup download can reload the same backup without generating or 
   assert.equal(h.element('send').disabled, false);
 });
 
-test('a decoded backup still waits for the whole page voice and then displays the Korean prepared-picture note', async () => {
+test('a decoded backup still waits for the whole page voice without a Korean image caption', async () => {
   const h = await harness(); await h.start();
   const voice = deferred(), next = accepted('live', {language:'ko'});
   h.element('language').value = 'ko';
@@ -859,7 +858,7 @@ test('a decoded backup still waits for the whole page voice and then displays th
   voice.resolve({ready:true}); await flush();
   assert.equal(h.reveals.length, 1);
   assert.equal(h.element('send').disabled, false);
-  assert.match(h.element('pictureNotice').textContent, /준비된 그림/);
+  assert.equal(h.element('pictureNotice').hidden, true);
 });
 
 for (const failAlways of [false, true]) test(`real media server ${failAlways ? 'uses the scene backup after two failures' : 'recovers the first failure automatically'}`, {timeout:10000}, async () => {
@@ -1203,7 +1202,7 @@ test('page arrows revisit matching text and art without submitting old answers o
   assert.equal(h.element('choices').hidden, true);
   assert.equal(h.element('language').disabled, true);
   assert.equal(h.narrations.at(-1).lines[0].text, 'The story begins.');
-  await h.submit('straw'); await oldChoice.onclick(); await h.element('mic').onclick();
+  await h.element('mic').onclick();
   assert.equal(h.calls.length, calls);
   h.element('nextPage').onclick();
   assert.equal(h.shows.at(-1).url, '/prototype/img/paper_house.jpg');
@@ -1211,6 +1210,7 @@ test('page arrows revisit matching text and art without submitting old answers o
   assert.equal(h.element('question').textContent, 'What will happen?');
   assert.equal(h.element('answer').value, 'my unfinished prediction');
   assert.equal(h.element('send').disabled, false);
+  await oldChoice.onclick();
   assert.equal(h.calls.length, calls, 'Revisiting must make no server requests');
   h.settings.advance = accepted('mock', {version:2, sceneId:'house1_reflect',
     question:{...next.question, id:'house1_reflect', text:'Why did it happen?'},
@@ -1218,6 +1218,100 @@ test('page arrows revisit matching text and art without submitting old answers o
   await h.element('nextPage').onclick();
   assert.equal(h.element('question').textContent, 'Why did it happen?');
   assert.equal(h.calls.filter(call => call.url === '/api/advance').length, 1);
+});
+
+test('returning to an earlier question reopens spoken answering after a manual next', async () => {
+  const h = await harness(); await h.start();
+  await h.element('nextPage').onclick(); await flush();
+  h.shows.at(-1).onComplete();
+  h.element('previousPage').onclick(); await flush();
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('mic').disabled, false, 'An earlier question must accept a spoken answer again');
+  assert.equal(h.element('inputActions').hidden, false);
+});
+
+test('a spoken answer on an earlier page forks from that question and removes the old future', async () => {
+  const h = await harness(); await h.start();
+  await h.element('nextPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  h.element('previousPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  h.settings.transcript = 'straw';
+  await h.element('mic').onclick();
+  assert.equal(h.element('answer').value, 'straw');
+  const changed = accepted('live', {version:2, branchId:'new-branch', lines:[{text:'The new straw house.'}]});
+  h.settings.answer = changed; h.settings.media = imageResult(changed);
+  await h.element('send').onclick(); await flush();
+  const body = h.calls.filter(c => c.url === '/api/answer').at(-1).body;
+  assert.equal(body.questionId, 'house1_choose');
+  assert.equal(body.version, 1);
+  assert.equal(body.revisitVersion, 0);
+  assert.equal(body.answer, 'straw');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('narrative').children[0].textContent, 'The new straw house.');
+  const requests = h.calls.length;
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('narrative').children[0].textContent, 'The new straw house.');
+  assert.equal(h.calls.length, requests, 'History cannot resurrect the old skipped paper page');
+});
+
+test('an earlier question offers touch choices on speech failure and submits its own choice binding', async () => {
+  const h = await harness(); await h.start();
+  await h.element('nextPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  h.settings.recordError = new Error('microphone unavailable');
+  await h.element('mic').onclick();
+  assert.equal(h.element('choices').hidden, false);
+  assert.equal(h.element('choices').children[1].disabled, false);
+  const changed = accepted('live', {version:2, branchId:'new-branch', selection:{choiceId:'straw'}});
+  h.settings.answer = changed; h.settings.media = preparedChoiceResult(changed);
+  await h.element('choices').children[1].onclick(); await flush();
+  const body = h.calls.filter(c => c.url === '/api/answer').at(-1).body;
+  assert.equal(body.choiceId, 'straw');
+  assert.equal(body.questionId, 'house1_choose');
+  assert.equal(body.revisitVersion, 0);
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('send').disabled, false);
+});
+
+test('returning from the ending opens the earlier question instead of keeping the completed-book lock', async () => {
+  const h = await harness(); await h.start();
+  const ending = accepted('live', {sceneId:'ending', decision:'complete', question:null,
+    diagnostics:{manualNavigation:{skippedPicture:true}}});
+  h.settings.advance = ending;
+  await h.element('nextPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('book').dataset.state, 'COMPLETE');
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('book').dataset.state, 'ASKING');
+  assert.equal(h.element('mic').disabled, false);
+});
+
+test('a committed reanswer recovered after a lost response also replaces the old future', async () => {
+  const h = await harness(); await h.start();
+  await h.element('nextPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  const changed = accepted('live', {version:2, branchId:'committed-branch', lines:[{text:'A new wood house.'}]});
+  h.settings.answer = {error:{code:'stale_question', message:'The server already saved this answer'}, snapshot:changed};
+  h.settings.media = imageResult(changed);
+  await h.submit('wood'); h.shows.at(-1).onComplete();
+  assert.equal(h.element('narrative').children[0].textContent, 'A new wood house.');
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('narrative').children[0].textContent, 'A new wood house.');
+});
+
+test('reanswering an earlier page uses that pages language after translating the later page', async () => {
+  const h = await harness(); await h.start();
+  await h.element('nextPage').onclick(); await flush(); h.shows.at(-1).onComplete();
+  h.settings.language = accepted('live', {version:2, language:'ko', diagnostics:{languageChanged:true}});
+  h.element('language').value = 'ko'; await h.element('language').onchange();
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  const changed = accepted('live', {version:3, branchId:'english-branch'});
+  h.settings.answer = changed; h.settings.media = imageResult(changed);
+  await h.submit('straw'); h.shows.at(-1).onComplete();
+  assert.equal(h.voiceSetupCalls.at(-1), 'en');
+  assert.equal(h.element('language').value, 'en');
+  assert.equal(h.calls.filter(c=>c.url==='/api/answer').at(-1).body.revisitVersion, 0);
 });
 
 test('history preserves choice locks, keeps only one entry per scene and resets on restart', async () => {

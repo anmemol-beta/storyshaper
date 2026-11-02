@@ -31,6 +31,8 @@ python3 -m src.server
 
 답변 전 수동 다음은 `POST /api/advance`에 `{sessionId, version, requestId}`를 보내 서버가 정한 안전 선택으로 한 단계 진행한다. 반환된 바인딩으로 `/api/media/jobs`를 호출하면 AI·mock 모두 작업 큐·모델 호출 없이 `source:scene_backup/reason:manual_navigation/generated:false/generationRequested:false/generationAttempts:0`을 받는다. 기존 `manualNavigation.skippedPicture` 표식은 생성 생략을 뜻하며 이제 빈 그림 대신 장면별 백업을 제공한다. 이 표식은 언어 전환에도 보존되고, 클라이언트는 임의의 표식·이미지 URL을 미디어 요청에 보낼 수 없다. 기본 선택의 `selection`이 있어도 이 경로는 재료별 객관식 그림보다 장면 백업을 우선한다. 미리 그리기도 시작하지 않는다.
 
+이전 질문 재응답은 `/api/answer`에 최신 `version`과 과거 `revisitVersion`·`questionId`를 함께 보내 승인된 질문부터 새 분기를 만든다. 단순 재방문은 생성하지 않으며 새 답을 제출한 뒤만 이후 기록을 교체한다. 새 `branchId`를 실시간 이미지 작업·미리 그리기·생성 참조 키에 포함하고 이전 분기 작업을 취소한다. 같은 재료로 다시 답해도 폐기한 분기의 취소 작업에 묶이지 않으며, 같은 새 분기 안의 중복·언어 전환은 재사용한다. 재료별 저장 그림과 재료 독립 백업은 검증한 장면에 맞춰 재사용할 수 있다. 새 자유 답의 생성은 그 새 분기에서 다시 최대 2회이며 실패 시 장면 백업으로 진행한다.
+
 ## 생성·조회·취소
 
 | 메서드 | 경로 | 입력 |

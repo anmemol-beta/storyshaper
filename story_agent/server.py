@@ -1,4 +1,4 @@
-"""Local, memory-only agent playground. Run: python3 -m story_agent.server."""
+"""Local story sessions with approved checkpoints and bounded re-answer branches."""
 from __future__ import annotations
 
 import argparse
@@ -21,6 +21,7 @@ from .provider import EFFORTS, MetaProvider, load_env
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY = 8192
 SESSION_TTL = 7200
+MAX_CHECKPOINTS = 256
 
 
 def runtime_options():
@@ -53,6 +54,11 @@ class Session:
     requests: OrderedDict = field(default_factory=OrderedDict)
     turns: int = 0
     touched: float = field(default_factory=time.monotonic)
+    checkpoints: dict = field(default_factory=dict)
+    revisiting: bool = False
+
+    def __post_init__(self):
+        self.checkpoints[self.snapshot['version']] = deepcopy(self.snapshot)
 
 
 SESSION_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -128,14 +134,22 @@ class Playground:
         return StoryEngine(provider, language, pipeline=self.pipeline)
 
     def save(self, session_id):
-        """Keep the session's latest approved snapshot. Called with self.lock held after every commit."""
+        """Keep approved question checkpoints and optionally persist them after each commit."""
+        session = self.sessions[session_id]
+        session.checkpoints[session.snapshot['version']] = deepcopy(session.snapshot)
+        while len(session.checkpoints) > MAX_CHECKPOINTS:
+            latest = {}
+            for version in sorted(session.checkpoints):
+                latest[session.checkpoints[version]['sceneId']] = version
+            protected = set(latest.values())
+            del session.checkpoints[min(key for key in session.checkpoints if key not in protected)]
         if self.saved is None:
             return
-        session = self.sessions[session_id]
         self.saved.mkdir(parents=True, exist_ok=True)
         part = self.saved / f"{session_id}.part"
         part.write_text(json.dumps({"mode": session.engine._mode(), "turns": session.turns,
-                                    "snapshot": session.snapshot}, ensure_ascii=False), encoding="utf-8")
+                                    "snapshot": session.snapshot,
+                                    "checkpoints": list(session.checkpoints.values())}, ensure_ascii=False), encoding="utf-8")
         part.replace(self.saved / f"{session_id}.json")
 
     def restore(self, session_id):
@@ -150,7 +164,14 @@ class Playground:
             snapshot = data["snapshot"]
             if snapshot["sessionId"] != session_id:
                 return None
-            return Session(self.engine(data["mode"], snapshot["language"]), snapshot, turns=data["turns"])
+            checkpoints = {}
+            for item in data.get('checkpoints', [])[-MAX_CHECKPOINTS:]:
+                StoryEngine._validate_snapshot(item)
+                if item['sessionId'] != session_id or item['version'] > snapshot['version']:
+                    return None
+                checkpoints[item['version']] = item
+            return Session(self.engine(data["mode"], snapshot["language"]), snapshot,
+                           turns=data["turns"], checkpoints=checkpoints)
         except (OSError, ValueError, KeyError, TypeError, APIError):
             return None
 
@@ -194,27 +215,74 @@ class Playground:
         finally:
             session.lock.release()
 
+    def on_revisit(self, snapshot):
+        """Media extensions invalidate old work before the new answer can call a model."""
+
+    def _revisit(self, session, body, fingerprint):
+        request_id, version = body['requestId'], body['version']
+        # Lost-response retries must reuse the committed branch, not fork again.
+        if request_id in session.requests:
+            prior, _ = session.requests[request_id]
+            if prior != fingerprint:
+                raise APIError(409, 'request_id_conflict', 'Use a new request ID for a different answer.')
+            return session
+        if session.snapshot['version'] != version:
+            raise APIError(409, 'stale_question', 'Use the current story page.', deepcopy(session.snapshot))
+        target = session.checkpoints.get(body['revisitVersion'])
+        if (target is None or not target.get('question') or target['question']['id'] != body['questionId']):
+            raise APIError(409, 'history_unavailable', 'This question is no longer in this story branch.',
+                           deepcopy(session.snapshot))
+        if session.lock.locked() and session.revisiting:
+            raise APIError(409, 'turn_in_progress', 'An answer for this earlier question is already being processed.')
+        if session.turns >= 60:
+            raise APIError(429, 'turn_limit', 'This session has reached its turn limit. Start a new session.')
+        if body.get('choiceId') is not None and body['choiceId'] not in {item['id'] for item in target['question']['choices']}:
+            raise APIError(400, 'invalid_choice', 'Use a choice from this question.')
+        restored = deepcopy(target)
+        restored.update(version=version, attempts=0, choiceMode=False,
+                        branchId=uuid.uuid4().hex, branchStartVersion=version + 1)
+        if restored.get('mediaPlan'):
+            restored['mediaPlan']['version'] = version
+        engine = StoryEngine(session.engine.provider, restored['language'], pipeline=session.engine.pipeline)
+        replacement = Session(engine, restored, turns=session.turns,
+                              checkpoints={key:deepcopy(value) for key, value in session.checkpoints.items()
+                                           if key <= body['revisitVersion']})
+        # The rebased input is internal; the original target remains the public
+        # checkpoint, and only the next committed version is added to history.
+        replacement.checkpoints.pop(version, None)
+        self.sessions[body['sessionId']] = replacement
+        self.on_revisit(restored)
+        return replacement
+
     def answer(self, body):
         session_id, request_id = body.get("sessionId"), body.get("requestId")
         answer, choice = body.get("answer", ""), body.get("choiceId")
         version, question_id = body.get("version"), body.get("questionId")
+        revisit = body.get('revisitVersion')
         if (not isinstance(session_id, str) or not isinstance(request_id, str)
                 or not 1 <= len(request_id) <= 100 or not isinstance(answer, str)
                 or len(answer) > 1000 or (choice is not None and not isinstance(choice, str))
                 or type(version) is not int or not isinstance(question_id, str)):
             raise APIError(400, "invalid_request", "Send a session, version, question, request ID and an answer of at most 1000 characters.")
+        if 'revisitVersion' in body and (type(revisit) is not int or not 0 <= revisit < version):
+            raise APIError(400, 'invalid_request', 'Send the earlier question version and the current story version.')
+        fingerprint = (version, question_id, answer, choice, revisit)
         with self.lock:
             session = self.sessions.get(session_id)
             if session is None:
                 raise APIError(404, "session_not_found", "Start a new story session.")
+            if time.monotonic() - session.touched >= SESSION_TTL:
+                raise APIError(404, 'session_not_found', 'Start a new story session.')
+            if revisit is not None:
+                session = self._revisit(session, body, fingerprint)
             if not session.lock.acquire(blocking=False):
                 raise APIError(409, "turn_in_progress", "A story turn is already being processed. Please wait.")
             if time.monotonic() - session.touched >= SESSION_TTL:
                 session.lock.release()
                 raise APIError(404, "session_not_found", "Start a new story session.")
             session.touched = time.monotonic()
+            session.revisiting = revisit is not None
         try:
-            fingerprint = (version, question_id, answer, choice)
             if request_id in session.requests:
                 prior_fingerprint, result = session.requests[request_id]
                 if prior_fingerprint != fingerprint:
@@ -236,6 +304,11 @@ class Playground:
                 raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")
             session.turns += 1
             result = session.engine.answer(current, answer, choice_id=choice)
+            if revisit is not None:
+                result['diagnostics']['revisit'] = {'questionVersion':revisit, 'previousHeadVersion':version}
+            for key in ('branchId', 'branchStartVersion'):
+                if key in current:
+                    result[key] = current[key]
             with self.lock:
                 if self.sessions.get(session_id) is not session:
                     raise APIError(409, "turn_cancelled", "This turn was interrupted by page navigation.",
@@ -248,6 +321,7 @@ class Playground:
                     session.requests.popitem(last=False)
             return deepcopy(result)
         finally:
+            session.revisiting = False
             session.lock.release()
 
     def advance(self, body):
@@ -272,6 +346,9 @@ class Playground:
                     raise APIError(409, "request_id_conflict", "Use a new request ID for this page turn.")
                 return deepcopy(result)
             current = deepcopy(session.snapshot)
+            if (version < current.get('branchStartVersion', 0)
+                    and not (session.revisiting and session.lock.locked() and version == current['version'])):
+                raise APIError(409, 'stale_question', 'This page turn belongs to an earlier story branch.', current)
             if version > current["version"]:
                 raise APIError(409, "stale_question", "Use the current story page.", current)
             engine = StoryEngine(session.engine.provider, current["language"], pipeline=session.engine.pipeline)
@@ -281,11 +358,14 @@ class Playground:
                     raise APIError(429, "turn_limit", "This session has reached its turn limit. Start a new session.")
                 choice = current["question"]["choices"][0]
                 current = engine.answer(current, choice["answer"], choice_id=choice["id"])
+            for key in ('branchId', 'branchStartVersion'):
+                if key in session.snapshot:
+                    current[key] = session.snapshot[key]
             current["diagnostics"]["manualNavigation"] = {
                 "skippedPicture": True, "skippedQuestion": skip_question,
                 "defaultChoice": choice["label"] if skip_question else None}
             replacement = Session(engine, deepcopy(current), requests=session.requests.copy(),
-                                  turns=session.turns + int(skip_question))
+                                  turns=session.turns + int(skip_question), checkpoints=deepcopy(session.checkpoints))
             replacement.requests[request_id] = (fingerprint, deepcopy(current))
             while len(replacement.requests) > 80:
                 replacement.requests.popitem(last=False)

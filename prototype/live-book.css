@@ -68,7 +68,6 @@
 .reader-app .bar { position: relative; z-index: 10; }
 .page-navigation { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .picture-notice { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; padding: 24px 68px; text-align: center; color: var(--text-subtle); font-size: 18px; line-height: 1.6; }
-.picture-notice.is-backup { inset: auto 12px 12px; width: fit-content; max-width: calc(100% - 24px); padding: 6px 10px; border-radius: 10px; background: var(--bg-story); font-size: 12px; pointer-events: none; z-index: 2; }
 .page-navigation button {
   position: absolute; top: 50%; transform: translateY(-50%);
   display: grid; place-items: center; width: 52px; height: 80px;

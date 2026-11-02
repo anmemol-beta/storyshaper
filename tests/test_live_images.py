@@ -447,6 +447,60 @@ class ImageJobTests(unittest.TestCase):
         self.assertEqual(manager.get(backup['jobId'], backup['sessionId'])['image'], backup['image'])
         self.assertEqual(len(provider.calls), 1)
 
+    def test_reanswer_can_regenerate_the_same_material_after_cancelling_the_old_branch(self):
+        manager, provider = self.manager(gated=True)
+        app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules(), media=manager)
+        start = app.create('live')
+        first = app.answer({'sessionId':start['sessionId'], 'version':0,
+                            'questionId':start['question']['id'], 'requestId':'first', 'answer':'paper'})
+        old = manager.request(first)
+        manager.draw_ahead(first, fixed_followers(first))
+        self.assertTrue(provider.started.wait(1))
+        changed = app.answer({'sessionId':first['sessionId'], 'version':first['version'],
+                              'revisitVersion':0, 'questionId':start['question']['id'],
+                              'requestId':'again', 'answer':'paper'})
+        new = manager.request(changed)
+        self.assertTrue(provider.both_started.wait(1), 'A cancelled old cache entry must not block the new branch')
+        provider.release.set()
+        ready = finish(manager, new)
+        manager.pool.shutdown(wait=True)
+        self.assertTrue(ready['generated'])
+        self.assertFalse(manager.get(old['jobId'], old['sessionId'])['apply'])
+        self.assertEqual(len(provider.calls), 2, 'The abandoned old followers cannot start')
+        self.assertEqual(len(manager.images), 1)
+        self.assertIn((changed['sessionId'], changed['branchId'], 'house1'), manager.last_images)
+        translated = app.change_language({'sessionId':changed['sessionId'], 'version':changed['version'], 'language':'ko'})
+        self.assertTrue(manager.request(translated)['generated'], 'The same new branch still reuses translated images')
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_reanswer_cancels_unbound_draw_ahead_and_its_old_reference_images(self):
+        manager, provider = self.manager(gated=True)
+        app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules(), media=manager)
+        start = app.create('live')
+        first = app.answer({'sessionId':start['sessionId'], 'version':0,
+                            'questionId':start['question']['id'], 'requestId':'first', 'answer':'paper'})
+        original = provider.generate
+        def generate(spec, plan, references, cancelled):
+            if not provider.calls:
+                provider.calls.append((spec, plan, references))
+                return JPEG
+            return original(spec, plan, references, cancelled)
+        provider.generate = generate
+        finish(manager, manager.request(first))
+        manager.draw_ahead(first, fixed_followers(first))
+        self.assertTrue(provider.both_started.wait(1))
+        changed = app.answer({'sessionId':first['sessionId'], 'version':first['version'], 'revisitVersion':0,
+                              'questionId':start['question']['id'], 'requestId':'again', 'answer':'straw'})
+        ahead = [work for work in manager.works.values() if work.get('ahead')]
+        self.assertTrue(ahead and all(work['status']=='cancelled' for work in ahead))
+        new = manager.request(changed)
+        provider.release.set()
+        ready = finish(manager, new)
+        manager.pool.shutdown(wait=True)
+        self.assertTrue(ready['generated'])
+        self.assertEqual(len(manager.images), 2, 'Only the old build and new build may publish')
+        self.assertEqual(ready['spec']['material'], 'straw')
+
     def test_missing_manual_backup_is_explicit_without_a_generation_or_another_materials_picture(self):
         registry = AssetRegistry()
         registry.data['backups'] = {}

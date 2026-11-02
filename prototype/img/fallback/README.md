@@ -42,7 +42,7 @@
 `media/scene_registry.json`의 `backups`에 이야기·장면별로 등록했다. `manifest.json`은 생성 프롬프트·원본·연결 상태를 기록하는 제작 자료이며 런타임 자산 선택은 레지스트리를 사용한다.
 
 - 서버가 승인한 장면 사실당 자동 생성·독립 검수는 최대 2회다. 타임아웃도 실패로 처리하고 첫 실패에는 자동 재호출한다. 두 번째 실패에는 같은 작업에서 이 폴더의 해당 장면 그림을 반환한다.
-- 생성 실패의 백업은 `source:scene_backup`, `generated:false`, `generationRequested:true`, `generationAttempts:2`다. 수동 다음 이동의 백업은 `reason:manual_navigation`, `generationRequested:false`, `generationAttempts:0`으로 구분한다. “준비된 그림으로 이야기를 이어가요”라고 표시하며 집 붕괴 효과나 이전 그림 덮개는 적용하지 않는다.
+- 생성 실패의 백업은 `source:scene_backup`, `generated:false`, `generationRequested:true`, `generationAttempts:2`다. 수동 다음 이동의 백업은 `reason:manual_navigation`, `generationRequested:false`, `generationAttempts:0`으로 구분한다. 11/3 사용자 요청에 따라 백업 그림 위 안내 문구는 표시하지 않으며 집 붕괴 효과나 이전 그림 덮개도 적용하지 않는다.
 - 같은 요청·수동 재로딩·언어 전환·미리 그리기는 총 2회 한도를 초기화하지 않는다. 백업 다운로드 실패는 같은 백업을 다시 불러오며 추가 생성하지 않는다. 취소·장면 이동 뒤 늦은 생성 결과와 타임아웃은 새 시도·백업·현재 화면을 덮어쓰지 못한다.
 - 일반 답변의 객관식·오프라인 그림은 기존대로 사용하고, 수동 다음 이동은 별도의 장면 백업을 사용한다. 메인 장면은 이번 백업에서 제외한다. 백업이 삭제되거나 검수·재료 독립성 표시가 없으면 다른 장면으로 치환하지 않고 명시적 실패로 남긴다.
 
