@@ -2,7 +2,7 @@
 (() => {
   "use strict";
   const ids = ["book", "cover", "startLabel", "storyTitle", "readBy", "language", "mode",
-    "languageLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "settingsTitle", "closeSettings",
+    "languageLabel", "themeLabel", "lightModeLabel", "darkModeLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "settingsTitle", "closeSettings",
     "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
     "cameraPreview", "cameraSnap", "cameraCancel", "status", "choices", "progress", "restart",
@@ -255,6 +255,9 @@
     ui.storyTitle.textContent = t("The Three Little Pigs", "아기돼지 삼형제");
     ui.startLabel.textContent = t("▶ Start", "▶ 동화 시작");
     ui.languageLabel.textContent = t("Language", "언어");
+    ui.themeLabel.textContent = t("Appearance", "화면 모드");
+    ui.lightModeLabel.textContent = t("Light mode", "라이트 모드");
+    ui.darkModeLabel.textContent = t("Dark mode", "다크 모드");
     ui.modeLabel.textContent = t("Version", "버전");
     ui.mode.options[0].textContent = t("Offline version", "오프라인 버전");
     ui.mode.options[1].textContent = t("AI version", "AI 버전");
