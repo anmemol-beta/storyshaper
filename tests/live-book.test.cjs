@@ -13,7 +13,7 @@ class Element {
     this.textContent = ''; this.checked = false;
     const classes = new Set();
     this.classList = {toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); },
-      add:name => classes.add(name), contains:name => classes.has(name)};
+      add:name => classes.add(name), remove:name => classes.delete(name), contains:name => classes.has(name)};
   }
   setAttribute(key, value) { this[key] = value; }
   getAttribute(key) { return this[key] ?? null; }
@@ -58,18 +58,32 @@ function preparedChoiceResult(snapshot, overrides = {}) {
     image:{url:'/prototype/img/paper_house.jpg'}, ...overrides});
 }
 
-async function harness(request = null, {withMotion = false} = {}) {
-  const elements = new Map(), calls = [], shows = [], reveals = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [];
+function backupResult(snapshot, overrides = {}) {
+  return imageResult(snapshot, {status:'fallback', source:'scene_backup', generated:false,
+    generationAttempts:2, generationRetryAvailable:false, retriesRemaining:0,
+    reason:'image_generation_exhausted',
+    image:{url:`/prototype/img/fallback/${snapshot.sceneId}.jpg`, sceneId:snapshot.sceneId,
+      reviewed:true, materialIndependent:true}, ...overrides});
+}
+
+function manualBackupResult(snapshot, overrides = {}) {
+  return backupResult(snapshot, {generationRequested:false, generationAttempts:0, reason:'manual_navigation', ...overrides});
+}
+
+async function harness(request = null, {withMotion = false, initialVoices = [], initialVoiceError = null, initialVoiceList = null} = {}) {
+  const elements = new Map(), calls = [], shows = [], reveals = [], timers = new Map(), voiceCalls = [], narrations = [], cameraCalls = [], sampleAudios = [];
   const element = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   element('mode').options = [new Element(), new Element()];
   element('readerSettings').hidden = true;
   element('imgCur').parentElement = element('art');
   element('imgCur').src = 'img/intro.jpg';
-  const voiceSetupCalls = [];
+  const voiceSetupCalls = [], voiceListCalls = [], sampleCalls = [];
   const settings = {answer:null, advance:null, language:null, media:null, session:null, transcript:'paper', recordError:null, voiceName:null,
     transcriptionError:null, recording:null, transcription:null, camera:null, object:'paper', voiceId:null,
-    voices:[], voiceListError:null, voiceList:null, playback:'idle', voiceSource:null, scenePreparation:null, speakError:null};
+    voices:initialVoices, voiceListError:initialVoiceError, voiceList:initialVoiceList, playback:'idle', voiceSource:null, scenePreparation:null, speakError:null, sample:null,
+    sampleError:null, samplePlayErrors:[]};
   const preparedScenes = new Map();
+  let advancedPage = null;
   const sceneKey = (lines, options) => JSON.stringify([settings.voiceId, options.language, lines]);
   const playbackCalls = [], prefetched = [], motionCalls = [];
   let playbackListener = () => {};
@@ -80,6 +94,11 @@ async function harness(request = null, {withMotion = false} = {}) {
   const storage = new Map([['story-language', 'en']]);
   const context = vm.createContext({document, window:{addEventListener() {}}, crypto:require('node:crypto'),
     AbortController, Date, localStorage:{getItem:key => storage.get(key) ?? null, setItem:(key, value) => storage.set(key, value)},
+    Audio:class {
+      constructor(url) { this.url = url; this.played = false; this.paused = false; sampleAudios.push(this); }
+      play() { const error = settings.samplePlayErrors.shift(); if (error) return Promise.reject(error); this.played = true; return Promise.resolve(); }
+      pause() { this.paused = true; }
+    },
     setTimeout:(callback, ms) => { const id = ++timerId; timers.set(id, {callback, ms}); return id; },
     clearTimeout:id => timers.delete(id),
     StoryMotion: withMotion ? class {
@@ -118,7 +137,12 @@ async function harness(request = null, {withMotion = false} = {}) {
       playbackState:() => settings.playback, subscribe:listener => { playbackListener = listener; listener(settings.playback); return () => {}; },
       pause() { playbackCalls.push('pause'); playback('paused'); }, resume() { playbackCalls.push('resume'); playback('playing'); },
       selectVoice(id, name) { preparedScenes.clear(); settings.voiceId = id; settings.voiceName = name; },
-      listVoices:async () => { if (settings.voiceListError) throw settings.voiceListError; return settings.voiceList ? settings.voiceList.promise : settings.voices; },
+      listVoices:async () => { voiceListCalls.push('list'); if (settings.voiceListError) throw settings.voiceListError; return settings.voiceList ? settings.voiceList.promise : settings.voices; },
+      sample:async (id, language, options = {}) => {
+        sampleCalls.push({id, language, ...options});
+        if (settings.sampleError) throw settings.sampleError;
+        return settings.sample ? settings.sample.promise : options.serverOnly ? '/server-sample.mp3' : '/sample.mp3';
+      },
       prefetch:(lines, options) => prefetched.push({lines, options}),
       prepareScene:(lines, options) => {
         prefetched.push({lines, options});
@@ -149,9 +173,12 @@ async function harness(request = null, {withMotion = false} = {}) {
         diagnostics:{manualNavigation:{skippedPicture:true, skippedQuestion:true, defaultChoice:'Paper'}}});
       else if (url === '/api/language') data = settings.language;
       else if (url === '/api/media/cancel') data = {};
-      else if (url.startsWith('/api/media/jobs')) data = settings.media || new Promise(() => {});
+      else if (url.startsWith('/api/media/jobs')) data = advancedPage
+        && ['sessionId', 'sceneId', 'version'].every(key => advancedPage[key] === body?.[key])
+        ? settings.manualMedia || manualBackupResult(advancedPage) : settings.media || new Promise(() => {});
       else throw new Error(`Unexpected URL: ${url}`);
       data = await data;
+      if (url === '/api/advance') advancedPage = data;
       return {ok:!data?.error, json:async () => data};
     }});
   vm.runInContext(read('story-media.js'), context);
@@ -170,8 +197,151 @@ async function harness(request = null, {withMotion = false} = {}) {
   };
   const submit = async (value = 'paper') => {element('answer').value = value; await element('send').onclick(); await flush();};
   return {element, calls, settings, shows, reveals, timers, voiceCalls, narrations, cameraCalls, voiceSetupCalls, motionCalls,
-    document, start, submit, playback, playbackCalls, prefetched, expireSceneCache:() => preparedScenes.clear()};
+    document, start, submit, playback, playbackCalls, prefetched, sampleAudios, sampleCalls, voiceListCalls, expireSceneCache:() => preparedScenes.clear()};
 }
+
+function assertStartPage(h) {
+  assert.equal(h.element('book').dataset.state, 'COVER');
+  assert.equal(h.element('setup').hidden, false);
+  assert.equal(h.element('cover').hidden, false);
+  assert.equal(h.element('question').textContent, '');
+  assert.equal(h.element('narrative').children.length, 0);
+  assert.equal(h.element('choices').hidden, true);
+  assert.equal(h.element('freeInput').hidden, true);
+  assert.equal(h.element('narrationControls').hidden, true);
+  assert.equal(h.element('loading').hidden, true);
+  assert.equal(h.element('previousPage').disabled, true);
+}
+
+for (const trigger of ['restart', 'homeButton', 'previousPage']) {
+  test(`${trigger} returns the first story page to setup and waits for an explicit start`, async () => {
+    const h = await harness();
+    h.element('language').value = 'ko';
+    await h.element('language').onchange();
+    h.settings.voiceId = 'dad'; h.settings.voiceName = 'Dad';
+    h.element('readAloud').checked = false;
+    await h.start('mock');
+    h.element('answer').value = 'unfinished answer';
+    assert.equal(h.element(trigger).disabled, false, `${trigger} must be available on the first story page`);
+    const starts = h.calls.filter(call => call.url === '/api/sessions').length;
+    await h.element(trigger).onclick(); await flush();
+    assertStartPage(h);
+    assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, starts, 'Returning home must not start a story');
+    assert.equal(h.element('language').value, 'ko');
+    assert.equal(h.element('mode').value, 'mock');
+    assert.equal(h.settings.voiceId, 'dad');
+    assert.equal(h.element('readAloud').checked, false);
+    assert.equal(h.element('answer').value, '');
+    await h.element('cover').onclick(); await flush();
+    assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, starts + 1);
+    assert.deepEqual(h.calls.filter(call => call.url === '/api/sessions').at(-1).body, {mode:'mock', language:'ko'});
+    assert.equal(h.element('setup').hidden, true);
+    assert.equal(h.element('question').textContent, 'What material?');
+  });
+}
+
+for (const trigger of ['restart', 'homeButton']) {
+  test(`${trigger} cancels a starting session and ignores its late response on the setup page`, async () => {
+    const h = await harness(), late = deferred();
+    h.settings.session = late.promise;
+    const opening = h.element('cover').onclick(); await flush();
+    const request = h.calls.find(call => call.url === '/api/sessions');
+    await h.element(trigger).onclick();
+    assert.equal(request.signal.aborted, true);
+    assertStartPage(h);
+    late.resolve(state()); await opening; await flush();
+    assertStartPage(h);
+    assert.equal(h.narrations.length, 0);
+    assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
+  });
+}
+
+test('the logo stops reading and recording before returning home; a late clip cannot be transcribed', async () => {
+  const h = await harness(); await h.start();
+  assert.equal(h.settings.playback, 'playing');
+  const clip = deferred(); let stopped = false;
+  h.settings.recording = {stop() { stopped = true; }, done:clip.promise};
+  const recording = h.element('mic').onclick(); await flush();
+  assert.equal(h.element('book').dataset.state, 'LISTENING');
+  await h.element('homeButton').onclick();
+  assert.equal(stopped, true);
+  assert.equal(h.settings.playback, 'idle');
+  assertStartPage(h);
+  clip.resolve({blob:{size:10}, ms:1000}); await recording;
+  assert.equal(h.voiceCalls.includes('transcribe'), false);
+  assertStartPage(h);
+});
+
+test('previous on the first historical scene returns home instead of getting stuck at the history boundary', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit(); h.shows.at(-1).onComplete();
+  h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('question').textContent, 'What material?');
+  assert.equal(h.element('previousPage').disabled, false);
+  h.element('previousPage').onclick();
+  assertStartPage(h);
+  assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
+});
+
+test('previous returns home while the first scene voice is preparing and rejects its late completion', async () => {
+  const h = await harness(), voice = deferred();
+  h.settings.scenePreparation = voice;
+  await h.start();
+  assert.equal(h.element('book').dataset.state, 'VOICING');
+  assert.equal(h.element('previousPage').disabled, false);
+  const signal = h.prefetched.at(-1).options.signal;
+  h.element('previousPage').onclick();
+  assert.equal(signal.aborted, true);
+  assertStartPage(h);
+  voice.resolve({ready:true}); await flush();
+  assertStartPage(h);
+  assert.equal(h.narrations.length, 0);
+  assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
+});
+
+for (const preparation of ['replay', 'history']) {
+  test(`previous returns home while the first scene voice prepares again for ${preparation}`, async () => {
+    const h = await harness(); await h.start();
+    if (preparation === 'history') {
+      const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+      await h.submit(); h.shows.at(-1).onComplete();
+    }
+    const voice = deferred(); h.settings.scenePreparation = voice;
+    h.expireSceneCache(); h.playback('idle');
+    if (preparation === 'replay') h.element('playNarration').onclick();
+    else h.element('previousPage').onclick();
+    assert.equal(h.element('book').dataset.state, 'VOICING');
+    assert.equal(h.element('previousPage').disabled, false, 'The first scene can return home while its voice prepares again');
+    const signal = h.prefetched.at(-1).options.signal;
+    h.element('previousPage').onclick();
+    assert.equal(signal.aborted, true);
+    assertStartPage(h);
+    const readings = h.narrations.length;
+    voice.resolve({ready:true}); await flush();
+    assertStartPage(h);
+    assert.equal(h.narrations.length, readings);
+    assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
+  });
+}
+
+test('leaving the start page stops a voice sample and ignores a sample URL that arrives after returning home', async () => {
+  for (const pending of [false, true]) {
+    const h = await harness();
+    if (pending) h.settings.sample = deferred();
+    const sample = h.element('voiceCards').children[0].children[1].onclick();
+    if (!pending) {
+      await sample;
+      assert.equal(h.sampleAudios[0].played, true);
+    }
+    await h.start(); await h.element('homeButton').onclick();
+    if (pending) {
+      h.settings.sample.resolve('/late-sample.mp3'); await sample;
+      assert.equal(h.sampleAudios.length, 0, 'A stale sample must not start on the fresh setup page');
+    } else assert.equal(h.sampleAudios[0].paused, true);
+    assertStartPage(h);
+  }
+});
 
 test('illustration playback controls pause, resume and replay the displayed passage', async () => {
   const h = await harness();
@@ -273,12 +443,76 @@ test('the start screen lists every voice as a card that chooses it', async () =>
   assert.match(h.element('readBy').textContent, /Dad/);
 });
 
+test('both built-in voices stay visible and selectable during a failed or pending startup list request', async () => {
+  for (const waiting of [false, true]) {
+    const h = await harness(null, {initialVoiceError:waiting ? null : new Error('starting'), initialVoiceList:waiting ? deferred() : null});
+    const names = () => h.element('voiceCards').children.map(card => card.children[0].textContent);
+    assert.deepEqual(names(), ['Storybook voice', 'Storybook voice (male)']);
+    h.element('voiceCards').children[1].children[0].onclick();
+    assert.equal(h.settings.voiceId, '000000007127');
+    assert.match(h.element('readBy').textContent, /male/);
+    h.element('language').value = 'ko'; await h.element('language').onchange();
+    assert.deepEqual(names(), ['기본 목소리', '기본 목소리 (남성)']);
+  }
+});
+
+test('tapping a voice retries a failed startup list and keeps built-in selection when the server lists only parents', async () => {
+  const h = await harness(null, {initialVoiceError:new Error('starting')});
+  h.element('voiceCards').children[1].children[0].onclick(); await flush();
+  assert.equal(h.voiceListCalls.length, 2);
+  h.settings.voiceListError = null; h.settings.voices = [{id:'dad', name:'Dad'}];
+  h.element('voiceCards').children[1].children[0].onclick(); await flush();
+  assert.equal(h.voiceListCalls.length, 3);
+  assert.deepEqual(h.element('voiceCards').children.map(card => card.children[0].textContent), ['Storybook voice', 'Storybook voice (male)', 'Dad']);
+  await h.element('settingsButton').onclick();
+  assert.equal(h.settings.voiceId, '000000007127');
+});
+
+test('voice samples retry on each click after failure and retry the server when a local audio file cannot play', async () => {
+  const h = await harness(null, {initialVoiceError:new Error('starting')});
+  h.settings.sampleError = new Error('unavailable');
+  await h.element('voiceCards').children[1].children[1].onclick();
+  assert.equal(h.voiceListCalls.length, 2);
+  assert.match(h.element('status').textContent, /Try again/);
+  h.settings.sampleError = null;
+  h.settings.samplePlayErrors.push(new Error('missing audio'));
+  const before = h.sampleCalls.length;
+  await h.element('voiceCards').children[1].children[1].onclick();
+  assert.deepEqual(h.sampleCalls.slice(before).map(call => Boolean(call.serverOnly)), [false, true]);
+  assert.equal(h.sampleAudios.at(-1).url, '/server-sample.mp3');
+  assert.equal(h.sampleAudios.at(-1).played, true);
+});
+
+test('a newer sample click cancels the earlier request and cannot be overwritten by its late result', async () => {
+  const h = await harness(), first = deferred(), second = deferred();
+  h.settings.sample = first;
+  const old = h.element('voiceCards').children[0].children[1].onclick();
+  const signal = h.sampleCalls[0].signal;
+  h.settings.sample = second;
+  const current = h.element('voiceCards').children[1].children[1].onclick();
+  assert.equal(signal.aborted, true);
+  second.resolve('/new-sample.mp3'); await current;
+  first.resolve('/old-sample.mp3'); await old;
+  assert.deepEqual(h.sampleAudios.map(audio => audio.url), ['/new-sample.mp3']);
+});
+
+test('tapping the remembered parent voice also retries a list that failed before its metadata arrived', async () => {
+  const h = await harness(null, {initialVoiceError:new Error('starting')});
+  h.settings.voiceId = 'dad'; h.settings.voiceName = 'Dad';
+  h.element('language').value = 'ko'; await h.element('language').onchange();
+  h.settings.voiceListError = null; h.settings.voices = [{id:'dad', name:'Dad'}];
+  h.element('voiceCards').children[2].children[0].onclick(); await flush();
+  assert.equal(h.voiceListCalls.length, 2);
+  assert.equal(h.settings.voiceId, 'dad');
+  assert.deepEqual(h.element('voiceCards').children.map(card => card.children[0].textContent), ['기본 목소리', '기본 목소리 (남성)', 'Dad']);
+});
+
 test('settings selects saved voices immediately without opening registration', async () => {
   const h = await harness(); await h.start();
   h.settings.voices = [{id:'mom', name:'Mom'}, {id:'dad', name:'Dad'}];
   await h.element('settingsButton').onclick();
   assert.equal(h.element('readerSettings').hidden, false);
-  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom', 'dad']);
+  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', '000000007127', 'mom', 'dad']);
   h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
   assert.equal(h.settings.voiceId, 'dad');
   assert.equal(h.element('addVoice').hidden, false, 'Adding another voice stays available for a saved voice');
@@ -345,7 +579,7 @@ test('a late saved-voice response cannot overwrite reopened settings', async () 
   h.settings.voiceList = null; h.settings.voices = [{id:'mom', name:'Mom'}];
   await h.element('settingsButton').onclick();
   old.resolve([{id:'old', name:'Old voice'}]); await opening;
-  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', 'mom']);
+  assert.deepEqual(h.element('voiceSelect').children.map(option => option.value), ['', '000000007127', 'mom']);
 });
 
 test('merged parent voice registration, return links and warmup remain available in the child reader', async () => {
@@ -373,6 +607,7 @@ test('index is the child reader with offline/AI selection and no developer navig
     assert.ok(html.includes(`src="${file}"`));
   assert.match(html, /오프라인 버전/);
   assert.match(html, /AI 버전/);
+  assert.match(html, /<button[^>]*id="homeButton"[^>]*type="button"[^>]*aria-label=/);
   assert.doesNotMatch(html, /agent\.html|agent\.js|diagnosticsJson/);
   assert.match(read('agent.html'), /diagnosticsJson/);
 });
@@ -528,7 +763,106 @@ test('reloading a failed image reattaches its binding and unlocks only after dis
   assert.equal(h.element('send').disabled, false);
 });
 
-test('the retry button recovers a failed generation through the real media server', {timeout:10000}, async () => {
+test('a scene backup opens answering only after display and identifies itself as prepared art', async () => {
+  const h = await harness(null, {withMotion:true}); await h.start();
+  h.motionCalls.length = 0;
+  const next = accepted(); h.settings.answer = next; h.settings.media = backupResult(next);
+  await h.submit();
+  assert.equal(h.shows.at(-1).url, '/prototype/img/fallback/house1_predict.jpg');
+  assert.equal(h.element('send').disabled, true);
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.element('retryMedia').hidden, true);
+  assert.equal(h.element('loading').hidden, true);
+  assert.equal(h.element('pictureNotice').hidden, false);
+  assert.match(h.element('pictureNotice').textContent, /prepared picture/);
+  assert.equal(h.motionCalls.some(call => Array.isArray(call) && call[0] === 'scene'), false);
+  assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, 1);
+});
+
+test('unanswered next immediately loads the scene backup in either mode and history reuses it', async () => {
+  for (const mode of ['live', 'mock']) {
+    const h = await harness(); await h.start(mode);
+    const next = accepted(mode, {diagnostics:{manualNavigation:{skippedPicture:true, skippedQuestion:true, defaultChoice:'Paper'}}});
+    h.settings.advance = next;
+    await h.element('nextPage').onclick(); await flush();
+    assert.equal(h.shows.at(-1).url, '/prototype/img/fallback/house1_predict.jpg');
+    assert.equal(h.element('send').disabled, true);
+    h.shows.at(-1).onComplete();
+    assert.equal(h.element('send').disabled, false);
+    assert.match(h.element('status').textContent, /Continuing with/);
+    assert.doesNotMatch(h.element('status').textContent, /skipped/i);
+    assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 0);
+    assert.equal(h.calls.filter(c => c.url === '/api/advance').length, 1);
+    const jobs = h.calls.filter(c => c.url === '/api/media/jobs').length;
+    h.element('previousPage').onclick(); h.shows.at(-1).onComplete();
+    h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
+    assert.equal(h.shows.at(-1).url, '/prototype/img/fallback/house1_predict.jpg');
+    assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, jobs);
+  }
+});
+
+test('a manual next backup is revealed before slow narration finishes while answering stays locked', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(); h.settings.scenePreparation = voice;
+  await h.element('nextPage').onclick(); await flush();
+  assert.equal(h.shows.at(-1).url, '/prototype/img/fallback/house1_predict.jpg');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.reveals.length, 1, 'Manual navigation shows a decoded backup without waiting for speech');
+  assert.equal(h.element('loading').hidden, true, 'Speech preparation cannot cover the visible backup');
+  assert.equal(h.element('pictureNotice').hidden, false);
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.reveals.length, 1);
+});
+
+test('leaving a manual next page ignores a late backup response or decode', async () => {
+  for (const decoding of [false, true]) {
+    const h = await harness(); await h.start();
+    const late = deferred();
+    if (!decoding) h.settings.manualMedia = late.promise;
+    await h.element('nextPage').onclick(); await flush();
+    const oldShow = h.shows.at(-1);
+    await h.element('homeButton').onclick(); await flush();
+    if (decoding) oldShow.onComplete();
+    else late.resolve(manualBackupResult(accepted('live', {diagnostics:{manualNavigation:{skippedPicture:true}}})));
+    await flush();
+    assertStartPage(h);
+  }
+});
+
+test('a failed backup download can reload the same backup without generating or skipping the image gate', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = backupResult(next);
+  await h.submit(); h.shows.at(-1).onError();
+  assert.equal(h.element('send').disabled, true);
+  await h.element('retryMedia').onclick(); await flush();
+  const jobs = h.calls.filter(c => c.url === '/api/media/jobs');
+  assert.equal(jobs.length, 2);
+  assert.deepEqual(jobs[0].body, jobs[1].body);
+  assert.equal(jobs[1].body.retryOf, undefined);
+  assert.equal(h.element('send').disabled, true);
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('send').disabled, false);
+});
+
+test('a decoded backup still waits for the whole page voice and then displays the Korean prepared-picture note', async () => {
+  const h = await harness(); await h.start();
+  const voice = deferred(), next = accepted('live', {language:'ko'});
+  h.element('language').value = 'ko';
+  h.settings.scenePreparation = voice;
+  h.settings.answer = next; h.settings.media = backupResult(next);
+  await h.submit(); h.shows.at(-1).onComplete();
+  assert.equal(h.reveals.length, 0);
+  assert.equal(h.element('send').disabled, true);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.reveals.length, 1);
+  assert.equal(h.element('send').disabled, false);
+  assert.match(h.element('pictureNotice').textContent, /준비된 그림/);
+});
+
+for (const failAlways of [false, true]) test(`real media server ${failAlways ? 'uses the scene backup after two failures' : 'recovers the first failure automatically'}`, {timeout:10000}, async () => {
   const {spawn} = require('node:child_process');
   const {createInterface} = require('node:readline');
   const {once} = require('node:events');
@@ -539,21 +873,21 @@ from tests.test_live_images import JPEG, LiveRules
 from vision.server import VisionPlayground, VisionServer
 
 class CurrentPageJobs(MediaJobs):
-    # This test counts explicit retries of this page, not background followers.
+    # Count this page's attempts without background followers.
     def draw_ahead(self, snapshot, followers):
         pass
 
-class FailOnce:
-    calls = 0
+class FailImages:
+    calls = {}
     def generate(self, spec, plan, references, cancelled):
-        self.calls += 1
-        print('ATTEMPT', self.calls, flush=True)
-        if self.calls == 1:
+        count = self.calls[spec.scene_id] = self.calls.get(spec.scene_id, 0) + 1
+        print('ATTEMPT', spec.scene_id, count, flush=True)
+        if ${failAlways ? 'True' : 'False'} or count == 1:
             raise ImageError('image_http_error')
         return JPEG
 
 app = VisionPlayground('fixture-key', provider_factory=lambda mode: LiveRules(),
-    media=CurrentPageJobs(image_provider=FailOnce()))
+    media=CurrentPageJobs(image_provider=FailImages()))
 with VisionServer(('127.0.0.1', 0), app) as server:
     print('PORT', server.server_port, flush=True)
     server.serve_forever()
@@ -565,7 +899,7 @@ with VisionServer(('127.0.0.1', 0), app) as server:
     const port = await new Promise((resolve, reject) => {
       lines.on('line', line => {
         if (line.startsWith('PORT ')) resolve(Number(line.slice(5)));
-        if (line.startsWith('ATTEMPT ')) attempts = Number(line.slice(8));
+        if (line.startsWith('ATTEMPT house1_predict ')) attempts = Number(line.split(' ').at(-1));
       });
       fixture.on('exit', () => reject(new Error(stderr || 'Fixture exited')));
       fixture.on('error', reject);
@@ -593,14 +927,20 @@ with VisionServer(('127.0.0.1', 0), app) as server:
     await h.start();
     await h.submit('paper');
     await settlePictures();
-    assert.equal(h.element('retryMedia').hidden, false);
-    assert.equal(h.element('send').disabled, true);
-    assert.equal(attempts, 1, JSON.stringify(replies));
-    await h.element('retryMedia').onclick();
-    await settlePictures();
-    assert.equal(h.element('loading').hidden, true, 'Retry must replace the failed job and display the next picture');
+    assert.equal(h.element('retryMedia').hidden, true, 'Recovery requires no manual retry');
+    assert.equal(h.element('loading').hidden, true);
     assert.equal(h.element('send').disabled, false);
-    assert.equal(attempts, 2, 'One deliberate retry starts exactly one replacement generation');
+    assert.equal(attempts, 2, 'Exactly two generation attempts for this scene, independent of draw-ahead work');
+    const terminal = replies.filter(r => r.body.sceneId === 'house1_predict').at(-1).body;
+    assert.equal(terminal.source, failAlways ? 'scene_backup' : 'muse_image');
+    assert.equal(terminal.generationAttempts, 2);
+    if (failAlways) {
+      const response = await fetch(`http://127.0.0.1:${port}${terminal.image.url}`);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type'), /image\/jpeg/);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      assert.deepEqual(bytes, fs.readFileSync(path.join(__dirname, '..', terminal.image.url)));
+    }
   } finally {
     lines.close();
     if (fixture.exitCode === null) { fixture.kill(); await once(fixture, 'exit'); }
@@ -617,9 +957,9 @@ test('restart ignores stale image decode and late generation responses', async (
     await h.element('restart').onclick(); await flush();
     if (afterDecode) oldShow.onComplete();
     else {late.resolve(imageResult(next)); await flush();}
-    assert.equal(h.element('question').textContent, 'What material?');
-    assert.equal(h.element('loading').hidden, true);
-    assert.equal(h.element('send').disabled, false);
+    assertStartPage(h);
+    assert.equal(h.element('send').disabled, true);
+    assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
   }
 });
 
@@ -795,7 +1135,8 @@ test('late transcription cannot change a restarted session or a hidden-tab cance
     h.settings.transcription.resolve('late transcript'); await listening;
     assert.notEqual(h.element('answer').value, 'late transcript');
     assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 0);
-    assert.equal(h.element('mic').disabled, false);
+    assert.equal(h.element('mic').disabled, restart);
+    if (restart) assertStartPage(h);
   }
 });
 
@@ -844,7 +1185,7 @@ test('page arrows revisit matching text and art without submitting old answers o
   const h = await harness();
   assert.equal(h.element('previousPage').disabled, true);
   await h.element('nextPage').onclick(); await flush();
-  assert.equal(h.element('previousPage').disabled, true);
+  assert.equal(h.element('previousPage').disabled, false, 'The first scene can return to setup');
   const oldChoice = h.element('choices').children[0];
   const next = accepted('mock'); h.settings.answer = next; h.settings.media = imageResult(next);
   await h.submit();
@@ -898,8 +1239,11 @@ test('history preserves choice locks, keeps only one entry per scene and resets 
   const late = h.shows.at(-1);
   await h.element('restart').onclick();
   late.onComplete();
-  assert.equal(h.element('previousPage').disabled, true);
-  assert.equal(h.element('question').textContent, 'What material?');
+  assertStartPage(h);
+  assert.equal(h.element('language').value, 'ko', 'Setup restores the latest chosen language, not the historical page language');
+  assert.equal(h.calls.filter(call => call.url === '/api/sessions').length, 1);
+  await h.element('cover').onclick(); await flush();
+  assert.equal(h.element('choices').hidden, true, 'A new story resets the previous choice lock');
   assert.equal(h.calls.filter(call => call.url === '/api/sessions').at(-1).body.language, 'ko');
 });
 
@@ -913,7 +1257,7 @@ test('page navigation handles image failure and ending boundaries without changi
   h.shows.at(-1).onError();
   assert.equal(h.element('question').textContent, 'What material?');
   assert.equal(h.element('nextPage').disabled, false);
-  assert.equal(h.element('previousPage').disabled, true);
+  assert.equal(h.element('previousPage').disabled, false, 'The first historical scene still offers returning home');
   assert.equal(h.element('pictureNotice').hidden, false, 'Broken art is replaced by an explicit notice');
   assert.equal(h.element('nextPage').disabled, false);
   h.element('nextPage').onclick(); h.shows.at(-1).onComplete();
@@ -990,7 +1334,10 @@ test('next interrupts recording or transcription and prevents late recognized wo
     assert.equal(h.element('question').textContent, 'What will happen?');
     assert.equal(h.element('answer').value, '');
     assert.equal(h.calls.filter(call => call.url === '/api/answer').length, 0);
-    assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 0);
+    assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 1);
+    await flush();
+    assert.equal(h.shows.at(-1).url, '/prototype/img/fallback/house1_predict.jpg');
+    h.shows.at(-1).onComplete();
     assert.equal(h.element('send').disabled, false);
   }
 });
@@ -1013,7 +1360,8 @@ test('next supersedes a pending story answer, reuses rapid navigation requests a
   slow.resolve(accepted('live', {lines:[{text:'A late cookie house.'}]}));
   await answering;
   assert.equal(h.element('narrative').children[0].textContent, 'A new paper house.');
-  assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 0);
+  assert.equal(h.calls.filter(call => call.url === '/api/media/jobs').length, 1);
+  h.shows.at(-1).onComplete();
   assert.equal(h.element('send').disabled, false);
 });
 
@@ -1081,7 +1429,7 @@ test('restart aborts a pending whole-page voice and rejects its late completion'
   assert.equal(signal.aborted, true);
   const reads = h.narrations.length;
   voice.resolve({ready:true}); picture.onComplete(); await flush();
-  assert.equal(h.element('question').textContent, 'What material?');
+  assertStartPage(h);
   assert.equal(h.narrations.length, reads);
 });
 
@@ -1224,7 +1572,7 @@ test('whole-page progress and timeout belong only to the active preparation atte
   const newText = h.element('loadingText').textContent;
   options.onProgress({ready:3, total:5});
   voice.resolve({ready:true}); await flush();
-  assert.equal(h.element('question').textContent, 'What material?');
+  assertStartPage(h);
   assert.equal(h.element('loadingText').textContent, newText);
 });
 

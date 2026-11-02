@@ -247,9 +247,27 @@ const Narration = (() => {
   let pack = null;
   const packKey = (line, language) => [language, line.speakerId || "narrator", line.kind || "", line.tone || "",
     line.emotion || "", line.text].join("|");
+  async function loadPack() {
+    const controller = new AbortController();
+    let timer;
+    try {
+      return await Promise.race([
+        fetch(PACK + "manifest.json", {signal: controller.signal}).then(async response => {
+          if (!response.ok) throw new Error("pack_unavailable");
+          const body = await response.json();
+          if (!body?.voices || typeof body.voices !== "object") throw new Error("pack_unavailable");
+          return body;
+        }),
+        new Promise((_, reject) => { timer = setTimeout(() => {
+          controller.abort(); reject(new Error("pack_timeout"));
+        }, REQUEST_MS); })
+      ]);
+    } catch { pack = null; return {}; }
+    finally { clearTimeout(timer); }
+  }
   function packed(lines, language, voice = voiceId()) {
     if (allRoles()) return Promise.resolve(lines.map(() => null));
-    pack ||= fetch(PACK + "manifest.json").then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    pack ||= loadPack();
     return pack.then(({voices = {}}) => lines.map(line => {
       const own = voices[voice || "default"];
       const key = packKey(line, language);
@@ -269,15 +287,16 @@ const Narration = (() => {
   // A storybook voice plays the app's own file; a parent's voice is voiced by the server.
   const FIRST_LINE = {en: "Once upon a time, three little pigs set out to build homes.",
     ko: "옛날 옛적에 아기돼지 삼형제가 집을 지으러 나섰어요."};
-  async function sample(id = null, language = "en") {
+  async function sample(id = null, language = "en", {serverOnly = false, signal} = {}) {
     const line = {speakerId: "narrator", text: FIRST_LINE[language] || FIRST_LINE.en, kind: "narration", tone: "warm", emotion: "calm"};
-    const [file] = await packed([line], language, id);
+    const [file] = serverOnly ? [] : await abortable(packed([line], language, id), signal);
     if (file) return file;
-    if (!id) throw new Error("sample_unavailable");
-    const {response, body} = await request(`/api/voices/${id}/preview`, {method: "POST",
-      headers: {"Content-Type": "application/json"}, body: JSON.stringify({language})}, {timeout: REQUEST_MS});
-    if (!response.ok) throw new Error(`sample_${response.status}`);
-    return `${server}${body.url}?wait=${LINE_WAIT}`;
+    const {response, body} = await request(id ? `/api/voices/${id}/preview` : "/api/voice/lines", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(id ? {language} : {language, lines: [line]})},
+      {signal, timeout: SCENE_QUEUE_MS});
+    const url = id ? body.url : body.clips?.[0]?.url;
+    if (!response.ok || typeof url !== "string") throw new Error(`sample_${response.status}`);
+    return `${server}${url}?wait=${LINE_WAIT}`;
   }
 
   // Clips for these lines, in order: the app's own file where there is one ({packed: true}), the server for the rest.

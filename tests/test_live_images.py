@@ -12,10 +12,11 @@ import unittest
 from unittest.mock import patch
 import urllib.error
 
-from media.assets import ROOT
+from media.assets import AssetRegistry, ROOT
 from media.contracts import normalize
 from media.image_provider import ImageError, MuseImageProvider, checked_jpeg, scene_facts
 from media.jobs import JobError, MediaJobs, fixed_followers
+from media.server import MediaPlayground
 from story_agent.engine import MockProvider, StoryEngine
 from story_agent.server import SESSION_TTL
 from vision.server import VisionPlayground, VisionServer
@@ -142,19 +143,23 @@ class ImageProviderTests(unittest.TestCase):
 
 
 class FakeImages:
-    def __init__(self, gated=False, fail=False):
+    def __init__(self, gated=False, fail=False, fail_once=False):
         self.calls = []
         self.started, self.release = threading.Event(), threading.Event()
         self.both_started = threading.Event()
         self.fail = fail
+        self.fail_once = fail_once
         if not gated:
             self.release.set()
 
     def generate(self, spec, plan, references, cancelled):
         self.calls.append((spec, plan, references))
+        first = len(self.calls) == 1
         self.started.set()
         if len(self.calls) >= 2:
             self.both_started.set()
+        if self.fail_once and first:
+            raise ImageError('image_http_error')
         self.release.wait(3)
         if self.fail:
             raise ImageError('private fixture error')
@@ -166,9 +171,9 @@ class ImageJobTests(unittest.TestCase):
         self.engine, self.start, self.build, self.event = scenes()
         self.managers = []
 
-    def manager(self, **kwargs):
+    def manager(self, image_timeout=120, registry=None, **kwargs):
         provider = FakeImages(**kwargs)
-        manager = MediaJobs(image_provider=provider)
+        manager = MediaJobs(image_provider=provider, image_timeout=image_timeout, registry=registry)
         self.managers.append(manager)
         return manager, provider
 
@@ -214,19 +219,21 @@ class ImageJobTests(unittest.TestCase):
         outcome = next(call for call in provider.calls if call[0].action == self.event['mediaPlan']['action'])
         self.assertEqual(outcome[2][0], JPEG, 'The outcome edits the generated house picture')
 
-    def test_a_picture_drawn_ahead_that_failed_is_drawn_again_when_asked(self):
+    def test_failed_draw_ahead_reuses_the_backup_without_a_third_attempt_on_request(self):
         manager, provider = self.manager()
         finish(manager, manager.request(self.build))
         provider.fail = True
         manager.draw_ahead(self.build, fixed_followers(self.build))
         deadline = time.monotonic() + 3
-        while len(provider.calls) < 3 and time.monotonic() < deadline:
+        while any(work['status'] in {'queued', 'running'} for work in manager.works.values()) and time.monotonic() < deadline:
             time.sleep(.005)
-        time.sleep(.05)
         provider.fail = False
         event = finish(manager, manager.request(self.event))
-        self.assertEqual(event['status'], 'ready')
-        self.assertEqual(len(provider.calls), 4)
+        self.assertEqual(event['source'], 'scene_backup')
+        self.assertEqual(event['generationAttempts'], 2)
+        self.assertEqual(len(provider.calls), 5, 'One build plus two attempts for each of two followers')
+        manager.request(self.event, retry_of=event['jobId'])
+        self.assertEqual(len(provider.calls), 5)
 
     def test_only_a_live_build_page_draws_ahead(self):
         self.assertEqual(len(fixed_followers(self.build)), 2)
@@ -370,19 +377,110 @@ class ImageJobTests(unittest.TestCase):
         self.assertEqual(ready['source'], 'prepared_choice')
         self.assertFalse(ready['generationRequested'])
 
-    def test_failed_review_keeps_truthful_prepared_fallback_and_does_not_retry(self):
+    def test_first_failure_retries_automatically_and_a_successful_second_attempt_uses_generated_pixels(self):
+        manager, provider = self.manager(fail_once=True)
+        ready = finish(manager, manager.request(self.build))
+        self.assertEqual(ready['status'], 'ready')
+        self.assertTrue(ready['generated'])
+        self.assertEqual(ready['source'], 'muse_image')
+        self.assertEqual(ready['generationAttempts'], 2)
+        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(len(manager.images), 1)
+
+    def test_manual_next_loads_all_nine_backups_without_workers_or_generation_in_both_modes_and_languages(self):
+        for mode in ('live', 'mock'):
+            for language in ('en', 'ko'):
+                manager, provider = self.manager(gated=True)
+                app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules() if mode == 'live' else MockProvider(), media=manager)
+                state = app.create(mode, language)
+                with patch.object(manager.pool, 'submit', side_effect=AssertionError('Manual backup must not queue work')):
+                    for turn in range(9):
+                        body = {'sessionId':state['sessionId'], 'version':state['version'], 'requestId':f'skip-{turn}'}
+                        state = app.advance(body)
+                        binding = {key:state[key] for key in ('sessionId', 'sceneId', 'version')}
+                        ready = app.media_request(binding)
+                        with self.subTest(mode=mode, language=language, scene=state['sceneId']):
+                            self.assertEqual(ready['source'], 'scene_backup')
+                            self.assertEqual(ready['reason'], 'manual_navigation')
+                            self.assertEqual(ready['image']['url'], f'/prototype/img/fallback/{state["sceneId"]}.jpg')
+                            self.assertEqual(ready['generationAttempts'], 0)
+                            self.assertFalse(ready['generated'] or ready['generationRequested'])
+                            self.assertTrue(ready['apply'])
+                            self.assertEqual(app.media_request(binding)['jobId'], ready['jobId'])
+                            self.assertEqual(fixed_followers(state), [])
+                        self.assertEqual(app.advance(body), state, 'Repeated next cannot skip twice')
+                    self.assertIsNone(state['question'])
+                self.assertEqual(provider.calls, [])
+
+    def test_manual_backup_translation_preserves_the_zero_generation_path(self):
+        manager, provider = self.manager()
+        app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules(), media=manager)
+        start = app.create('live')
+        state = app.advance({'sessionId':start['sessionId'], 'version':start['version'], 'requestId':'skip'})
+        first = app.media_request({key:state[key] for key in ('sessionId', 'sceneId', 'version')})
+        translated = app.change_language({'sessionId':state['sessionId'], 'version':state['version'], 'language':'ko'})
+        ready = app.media_request({key:translated[key] for key in ('sessionId', 'sceneId', 'version')})
+        self.assertEqual(ready['source'], 'scene_backup')
+        self.assertEqual(ready['image'], first['image'])
+        self.assertEqual(ready['generationAttempts'], 0)
+        self.assertFalse(manager.get(first['jobId'], first['sessionId'])['apply'])
+        self.assertEqual(provider.calls, [])
+
+    def test_manual_navigation_replaces_inflight_generation_and_ignores_its_late_pixels(self):
+        manager, provider = self.manager(gated=True)
+        app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules(), media=manager)
+        start = app.create('live')
+        built = app.answer({'sessionId':start['sessionId'], 'version':start['version'],
+                            'questionId':start['question']['id'], 'requestId':'answer', 'answer':'paper'})
+        binding = {key:built[key] for key in ('sessionId', 'sceneId', 'version')}
+        old = app.media_request(binding)
+        self.assertTrue(provider.started.wait(1))
+        recovered = app.advance({'sessionId':start['sessionId'], 'version':start['version'], 'requestId':'next'})
+        self.assertEqual(recovered['sceneId'], built['sceneId'])
+        backup = app.media_request(binding)
+        self.assertEqual(backup['source'], 'scene_backup')
+        self.assertEqual(backup['generationAttempts'], 0)
+        provider.release.set()
+        manager.pool.shutdown(wait=True)
+        self.assertFalse(manager.images)
+        self.assertFalse(manager.get(old['jobId'], old['sessionId'])['apply'])
+        self.assertEqual(manager.get(backup['jobId'], backup['sessionId'])['image'], backup['image'])
+        self.assertEqual(len(provider.calls), 1)
+
+    def test_missing_manual_backup_is_explicit_without_a_generation_or_another_materials_picture(self):
+        registry = AssetRegistry()
+        registry.data['backups'] = {}
+        manager, provider = self.manager(registry=registry)
+        app = MediaPlayground('fixture-key', provider_factory=lambda mode: LiveRules(), media=manager)
+        start = app.create('live')
+        state = app.advance({'sessionId':start['sessionId'], 'version':0, 'requestId':'next'})
+        ready = app.media_request({key:state[key] for key in ('sessionId', 'sceneId', 'version')})
+        self.assertEqual(ready['status'], 'failed')
+        self.assertEqual(ready['reason'], 'scene_asset_unavailable')
+        self.assertIsNone(ready['image'])
+        self.assertFalse(ready['generationRequested'])
+        self.assertEqual(provider.calls, [])
+
+    def test_two_failures_automatically_return_the_material_independent_scene_backup(self):
         manager, provider = self.manager(fail=True)
         job = manager.request(self.build)
         ready = finish(manager, job)
-        self.assertEqual(ready['status'], 'failed')
+        self.assertEqual(ready['status'], 'fallback')
+        self.assertEqual(ready['source'], 'scene_backup')
+        self.assertEqual(ready['reason'], 'image_generation_exhausted')
         self.assertFalse(ready['generated'])
         self.assertTrue(ready['generationRequested'])
-        self.assertEqual(ready['image']['url'], '/prototype/img/paper_house.jpg')
+        self.assertEqual(ready['image']['url'], '/prototype/img/fallback/house1_predict.jpg')
+        self.assertEqual(ready['image']['sceneId'], self.build['sceneId'])
+        self.assertTrue(ready['image']['reviewed'] and ready['image']['materialIndependent'])
+        self.assertEqual(ready['generationAttempts'], 2)
+        self.assertFalse(ready['generationRetryAvailable'])
+        self.assertFalse(manager.images or manager.last_images, 'A backup is never a generated house reference')
         self.assertNotIn('private', json.dumps(ready))
         manager.request(self.build)
-        self.assertEqual(len(provider.calls), 1)
+        self.assertEqual(len(provider.calls), 2)
 
-    def test_explicit_retry_replaces_failed_work_once_even_for_simultaneous_clicks(self):
+    def test_simultaneous_requests_and_retry_clicks_cannot_generate_a_third_image(self):
         manager, provider = self.manager(fail=True)
         first = finish(manager, manager.request(self.build))
         provider.fail = False
@@ -390,12 +488,12 @@ class ImageJobTests(unittest.TestCase):
             retried = list(pool.map(lambda _: manager.request(self.build, retry_of=first['jobId']), range(8)))
         self.assertEqual(len({job['jobId'] for job in retried}), 1)
         ready = finish(manager, retried[0])
-        self.assertNotEqual(ready['jobId'], first['jobId'])
-        self.assertTrue(ready['generated'])
+        self.assertEqual(ready['jobId'], first['jobId'])
+        self.assertEqual(ready['source'], 'scene_backup')
         self.assertEqual(len(provider.calls), 2)
         self.assertEqual(manager.request(self.build)['jobId'], ready['jobId'])
         self.assertEqual(manager.request(self.build, retry_of=first['jobId'])['jobId'], ready['jobId'])
-        self.assertFalse(manager.get(first['jobId'], first['sessionId'])['apply'])
+        self.assertTrue(manager.get(first['jobId'], first['sessionId'])['apply'])
 
     def test_ready_or_running_picture_reattaches_without_generating_again(self):
         manager, provider = self.manager(gated=True)
@@ -410,18 +508,17 @@ class ImageJobTests(unittest.TestCase):
     def test_generation_retries_are_bounded_and_translation_does_not_reset_the_limit(self):
         manager, provider = self.manager(fail=True)
         job = finish(manager, manager.request(self.build))
-        for remaining in (1, 0):
-            job = finish(manager, manager.request(self.build, retry_of=job['jobId']))
-            self.assertEqual(job['retriesRemaining'], remaining)
+        self.assertEqual(job['retriesRemaining'], 0)
         self.assertFalse(job['generationRetryAvailable'])
-        with self.assertRaisesRegex(JobError, 'image_retry_limit'):
-            manager.request(self.build, retry_of=job['jobId'])
+        self.assertEqual(manager.request(self.build, retry_of=job['jobId'])['source'], 'scene_backup')
         translated = self.engine.change_language(self.build, 'ko')
         translated_job = finish(manager, manager.request(translated))
         self.assertEqual(translated_job['retriesRemaining'], 0)
-        with self.assertRaisesRegex(JobError, 'image_retry_limit'):
-            manager.request(translated, retry_of=translated_job['jobId'])
-        self.assertEqual(len(provider.calls), 3)
+        self.assertEqual(translated_job['source'], 'scene_backup')
+        self.assertEqual(translated_job['image'], job['image'])
+        self.assertFalse(manager.get(job['jobId'], job['sessionId'])['apply'])
+        self.assertEqual(manager.request(translated, retry_of=translated_job['jobId'])['jobId'], translated_job['jobId'])
+        self.assertEqual(len(provider.calls), 2)
 
     def test_cancelled_foreign_and_stale_jobs_cannot_be_retried(self):
         manager, provider = self.manager(fail=True)
@@ -437,24 +534,92 @@ class ImageJobTests(unittest.TestCase):
         with self.assertRaisesRegex(JobError, 'retry_not_allowed'):
             manager.request(self.event, retry_of=first['jobId'])
         finish(manager, current)
-        self.assertEqual(len(provider.calls), 2)
+        self.assertEqual(len(provider.calls), 4)
 
-    def test_timeout_and_late_old_completion_cannot_overwrite_a_manual_retry(self):
+    def test_two_timeouts_return_a_backup_and_late_attempts_cannot_overwrite_it(self):
         manager, provider = self.manager(gated=True)
         first = manager.request(self.build)
         self.assertTrue(provider.started.wait(1))
-        old_work = manager.jobs[first['jobId']]['work']
-        manager._expire(old_work)
-        replacement = manager.request(self.build, retry_of=first['jobId'])
+        work = manager.jobs[first['jobId']]['work']
+        first_event = work['event']
+        manager._expire(work, first_event)
+        self.assertTrue(provider.both_started.wait(1))
+        second_event = work['event']
+        self.assertIsNot(first_event, second_event)
+        manager._expire(work, first_event)
+        self.assertEqual(manager.get(first['jobId'], first['sessionId'])['status'], 'running')
+        manager._expire(work, second_event)
+        backup = finish(manager, first)
+        self.assertEqual(backup['source'], 'scene_backup')
         provider.release.set()
-        ready = finish(manager, replacement)
-        image = ready['image']
-        manager.pool.submit(lambda: None).result(timeout=1)
-        manager._expire(old_work)
-        manager.cancel(first['jobId'], first['sessionId'])
-        self.assertEqual(manager.get(ready['jobId'], ready['sessionId'])['image'], image)
-        self.assertEqual(len(manager.images), 1)
+        manager.pool.shutdown(wait=True)
+        manager._expire(work, first_event)
+        manager._expire(work, second_event)
+        self.assertEqual(manager.get(first['jobId'], first['sessionId'])['image'], backup['image'])
+        self.assertFalse(manager.images)
         self.assertEqual(len(provider.calls), 2)
+
+    def test_cancel_during_the_second_attempt_stops_publication_and_further_retries(self):
+        manager, provider = self.manager(gated=True)
+        job = manager.request(self.build)
+        self.assertTrue(provider.started.wait(1))
+        work = manager.jobs[job['jobId']]['work']
+        manager._expire(work, work['event'])
+        self.assertTrue(provider.both_started.wait(1))
+        manager.cancel_session(job['sessionId'], through_version=job['version'])
+        provider.release.set()
+        manager.pool.shutdown(wait=True)
+        ready = manager.get(job['jobId'], job['sessionId'])
+        self.assertEqual(ready['status'], 'cancelled')
+        self.assertFalse(ready['apply'] or manager.images)
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_actual_image_deadlines_retry_once_and_then_finish_with_a_backup(self):
+        manager, provider = self.manager(gated=True, image_timeout=.05)
+        ready = finish(manager, manager.request(self.build))
+        self.assertEqual(ready['source'], 'scene_backup')
+        self.assertEqual(ready['generationAttempts'], 2)
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_a_failed_first_attempt_cannot_cancel_the_second_attempts_deadline(self):
+        manager, provider = self.manager(gated=True, fail_once=True, image_timeout=.05)
+        ready = finish(manager, manager.request(self.build))
+        self.assertEqual(ready['source'], 'scene_backup')
+        self.assertEqual(ready['generationAttempts'], 2)
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_missing_backup_never_substitutes_another_scene_or_resets_the_attempt_limit(self):
+        registry = AssetRegistry()
+        registry.data['backups'] = {}
+        manager, provider = self.manager(fail=True, registry=registry)
+        ready = finish(manager, manager.request(self.build))
+        self.assertEqual(ready['status'], 'failed')
+        self.assertFalse(ready['generationRetryAvailable'])
+        with self.assertRaisesRegex(JobError, 'image_retry_limit'):
+            manager.request(self.build, retry_of=ready['jobId'])
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_all_nine_scene_backups_work_in_both_languages_including_custom_materials_and_ending(self):
+        for language in ('en', 'ko'):
+            manager, provider = self.manager(fail=True)
+            engine = StoryEngine(LiveRules(), language=language)
+            state = engine.start('backup-' + language)
+            self.assertNotIn(state['sceneId'], manager.registry.data['backups'][state['storyState']['storyId']])
+            seen = []
+            for material in ('비닐로 집을 만들래!', 'icecream', 'stone'):
+                for answer in (material, 'Let us watch carefully together.', 'We can build carefully together.'):
+                    state = engine.answer(state, answer)
+                    ready = finish(manager, manager.request(state))
+                    with self.subTest(language=language, scene=state['sceneId']):
+                        self.assertEqual(ready['source'], 'scene_backup')
+                        self.assertEqual(ready['image']['url'], f'/prototype/img/fallback/{state["sceneId"]}.jpg')
+                        self.assertEqual(ready['generationAttempts'], 2)
+                        self.assertTrue(ready['apply'])
+                        self.assertEqual(ready['image'], manager.registry.backup_image(normalize(state)))
+                    seen.append(state['sceneId'])
+            self.assertEqual(len(set(seen)), 9)
+            self.assertEqual(state['sceneId'], 'ending')
+            self.assertEqual(len(provider.calls), 18)
 
     def test_custom_material_and_canonical_touch_selection_reach_the_image_provider(self):
         manager, provider = self.manager()

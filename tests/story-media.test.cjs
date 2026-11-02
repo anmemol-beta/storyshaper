@@ -37,6 +37,100 @@ function preparedChoice(state, changes = {}) {
     image:{url:'/prototype/img/paper_house.jpg'}, ...changes});
 }
 
+function sceneBackup(state, changes = {}) {
+  return result(state, {status:'fallback', source:'scene_backup', generated:false,
+    generationAttempts:2, generationRetryAvailable:false, retriesRemaining:0,
+    reason:'image_generation_exhausted',
+    image:{url:`/prototype/img/fallback/${state.sceneId}.jpg`, sceneId:state.sceneId,
+      reviewed:true, materialIndependent:true}, ...changes});
+}
+
+test('two server failures display the current scene backup only after decoding, without another generation', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(1, {sceneId:'house1_predict'});
+  const pending = player.update(state);
+  calls[0].resolve(sceneBackup(state)); await pending;
+  assert.equal(shows[0].url, '/prototype/img/fallback/house1_predict.jpg');
+  assert.equal(states.at(-1).state, 'generating');
+  shows[0].onComplete();
+  assert.equal(states.at(-1).state, 'backup');
+  assert.equal(states.at(-1).source, 'scene_backup');
+  assert.equal(calls.length, 1, 'The server already spent the two attempts; display never generates a third');
+});
+
+test('a server-approved manual page displays its backup with zero generation attempts in either mode', async () => {
+  for (const providerMode of ['live', 'mock']) {
+    const {player, calls, states, shows} = setup();
+    const state = snapshot(1, {sceneId:'house1_predict', providerMode,
+      diagnostics:{manualNavigation:{skippedPicture:true, skippedQuestion:true}}});
+    const pending = player.update(state);
+    assert.equal(states.at(-1).state, 'loading');
+    calls[0].resolve(sceneBackup(state, {generationRequested:false, generationAttempts:0, reason:'manual_navigation'}));
+    await pending;
+    assert.equal(shows[0].url, '/prototype/img/fallback/house1_predict.jpg');
+    shows[0].onComplete();
+    assert.equal(states.at(-1).state, 'backup');
+    assert.equal(calls.length, 1);
+  }
+});
+
+test('zero-attempt backups require the active snapshot to authorize manual navigation', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(1, {sceneId:'house1_predict'});
+  const pending = player.update(state);
+  calls[0].resolve(sceneBackup(state, {generationRequested:false, generationAttempts:0, reason:'manual_navigation'}));
+  await pending;
+  assert.equal(shows.length, 0);
+  assert.equal(states.at(-1).reason, 'invalid_scene_backup');
+});
+
+test('incomplete or mismatched backup metadata cannot be presented as a successful scene', async () => {
+  const state = snapshot(1, {sceneId:'house2_reflect'});
+  const image = sceneBackup(state).image;
+  for (const changes of [{status:'ready'}, {generated:true}, {generationRequested:false},
+    {generationAttempts:1}, {generationRetryAvailable:true}, {retriesRemaining:1}, {image:null},
+    {image:{...image, reviewed:false}}, {image:{...image, materialIndependent:false}},
+    {image:{...image, sceneId:'house1_reflect'}},
+    {image:{...image, url:'/prototype/img/fallback/house1_reflect.jpg'}}]) {
+    const {player, calls, states, shows} = setup();
+    const pending = player.update(state);
+    calls[0].resolve(sceneBackup(state, changes)); await pending;
+    assert.equal(shows.length, 0, JSON.stringify(changes));
+    assert.equal(states.at(-1).reason, 'invalid_scene_backup');
+  }
+});
+
+test('a backup bitmap reload reuses the same result and cannot trigger another paid attempt', async () => {
+  const {player, calls, states, shows} = setup();
+  const state = snapshot(1, {sceneId:'house3_choose'});
+  const pending = player.update(state);
+  calls[0].resolve(sceneBackup(state)); await pending;
+  shows[0].onError();
+  assert.equal(states.at(-1).reason, 'image_load_failed');
+  assert.equal(states.at(-1).retryable, true);
+  const reload = player.retry(state);
+  calls[1].resolve(sceneBackup(state)); await reload;
+  assert.deepEqual(JSON.parse(calls[1].options.body), JSON.parse(calls[0].options.body));
+  assert.equal(calls.length, 2);
+  shows[1].onComplete();
+  assert.equal(states.at(-1).state, 'backup');
+});
+
+test('leaving the page ignores both a late backup response and a late backup decode', async () => {
+  for (const decoded of [false, true]) {
+    const {player, calls, states, shows} = setup();
+    const state = snapshot(1, {sceneId:'house3_reflect'});
+    const pending = player.update(state);
+    if (decoded) { calls[0].resolve(sceneBackup(state)); await pending; }
+    const oldShow = shows[0];
+    player.reset();
+    if (decoded) oldShow.onComplete();
+    else { calls[0].resolve(sceneBackup(state)); await pending; }
+    assert.equal(states.at(-1).state, 'reference');
+    assert.equal(shows.at(-1).url, 'img/intro.jpg');
+  }
+});
+
 test('one accepted answer posts only the binding and waits for image decode before declaring success', async () => {
   const {player, calls, states, shows} = setup();
   const state = snapshot();
