@@ -538,6 +538,11 @@ from media.jobs import MediaJobs
 from tests.test_live_images import JPEG, LiveRules
 from vision.server import VisionPlayground, VisionServer
 
+class CurrentPageJobs(MediaJobs):
+    # This test counts explicit retries of this page, not background followers.
+    def draw_ahead(self, snapshot, followers):
+        pass
+
 class FailOnce:
     calls = 0
     def generate(self, spec, plan, references, cancelled):
@@ -548,7 +553,7 @@ class FailOnce:
         return JPEG
 
 app = VisionPlayground('fixture-key', provider_factory=lambda mode: LiveRules(),
-    media=MediaJobs(image_provider=FailOnce()))
+    media=CurrentPageJobs(image_provider=FailOnce()))
 with VisionServer(('127.0.0.1', 0), app) as server:
     print('PORT', server.server_port, flush=True)
     server.serve_forever()
@@ -666,6 +671,83 @@ test('first rejection shows exactly three keywords and blocks every free input p
   assert.equal(h.element('mic').disabled, false);
   await card.onclick();
   assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 2, 'Old choice cannot answer the next question');
+});
+
+test('recognized speech opens the editable confirmation without opening the keyboard or sending', async () => {
+  const h = await harness(); await h.start();
+  await h.element('mic').onclick();
+  assert.equal(h.element('answer').value, 'paper');
+  assert.equal(h.element('freeInput').hidden, false);
+  assert.equal(h.element('typeAnswer').getAttribute('aria-expanded'), 'true');
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.element('answer').focused, undefined);
+  assert.equal(h.calls.filter(c => c.url === '/api/answer').length, 0);
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.element('send').onclick(); await flush(); h.shows.at(-1).onComplete();
+  assert.equal(h.element('freeInput').hidden, true, 'Confirmation closes on the next page');
+});
+
+test('picture failure explains the reference image and survives narration replay and settings', async () => {
+  for (const action of ['replay', 'voice', 'toggle']) {
+    const h = await harness(); await h.start();
+    const next = accepted(); h.settings.answer = next;
+    h.settings.media = imageResult(next, {status:'failed', generated:false, source:'local_assets',
+      image:{url:'/prototype/img/wolf_brick.jpg'}});
+    await h.submit(); h.shows.at(-1).onComplete();
+    assert.match(h.element('loadingText').textContent, /reference picture/i);
+    assert.match(h.element('retryMedia').textContent, /generat/i);
+    const jobs = h.calls.filter(c => c.url === '/api/media/jobs').length;
+    h.playback('idle');
+    if (action === 'replay') h.element('playNarration').onclick();
+    if (action === 'voice') {
+      h.settings.voices = [{id:'dad', name:'Dad'}];
+      await h.element('settingsButton').onclick();
+      h.element('voiceSelect').value = 'dad'; h.element('voiceSelect').onchange();
+    }
+    if (action === 'toggle') {
+      h.element('readAloud').checked = false; h.element('readAloud').onchange();
+      h.element('readAloud').checked = true; h.element('readAloud').onchange();
+    }
+    await flush();
+    assert.equal(h.element('retryMedia').hidden, false, action);
+    assert.equal(h.element('send').disabled, true, action);
+    assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, jobs);
+    h.settings.media = imageResult(next);
+    await h.element('retryMedia').onclick(); await flush(); h.shows.at(-1).onComplete();
+    assert.equal(h.element('retryMedia').hidden, true, action);
+    assert.equal(h.element('loading').hidden, true, action);
+    assert.equal(h.element('send').disabled, false, action);
+  }
+});
+
+test('replaying while a picture is staged keeps its decode binding and waits for the new voice', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  await h.submit();
+  const staged = h.shows.at(-1);
+  h.playback('idle');
+  const voice = deferred(); h.settings.scenePreparation = voice; h.expireSceneCache();
+  h.element('playNarration').onclick();
+  staged.onComplete();
+  assert.equal(h.element('send').disabled, true);
+  assert.equal(h.reveals.length, 0);
+  voice.resolve({ready:true}); await flush();
+  assert.equal(h.reveals.length, 1);
+  assert.equal(h.element('send').disabled, false);
+  assert.equal(h.element('retryMedia').hidden, true);
+  assert.equal(h.calls.filter(c => c.url === '/api/media/jobs').length, 1);
+});
+
+test('a playback failure cannot discard an unfinished picture when narration is muted', async () => {
+  const h = await harness(); await h.start();
+  const next = accepted(); h.settings.answer = next; h.settings.media = imageResult(next);
+  h.settings.speakError = new Error('playback failed');
+  await h.submit(); await flush();
+  h.element('readAloud').checked = false; h.element('readAloud').onchange();
+  assert.equal(h.element('send').disabled, true);
+  assert.equal(h.element('book').dataset.state, 'PAINTING');
+  h.shows.at(-1).onComplete();
+  assert.equal(h.element('send').disabled, false);
 });
 
 test('microphone refusal, empty recognition and service failure lock to choices without a blank answer request', async () => {
