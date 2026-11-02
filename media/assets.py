@@ -30,6 +30,15 @@ class AssetRegistry:
     def image(self, spec):
         return self._asset(self.data['images'].get(spec.asset_key), 'image')
 
+    def backup_image(self, spec):
+        entry = self.data.get('backups', {}).get(spec.story_id, {}).get(spec.scene_id)
+        if not entry or entry.get('reviewed') is not True or entry.get('materialIndependent') is not True:
+            return None
+        image = self._asset(entry, 'image')
+        if image is None:
+            return None
+        return {**image, 'sceneId': spec.scene_id, 'reviewed': True, 'materialIndependent': True}
+
     def clip(self, spec):
         # Outcome is not a playback trigger: build/transition/ending never play a clip.
         if spec.action not in {'blown_away', 'collapsed', 'eaten', 'melted', 'stood'}:

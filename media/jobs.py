@@ -1,4 +1,4 @@
-"""Bounded, reviewed media jobs with idempotent, explicit image retries."""
+"""Bounded, reviewed media jobs: retry images once, then use reviewed scene backups."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import asdict
@@ -12,7 +12,7 @@ from .contracts import normalize
 from .image_provider import MAX_IMAGE, ImageError, scene_facts
 from story_agent.engine import MockProvider, StoryEngine
 
-MAX_IMAGE_RETRIES = 2
+MAX_IMAGE_RETRIES = 1
 
 
 class JobError(ValueError):
@@ -24,7 +24,8 @@ def fixed_followers(snapshot):
     outcome, then the next house's site or the ending. The child's later answers are text only; they never
     change these pictures (scene_facts), so the pictures can be drawn while the child reads and answers."""
     state = snapshot.get('storyState') or {}
-    if snapshot.get('providerMode') != 'live' or state.get('stage') != 'predict':
+    if (snapshot.get('providerMode') != 'live' or state.get('stage') != 'predict'
+            or snapshot.get('diagnostics', {}).get('manualNavigation', {}).get('skippedPicture')):
         return []
     engine = StoryEngine(MockProvider(), state['language'])
     followers, current = [], snapshot
@@ -71,7 +72,13 @@ class MediaJobs:
                 raise JobError('closed')
             if self.current.get(spec.session_id) != spec.token:
                 raise JobError('stale_snapshot')
+            manual_backup = snapshot.get('diagnostics', {}).get('manualNavigation', {}).get('skippedPicture') is True
             previous = self.jobs.get(self.requests.get(spec.token))
+            if manual_backup and previous is not None and (previous['cancelled'] or not previous['work'].get('manual_backup')):
+                # A manual turn may recover a page whose old image was already
+                # queued. Its replacement is static and must not revive that work.
+                self.cancel(previous['id'], spec.session_id)
+                previous = None
             retry_attempt = 0
             if retry_of is not None:
                 original = self.jobs.get(retry_of)
@@ -98,9 +105,9 @@ class MediaJobs:
                 raise JobError('job_limit')
             # Touch answers are authored and server-validated. Use the same exact
             # scene art as offline mode, without waiting for a worker or model.
-            prepared_image = self.registry.image(spec)
-            prepared_choice = spec.selection is not None and prepared_image is not None
-            live_image = (not prepared_choice and self.image_provider is not None
+            prepared_image = self.registry.backup_image(spec) if manual_backup else self.registry.image(spec)
+            prepared_choice = not manual_backup and spec.selection is not None and prepared_image is not None
+            live_image = (not manual_backup and not prepared_choice and self.image_provider is not None
                           and snapshot.get('providerMode') == 'live')
             plan = snapshot['mediaPlan']
             # No cross-session reuse of generated content. A language-only version
@@ -108,7 +115,9 @@ class MediaJobs:
             key = (hashlib.sha256(json.dumps([spec.session_id, scene_facts(spec, plan)],
                                             sort_keys=True).encode()).hexdigest() if live_image
                    else self.registry.content_key(spec))
-            if prepared_choice:
+            if manual_backup:
+                key = ('manual_backup', key, prepared_image['sha256'] if prepared_image else None)
+            elif prepared_choice:
                 # A local video fallback for a free answer must not mask a ready
                 # touch image, even when both refer to the same static asset.
                 key = ('prepared_choice', key)
@@ -116,8 +125,6 @@ class MediaJobs:
             # Local work may restart for a new binding. Paid image work retains
             # its cancellation tombstone even across language-only versions.
             reused = retry_of is None and key in self.works and (live_image or self.works[key]['status'] != 'cancelled')
-            if reused and self.works[key].get('ahead') and self.works[key]['status'] in {'failed', 'cancelled'}:
-                reused = False                    # a picture drawn ahead that failed is drawn again on request
             if not reused:
                 if retry_of is not None:
                     old_work = previous['work']
@@ -129,6 +136,7 @@ class MediaJobs:
                 self.works[key] = {'spec': spec, 'status': 'queued', 'video': None,
                                    'reason': None, 'event': threading.Event(), 'timer': None,
                                    'live_image': live_image, 'prepared_choice': prepared_choice,
+                                   'manual_backup': manual_backup,
                                    'plan': deepcopy(plan), 'image': None,
                                    'retry_attempt': retry_attempt}
             work = self.works[key]
@@ -137,17 +145,14 @@ class MediaJobs:
                    'work': work}
             self.jobs[job_id] = job
             self.requests[spec.token] = job_id
-            if prepared_choice:
+            if manual_backup:
+                work['backup'] = prepared_image
+                work['status'] = 'fallback' if prepared_image else 'failed'
+                work['reason'] = 'manual_navigation' if prepared_image else 'scene_asset_unavailable'
+            elif prepared_choice:
                 work['status'], work['reason'] = 'ready', 'prepared_choice_image'
             elif not reused:
-                # Workers and timers hold this exact work instance. A late callback
-                # from a cancelled generation must never resolve the replacement.
-                timer = threading.Timer(self.image_timeout if live_image else self.timeout,
-                                        self._expire, args=(work,))
-                timer.daemon = True
-                work['timer'] = timer
-                timer.start()
-                self.pool.submit(self._run, work)
+                self._start(work)
             return self._view(job)
 
     def draw_ahead(self, snapshot, followers):
@@ -172,7 +177,7 @@ class MediaJobs:
                         'event': threading.Event(), 'timer': None, 'live_image': True, 'prepared_choice': False,
                         'plan': deepcopy(follower['mediaPlan']), 'image': None, 'retry_attempt': 0, 'ahead': True}
                 build.setdefault('then', []).append((key, work))
-            if build['status'] == 'ready':
+            if build['status'] == 'ready' or build.get('backup') is not None:
                 self._start_followers(build)
 
     def _start_followers(self, build):
@@ -180,40 +185,67 @@ class MediaJobs:
             if key in self.works:
                 continue
             self.works[key] = work
-            timer = threading.Timer(self.image_timeout, self._expire, args=(work,))
-            timer.daemon = True
-            work['timer'] = timer
-            timer.start()
-            self.pool.submit(self._run, work)
+            self._start(work)
 
-    def _run(self, work):
+    def _start(self, work):
+        # Each attempt owns its cancellation event and timer. A timed-out call
+        # may still return, but it cannot publish over the next attempt or backup.
+        cancelled = work['event']
+        timer = threading.Timer(self.image_timeout if work['live_image'] else self.timeout,
+                                self._expire, args=(work, cancelled))
+        timer.daemon = True
+        work['timer'] = timer
+        timer.start()
+        self.pool.submit(self._run, work, cancelled)
+
+    def _run(self, work, cancelled):
         with self.lock:
-            if work['status'] != 'queued':
+            if work['status'] != 'queued' or work['event'] is not cancelled or cancelled.is_set():
                 return
             work['status'] = 'running'
+            timer = work['timer']
         try:
             if work['live_image']:
-                self._generate_image(work)
+                self._generate_image(work, cancelled)
                 return
-            clip = self.provider.resolve(work['spec'], work['event'])
+            clip = self.provider.resolve(work['spec'], cancelled)
             # Only registered, reviewed local assets can become ready in this release.
             if clip is not None and clip != self.registry.clip(work['spec']):
                 raise JobError('unreviewed_provider_output')
             with self.lock:
-                if work['status'] != 'running' or work['event'].is_set():
+                if work['status'] != 'running' or work['event'] is not cancelled or cancelled.is_set():
                     return
                 work['video'] = deepcopy(clip)
                 work['status'] = 'ready' if clip else 'fallback'
                 work['reason'] = 'reviewed_local_clip' if clip else 'clip_unavailable'
         except Exception as exc:
             with self.lock:
-                if work['status'] == 'running':
-                    work['status'], work['reason'] = 'failed', str(exc) if isinstance(exc, ImageError) else 'provider_error'
+                self._fail_work(work, cancelled, str(exc) if isinstance(exc, ImageError) else 'provider_error')
         finally:
-            with self.lock:
-                work['timer'].cancel()
+            timer.cancel()
 
-    def _generate_image(self, work):
+    def _fail_work(self, work, cancelled, reason):
+        if (work['event'] is not cancelled or cancelled.is_set()
+                or work['status'] not in {'queued', 'running'} or self.closed):
+            return
+        cancelled.set()
+        work['timer'].cancel()
+        work['status'], work['reason'] = 'failed', reason
+        if not work['live_image']:
+            return
+        if work['retry_attempt'] < MAX_IMAGE_RETRIES:
+            work['retry_attempt'] += 1
+            work['status'], work['reason'] = 'queued', 'retrying_image'
+            work['event'] = threading.Event()
+            self._start(work)
+            return
+        backup = self.registry.backup_image(work['spec'])
+        if backup is not None:
+            work['backup'] = backup
+            work['status'], work['reason'] = 'fallback', 'image_generation_exhausted'
+            self._start_followers(work)
+
+    def _generate_image(self, work, cancelled):
         spec = work['spec']
         with self.lock:
             prior = self.last_images.get((spec.session_id, spec.house_id))
@@ -238,12 +270,12 @@ class MediaJobs:
         references = [source]
         if spec.action in {'blown_away', 'collapsed', 'eaten', 'stood'}:
             references.append((self.registry.root / 'prototype/img/wolf_paper.jpg').read_bytes())
-        image = self.image_provider.generate(spec, work['plan'], references, work['event'])
+        image = self.image_provider.generate(spec, work['plan'], references, cancelled)
         # The provider decodes and independently reviews pixels before this point.
         if not isinstance(image, bytes) or not image.startswith(b'\xff\xd8') or len(image) > MAX_IMAGE:
             raise JobError('invalid_generated_image')
         with self.lock:
-            if work['status'] != 'running' or work['event'].is_set():
+            if work['status'] != 'running' or work['event'] is not cancelled or cancelled.is_set():
                 return
             image_id = uuid.uuid4().hex
             self.images[image_id] = (spec.session_id, image)
@@ -263,11 +295,9 @@ class MediaJobs:
                 raise JobError('image_not_found')
             return record[1]
 
-    def _expire(self, work):
+    def _expire(self, work, cancelled=None):
         with self.lock:
-            if work['status'] in {'queued', 'running'}:
-                work['status'], work['reason'] = 'failed', 'timeout'
-                work['event'].set()
+            self._fail_work(work, cancelled if cancelled is not None else work['event'], 'timeout')
 
     def get(self, job_id, session_id):
         with self.lock:
@@ -305,14 +335,17 @@ class MediaJobs:
         applicable = current and status != 'cancelled'
         reason = job['cancelled'] or work['reason']
         generated = applicable and work['image'] is not None
-        image = work['image'] if generated else job['image']
+        backup = work.get('backup') if applicable else None
+        image = work['image'] if generated else backup or job['image']
         if status == 'ready' and job['reused'] and not work['live_image'] and not work['prepared_choice']:
             reason = 'cached_reviewed_clip'
-        elif status == 'fallback' and not job['image']:
+        elif status == 'fallback' and image is None:
             reason = 'scene_asset_unavailable'
         message = ('A picture for this material is not available. Keep reading with the reference picture.'
                    if image is None else 'Continue with the picture while video is unavailable.')
-        if work['live_image']:
+        if backup:
+            message = 'Continue with the prepared backup for this scene.'
+        elif work['live_image']:
             message = ('Continue with the new picture.' if generated else
                        'The new picture is unavailable. Keep reading with the previous or prepared picture.')
         elif work['prepared_choice']:
@@ -323,9 +356,11 @@ class MediaJobs:
                 'image': deepcopy(image) if applicable else None,
                 'video': deepcopy(work['video']) if applicable and status == 'ready' else None,
                 'fallback': {'keepCurrentImage': image is None, 'message': message},
-                'source': 'muse_image' if generated else 'prepared_choice' if work['prepared_choice'] else 'local_assets',
+                'source': 'muse_image' if generated else 'scene_backup' if backup else
+                    'prepared_choice' if work['prepared_choice'] else 'local_assets',
                 'generated': generated,
                 'generationRequested': work['live_image'],
+                'generationAttempts': work['retry_attempt'] + 1 if work['live_image'] else 0,
                 'generationRetryAvailable': applicable and work['live_image'] and status == 'failed'
                     and work['retry_attempt'] < MAX_IMAGE_RETRIES,
                 'retriesRemaining': max(0, MAX_IMAGE_RETRIES - work['retry_attempt']) if work['live_image'] else 0,

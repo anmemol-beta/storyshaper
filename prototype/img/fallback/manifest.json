@@ -2,8 +2,9 @@
   "revision": 1,
   "createdAt": "2026-11-02",
   "storyId": "three-little-pigs",
-  "status": "assets_ready_not_integrated",
-  "runtimeEnabled": false,
+  "status": "integrated_scene_backups",
+  "runtimeEnabled": true,
+  "runtimeRegistry": "media/scene_registry.json#backups",
   "generation": {
     "tool": "Codex built-in image_gen",
     "model": null,
@@ -29,7 +30,13 @@
     "totalGenerationAttempts": 2,
     "firstFailure": "retry_once",
     "secondFailure": "use_scene_specific_backup",
-    "implementationStatus": "deferred_by_current_request"
+    "implementationStatus": "implemented"
+  },
+  "manualNavigationPolicy": {
+    "unansweredNext": "use_scene_specific_backup",
+    "generationAttempts": 0,
+    "revealBeforeNarration": true,
+    "implementationStatus": "implemented"
   },
   "visualReview": {
     "method": "생성 결과 9장 직접 확인",

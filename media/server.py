@@ -63,8 +63,6 @@ class MediaPlayground(Playground):
             snapshot = self.sessions[body['sessionId']].snapshot
             if (body['version'], body['sceneId']) != (snapshot['version'], snapshot['sceneId']):
                 raise APIError(409, 'stale_snapshot', 'Use the current story snapshot.')
-            if snapshot['diagnostics'].get('manualNavigation', {}).get('skippedPicture'):
-                return {'status': 'no_new_media', 'jobId': None, 'apply': False, 'reason': 'manual_navigation'}
             view = self.media.request(snapshot, retry_of=body.get('retryOf'))
         # Draw the pictures this page already fixes while the child reads it (fixed_followers).
         self.media.draw_ahead(snapshot, fixed_followers(snapshot))

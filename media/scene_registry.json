@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "images": {
     "house1/choose": {"file": "empty1.jpg", "cast": ["pig1"]},
     "house2/choose": {"file": "pig2_empty.jpg", "cast": ["pig2"]},
@@ -30,5 +30,18 @@
     "house2/icecream/melted": {"file": "scenes/house2_icecream_melted.jpg", "cast": ["pig1", "pig2"], "model": "muse-image-1.0"},
     "house3/stone/stood": {"file": "scenes/house3_stone_stood.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"], "model": "muse-image-1.0"}
   },
-  "clips": {}
+  "clips": {},
+  "backups": {
+    "three-little-pigs": {
+      "house1_predict": {"file": "fallback/house1_predict.jpg", "cast": ["pig1", "wolf"], "reviewed": true, "materialIndependent": true},
+      "house1_reflect": {"file": "fallback/house1_reflect.jpg", "cast": ["pig1", "wolf"], "reviewed": true, "materialIndependent": true},
+      "house2_choose": {"file": "fallback/house2_choose.jpg", "cast": ["pig1", "pig2"], "reviewed": true, "materialIndependent": true},
+      "house2_predict": {"file": "fallback/house2_predict.jpg", "cast": ["pig2", "wolf"], "reviewed": true, "materialIndependent": true},
+      "house2_reflect": {"file": "fallback/house2_reflect.jpg", "cast": ["pig1", "pig2", "wolf"], "reviewed": true, "materialIndependent": true},
+      "house3_choose": {"file": "fallback/house3_choose.jpg", "cast": ["pig1", "pig2", "pig3"], "reviewed": true, "materialIndependent": true},
+      "house3_predict": {"file": "fallback/house3_predict.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"], "reviewed": true, "materialIndependent": true},
+      "house3_reflect": {"file": "fallback/house3_reflect.jpg", "cast": ["pig1", "pig2", "pig3", "wolf"], "reviewed": true, "materialIndependent": true},
+      "ending": {"file": "fallback/ending.jpg", "cast": ["pig1", "pig2", "pig3"], "reviewed": true, "materialIndependent": true}
+    }
+  }
 }

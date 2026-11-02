@@ -68,6 +68,7 @@
 .reader-app .bar { position: relative; z-index: 10; }
 .page-navigation { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .picture-notice { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; padding: 24px 68px; text-align: center; color: var(--text-subtle); font-size: 18px; line-height: 1.6; }
+.picture-notice.is-backup { inset: auto 12px 12px; width: fit-content; max-width: calc(100% - 24px); padding: 6px 10px; border-radius: 10px; background: var(--bg-story); font-size: 12px; pointer-events: none; z-index: 2; }
 .page-navigation button {
   position: absolute; top: 50%; transform: translateY(-50%);
   display: grid; place-items: center; width: 52px; height: 80px;
@@ -83,6 +84,7 @@
 @media (hover: none) { .page-navigation button:not(:disabled) { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .page-navigation button { transition: none; } }
 .reader-app .logo { grid-area: auto; padding: 0; font-size: clamp(20px, 2.5vw, 28px); }
+.reader-app #homeButton { min-height: 44px; border: 0; background: transparent; color: var(--text-main); cursor: pointer; }
 .reader-app .tools { grid-area: auto; justify-self: auto; margin-left: auto; flex-wrap: nowrap; gap: 8px; min-width: 0; }
 .reader-app .live-select { display: grid; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-subtle); }
 .reader-app .live-select select { width: 100%; min-width: 0; max-width: none; border-radius: 12px; font-size: 16px; color: var(--text-main); }
@@ -210,6 +212,7 @@
 .reader-app .setup[hidden] { display: none; }
 .setup-title { margin: 0; font-family: var(--font-title); font-weight: 400; font-size: clamp(30px, 4vw, 46px); line-height: 1.15; color: var(--text-main); }
 .setup-group h2 { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--text-subtle); }
+.setup-title:focus { outline: none; }
 .voice-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 8px; }
 .voice-card { display: flex; min-width: 0; border: 1.5px solid var(--border-soft); border-radius: 14px; background: var(--bg-story); overflow: hidden; transition: border-color .15s, background-color .15s; }
 .voice-card:has([aria-checked="true"]) { border-color: var(--action-primary); background: color-mix(in srgb, var(--action-primary) 9%, var(--bg-story)); }

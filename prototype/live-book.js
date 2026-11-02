@@ -1,7 +1,7 @@
 /* Child reader: server-owned story state, shared input, narration and image modules. */
 (() => {
   "use strict";
-  const ids = ["book", "cover", "startLabel", "storyTitle", "readBy", "language", "mode",
+  const ids = ["book", "homeButton", "cover", "startLabel", "storyTitle", "readBy", "language", "mode",
     "languageLabel", "themeLabel", "lightModeLabel", "darkModeLabel", "modeLabel", "settingsButton", "readerSettings", "readerName", "settingsTitle", "closeSettings",
     "readAloud", "readAloudLabel", "imgCur", "imgNext", "storyVideo", "narrative", "question",
     "freeInput", "inputActions", "answer", "send", "mic", "cameraButton", "cameraPanel",
@@ -12,6 +12,7 @@
     "manageVoices", "micLabel", "typeAnswer", "setup", "voiceCards", "voiceCardsTitle", "languageCards", "languageCardsTitle", "modeCards", "modeCardsTitle"];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   const t = (en, ko) => ui.language.value === "ko" ? ko : en;
+  const backupPicture = image => typeof image === "string" && image.startsWith("/prototype/img/fallback/");
   const say = message => { ui.status.textContent = message; };
   const questionKey = state => state?.question ? `${state.sessionId}:${state.question.id}` : null;
   const choiceLocks = new Set();
@@ -20,7 +21,9 @@
   let requestController = null, inputController = null, inputToken = 0, recording = null, camera = null;
   let retryPayload = null, spokenKey = null, replay = 0, configured = false, config = {};
   let selectedMode = "mock", selectedLanguage = localStorage.getItem("story-language") === "ko" ? "ko" : "en"; // English until Korean is chosen
-  let savedVoices = [], voiceListLoading = false, voiceListRequest = 0;
+  const MALE_VOICE_ID = "000000007127";
+  let savedVoices = [], voiceListLoading = false, voiceListRequest = 0, voiceListUnavailable = true;
+  let sampleAudio = null, sampleController = null;
   let pages = [], pageIndex = -1, displayedImage = "img/intro.jpg", latestDraft = "";
   let advancePayload = null;
   let scenePreparation = null, preparedPassage = null, stagedPicture = null, pictureSerial = 0;
@@ -45,10 +48,12 @@
       stagedPicture = staged;
       const live = () => staged.serial === pictureSerial;
       staged.reveal = () => {
-        if (!live() || !staged.ready || staged.revealed || !preparation.audioReady) return;
+        const immediateBackup = backupPicture(url) && preparation.state.diagnostics?.manualNavigation?.skippedPicture;
+        if (!live() || !staged.ready || staged.revealed || (!preparation.audioReady && !immediateBackup)) return;
         if (preparation.key !== passageKey(preparation.state)) return narrationFailed(preparation);
         staged.revealed = true;
-        stageCueCover(preparation.state);
+        if (backupPicture(url)) clearCueCover();
+        else stageCueCover(preparation.state);
         stagedPicture = null;
         if (typeof picture.reveal === "function") picture.reveal(options.onComplete);
         else picture.show(url, options);
@@ -65,6 +70,11 @@
   const choiceOnly = (state = snapshot) => Boolean(state?.question &&
     (state.choiceMode || choiceLocks.has(questionKey(state))));
   const reviewing = () => pageIndex >= 0 && pageIndex < pages.length - 1;
+  const atFirstPage = () => {
+    if (!pending) return pageIndex <= 0;
+    const first = pages[0]?.state;
+    return !first || (pending.sessionId === first.sessionId && pending.sceneId === first.sceneId);
+  };
   const canAnswer = () => configured && activity === "idle" && !pending && !pictureWait && !cueCover
     && displayed === snapshot && Boolean(snapshot?.question);
   const voiceSupported = () => typeof VoiceInput !== "undefined" && VoiceInput.supported();
@@ -114,8 +124,11 @@
       : pictureWait ? "PAINTING"
       : activity === "recording" ? "LISTENING" : snapshot.question ? "ASKING" : "COMPLETE";
     ui.voiceSelect.disabled = !configured || voiceListLoading || activity !== "idle" || Boolean(pending || pictureWait);
-    ui.previousPage.disabled = !configured || (!pending && pageIndex <= 0)
-      || Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure);
+    ui.previousPage.disabled = !configured || !ui.setup.hidden
+      || (!atFirstPage() && Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure));
+    const previousLabel = atFirstPage() ? t("Back to start page", "시작 페이지로 돌아가기") : t("Previous page", "이전 장면");
+    ui.previousPage.setAttribute("aria-label", previousLabel);
+    ui.previousPage.setAttribute("title", previousLabel);
     ui.nextPage.disabled = !configured || (Boolean(snapshot) && !pending && !reviewing() && !snapshot.question)
       || Boolean((pending || pictureWait) && scenePreparation?.waitForImage && scenePreparation.imageFailure);
     syncPlayback();
@@ -144,6 +157,10 @@
 
   function stopNarration() {
     spokenKey = null;
+    sampleController?.abort();
+    sampleController = null;
+    sampleAudio?.pause();
+    sampleAudio = null;
     if (typeof Narration !== "undefined") Narration.stop();
     motion?.pause();
     highlight(-1);
@@ -253,6 +270,7 @@
   function labels() {
     document.documentElement.lang = ui.language.value;
     ui.storyTitle.textContent = t("The Three Little Pigs", "아기돼지 삼형제");
+    ui.homeButton.setAttribute("aria-label", t("StoryShaper start page", "StoryShaper 시작 페이지로 돌아가기"));
     ui.startLabel.textContent = t("▶ Start", "▶ 동화 시작");
     ui.languageLabel.textContent = t("Language", "언어");
     ui.themeLabel.textContent = t("Appearance", "화면 모드");
@@ -298,10 +316,15 @@
     syncPlayback();
   }
 
+  function availableVoices() {
+    return [{id: "", name: t("Storybook voice", "기본 목소리")},
+      {id: MALE_VOICE_ID, name: t("Storybook voice (male)", "기본 목소리 (남성)"), builtin: true},
+      ...savedVoices.filter(voice => voice.id && voice.id !== MALE_VOICE_ID)];
+  }
+
   function voiceOptions() {
     const selected = typeof Narration !== "undefined" ? Narration.voiceId?.() || "" : "";
-    const options = [{id: "", name: t("Storybook voice", "기본 목소리")},
-      ...savedVoices.map(voice => voice.builtin ? {...voice, name: t("Storybook voice (male)", "기본 목소리 (남성)")} : voice)];
+    const options = availableVoices();
     // Keep the selected name while a service error prevents refreshing the list.
     if (selected && !options.some(voice => voice.id === selected))
       options.push({id: selected, name: Narration.voiceName?.() || selected});
@@ -316,7 +339,6 @@
   }
 
   // The start screen's voices: tap a card to choose it, tap ▶ to hear the story's first line in that voice.
-  let sampleAudio = null;
   function voiceCards(options, selected) {
     ui.voiceCards.replaceChildren(...options.map(voice => {
       const card = document.createElement("div");
@@ -341,27 +363,51 @@
 
   async function playSample(id, button) {
     if (typeof Narration === "undefined" || !Narration.sample) return;
-    sampleAudio?.pause();
+    const token = epoch;
     stopNarration();
+    const controller = sampleController = new AbortController();
+    const live = () => token === epoch && sampleController === controller && !controller.signal.aborted;
+    if (voiceListUnavailable) loadVoiceCards();
     button.classList.add("busy");
+    button.setAttribute("aria-busy", "true");
     try {
-      const url = await Narration.sample(id || null, ui.language.value);
-      sampleAudio = new Audio(url);
-      await sampleAudio.play();
+      for (const serverOnly of [false, true]) {
+        try {
+          const url = await Narration.sample(id || null, ui.language.value, {serverOnly, signal: controller.signal});
+          if (!live()) return;
+          sampleAudio = new Audio(url);
+          await sampleAudio.play();
+          if (live()) say("");
+          break;
+        } catch (error) {
+          if (!live()) return;
+          if (serverOnly || error.name === "NotAllowedError") throw error;
+          sampleAudio?.pause();
+          say(t("Preparing this voice again…", "목소리를 다시 준비하고 있어요…"));
+        }
+      }
     } catch {
-      say(t("Couldn't play this voice. Try again.", "이 목소리를 들려주지 못했어요. 다시 눌러 주세요."));
-    } finally { button.classList.remove("busy"); }
+      if (live()) say(t("Couldn't play this voice. Try again.", "이 목소리를 들려주지 못했어요. 다시 눌러 주세요."));
+    } finally {
+      button.classList.remove("busy");
+      button.setAttribute("aria-busy", "false");
+      if (sampleController === controller) sampleController = null;
+    }
   }
 
   // The start screen lists the voices without opening settings.
   async function loadVoiceCards() {
+    if (voiceListLoading) return;
+    const request = ++voiceListRequest;
     try {
       if (typeof Narration === "undefined" || !Narration.listVoices) return;
       const voices = await Narration.listVoices();
-      if (snapshot || voiceListLoading) return;
+      if (request !== voiceListRequest || snapshot || voiceListLoading) return;
       savedVoices = voices.filter(voice => typeof voice.id === "string" && typeof voice.name === "string");
+      voiceListUnavailable = false;
       voiceOptions();
-    } catch {}
+      reader();
+    } catch { if (request === voiceListRequest) voiceListUnavailable = true; }
   }
 
   async function loadVoices() {
@@ -374,13 +420,15 @@
       const voices = await Narration.listVoices();
       if (request !== voiceListRequest || ui.readerSettings.hidden) return;
       savedVoices = voices.filter(voice => typeof voice.id === "string" && typeof voice.name === "string");
+      voiceListUnavailable = false;
       const selected = Narration.voiceId?.();
-      if (selected && !savedVoices.some(voice => voice.id === selected)) chooseVoice("");
+      if (selected && !availableVoices().some(voice => voice.id === selected)) chooseVoice("");
       voiceOptions();
       ui.voiceSelectStatus.textContent = savedVoices.some(voice => !voice.builtin) ? t("Choose a voice to read this story.", "동화를 읽어 줄 목소리를 골라 주세요.")
         : t("No saved voices yet. Add a parent's voice.", "저장된 목소리가 없어요. 부모 목소리를 추가해 주세요.");
     } catch {
       if (request !== voiceListRequest || ui.readerSettings.hidden) return;
+      voiceListUnavailable = true;
       voiceOptions();
       ui.voiceSelectStatus.textContent = t("Couldn't load saved voices. Reopen settings to try again.", "목소리 목록을 불러오지 못했어요. 설정을 다시 열어 주세요.");
     } finally {
@@ -389,7 +437,8 @@
   }
 
   function chooseVoice(id) {
-    const voice = savedVoices.find(voice => voice.id === id);
+    if (voiceListUnavailable) loadVoiceCards();
+    const voice = availableVoices().find(voice => voice.id === id);
     if (id && !voice) { voiceOptions(); return; }
     stopNarration();
     Narration.selectVoice?.(id || null, voice?.name || "");
@@ -404,7 +453,7 @@
 
   function reader() {
     const saved = typeof Narration !== "undefined" && Narration.voiceName?.();
-    const builtin = saved && savedVoices.some(voice => voice.builtin && voice.id === Narration.voiceId?.());
+    const builtin = typeof Narration !== "undefined" && Narration.voiceId?.() === MALE_VOICE_ID;
     const name = builtin ? t("Storybook voice (male)", "기본 목소리 (남성)") : saved || t("Storybook voice", "기본 목소리");
     ui.readerName.textContent = t("Reader: ", "읽어주는 목소리: ") + name;
     ui.readBy.textContent = t("Read by ", "읽어주는 목소리: ") + name;
@@ -462,7 +511,7 @@
     preparedPassage = preparation.asset ? {key: preparation.key, asset: preparation.asset} : null;
     displayedImage = preparation.image;
     const video = Boolean(preparation.video?.url?.startsWith("/prototype/video/"));
-    if (preparation.image) motion?.scene({action: preparation.state.mediaPlan?.action,
+    if (preparation.image && !backupPicture(preparation.image)) motion?.scene({action: preparation.state.mediaPlan?.action,
       lines: preparation.state.lines.map(line => line.text), video,
       narrated: ui.readAloud.checked && typeof Narration !== "undefined"});
     else motion?.stop();
@@ -662,8 +711,12 @@
 
   function pictureVisibility() {
     ui.imgCur.hidden = ui.imgNext.hidden = !displayedImage;
-    ui.pictureNotice.hidden = Boolean(displayedImage);
-    ui.pictureNotice.textContent = t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
+    const backup = backupPicture(displayedImage);
+    ui.pictureNotice.classList.toggle("is-backup", backup);
+    ui.pictureNotice.hidden = Boolean(displayedImage) && !backup;
+    ui.pictureNotice.textContent = backup
+      ? t("Reading with a prepared picture", "준비된 그림으로 이야기를 이어가요")
+      : t("Picture skipped. You can keep reading.", "그림을 건너뛰었어요. 이야기는 계속 읽을 수 있어요.");
   }
 
   // Voice the pages a tapped choice can open, once this page is showing (so they never delay its own lines).
@@ -718,7 +771,7 @@
     narrate();
   }
 
-  function receive(state) {
+  function receive(state, {after} = {}) {
     if (!valid(state)) throw new Error("Invalid story state");
     const translationOnly = state.diagnostics?.languageChanged === true
       && displayed?.sessionId === state.sessionId && displayed?.sceneId === state.sceneId;
@@ -740,19 +793,15 @@
       render(state);
       return;
     }
-    if (state.diagnostics?.manualNavigation?.skippedPicture) {
-      preparePresentation(state, {image: null, after: () => say(ui.pictureNotice.textContent)});
-      return;
-    }
     if (!translationOnly && state.mediaPlan && ["accept", "complete"].includes(state.decision)) {
-      preparePresentation(state, {waitForImage: true});
+      preparePresentation(state, {waitForImage: true, after});
       if (scenePreparation?.audioReady && !pictureWait) {
         ui.loadingText.textContent = t("Drawing your next page…", "다음 그림을 그리고 있어요…");
         say(t("The story will continue when the picture is ready.", "그림이 완성되면 이야기가 이어져요."));
       }
       syncControls();
       media.update(state);
-    } else preparePresentation(state);
+    } else preparePresentation(state, {after});
   }
 
   function mediaState(result) {
@@ -768,8 +817,9 @@
       return;
     }
     const prepared = result.state === "prepared";
-    const ready = (pending || pictureWait.state).providerMode === "live"
-      ? result.state === "generated" || (prepared && result.source === "prepared_choice") : prepared;
+    const backup = result.state === "backup" && result.source === "scene_backup";
+    const ready = backup || ((pending || pictureWait.state).providerMode === "live"
+      ? result.state === "generated" || (prepared && result.source === "prepared_choice") : prepared);
     if (ready) {
       const preparation = scenePreparation;
       if (!preparation) return;
@@ -778,6 +828,14 @@
       restartOnRetry = false;
       preparation.image = result.image?.url || displayedImage;
       preparation.video = result.video;
+      if (backup && preparation.state.diagnostics?.manualNavigation?.skippedPicture && !preparation.audioReady) {
+        displayedImage = preparation.image;
+        pictureVisibility();
+        if (!preparation.failed) {
+          ui.loading.hidden = true;
+          say(t("Preparing the story's voice…", "이야기 목소리를 준비하고 있어요…"));
+        }
+      }
       finishPresentation(preparation);
     } else if (["failed", "fallback", "unavailable"].includes(result.state)) {
       if (scenePreparation) {
@@ -820,8 +878,7 @@
     narrate(); // Reading the keywords never delays their touch handlers.
   }
 
-  async function begin() {
-    if (!configured) return;
+  function returnToStart({focus = true} = {}) {
     cancelWork();
     choiceLocks.clear();
     snapshot = displayed = null;
@@ -831,14 +888,33 @@
     pictureVisibility();
     advancePayload = null;
     latestDraft = "";
+    typing = false;
+    activity = "idle";
+    restartOnRetry = false;
     ui.language.value = selectedLanguage;
-    labels();
+    ui.mode.value = selectedMode;
     retryPayload = null;
+    ui.answer.value = "";
     ui.narrative.replaceChildren();
     ui.question.textContent = "";
     ui.choices.replaceChildren();
-    ui.cover.hidden = ui.setup.hidden = true;
+    ui.progress.textContent = "";
+    ui.loadingText.textContent = "";
+    ui.cover.hidden = ui.setup.hidden = false;
     media.reset();
+    labels();
+    say("");
+    setSettings(false, {restoreFocus: false});
+    if (focus) {
+      ui.storyTitle.focus({preventScroll: true});
+      window.scrollTo?.(0, 0);
+    }
+  }
+
+  async function begin() {
+    if (!configured) return;
+    returnToStart({focus: false});
+    ui.cover.hidden = ui.setup.hidden = true;
     activity = "request";
     say(t("Starting story…", "동화를 시작해요…"));
     syncControls();
@@ -887,8 +963,9 @@
 
   ui.previousPage.onclick = () => {
     if (ui.previousPage.disabled) return;
+    if (atFirstPage()) return returnToStart();
     if (pending) {
-      rememberPage(pending, null);
+      rememberPage(pending, scenePreparation?.imageReady ? scenePreparation.image : null);
       latestDraft = "";
       showPage(pages.length - 2);
     } else {
@@ -900,7 +977,7 @@
     if (ui.nextPage.disabled) return;
     if (!snapshot) return begin();
     if (pending || pictureWait) {   // skip the picture still being drawn; the question stays
-      rememberPage(pending || pictureWait.state, null);
+      rememberPage(pending || pictureWait.state, scenePreparation?.imageReady ? scenePreparation.image : null);
       latestDraft = "";
       return showPage(pages.length - 1);
     }
@@ -925,8 +1002,8 @@
       if (!valid(next)) throw new Error("Invalid story state");
       snapshot = next;
       const choice = next.diagnostics?.manualNavigation?.defaultChoice;
-      preparePresentation(next, {image: null, after: () => {
-        say(choice ? t(`Continuing with “${choice}”. Picture skipped.`, `“${choice}”로 이어가요. 그림은 건너뛰었어요.`)
+      receive(next, {after: () => {
+        say(choice ? t(`Continuing with “${choice}”.`, `“${choice}”로 이어가요.`)
           : ui.pictureNotice.textContent);
       }});
       advancePayload = null;
@@ -1086,7 +1163,8 @@
     ui.loadingText.textContent = t("Loading the picture…", "그림을 다시 불러오고 있어요…");
     media.retry(pending || pictureWait.state);
   };
-  ui.restart.onclick = ui.cover.onclick = begin;
+  ui.cover.onclick = begin;
+  ui.restart.onclick = ui.homeButton.onclick = () => returnToStart();
   for (const button of ui.languageCards.children || []) button.onclick = () => {
     if (button.disabled || ui.language.value === button.dataset.lang) return;
     ui.language.value = button.dataset.lang;

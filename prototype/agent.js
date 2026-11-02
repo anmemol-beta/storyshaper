@@ -61,6 +61,7 @@
       prepared: state.source === "prepared_choice" ? "Prepared illustration · your choice"
         : "Prepared illustration · offline mode",
       fallback: "Prepared illustration · live generation unavailable",
+      backup: "Prepared scene backup · not generated for this answer",
       failed: "Previous picture · picture update unavailable",
       kept: "Previous picture · choose an answer to continue",
       unavailable: "Reference illustration · image service is not connected"

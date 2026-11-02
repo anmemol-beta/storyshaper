@@ -1,7 +1,7 @@
 /* The lab's image player. Every request is bound to one server-approved story snapshot. */
 class StoryMediaPlayer {
   constructor(current, next, {onState = () => {}, fetch: request = (...args) => globalThis.fetch(...args),
-    transition = new StoryImageTransition(current, next), pollMs = 750, timeoutMs = 150000} = {}) {
+    transition = new StoryImageTransition(current, next), pollMs = 750, timeoutMs = 270000} = {}) {
     this.current = current;
     this.next = next;
     this.picture = transition;
@@ -70,9 +70,10 @@ class StoryMediaPlayer {
       return;
     }
     const active = {key, binding, jobId: null, controller: null, timer: null,
-      deadline: Date.now() + this.timeoutMs, live: snapshot.providerMode === 'live', retrying: retry};
+      deadline: Date.now() + this.timeoutMs, live: snapshot.providerMode === 'live', retrying: retry,
+      manualBackup: snapshot.diagnostics?.manualNavigation?.skippedPicture === true};
     this.active = active;
-    this.onState({state: active.live && this.liveImages && !snapshot.selection ? 'generating' : 'loading'});
+    this.onState({state: !active.manualBackup && active.live && this.liveImages && !snapshot.selection ? 'generating' : 'loading'});
     try {
       let result = await this.request('/api/media/jobs', active, {
         method: 'POST', body: JSON.stringify(binding)});
@@ -175,6 +176,18 @@ class StoryMediaPlayer {
     const preparedChoice = result.status === 'ready' && result.source === 'prepared_choice'
       && result.generated === false && result.generationRequested === false
       && typeof url === 'string' && url.startsWith('/prototype/img/');
+    const sceneBackup = result.status === 'fallback' && result.source === 'scene_backup'
+      && result.generated === false && result.generationRetryAvailable === false
+      && ((result.reason === 'image_generation_exhausted' && result.generationRequested === true && result.generationAttempts === 2)
+        || (active.manualBackup && result.reason === 'manual_navigation'
+          && result.generationRequested === false && result.generationAttempts === 0))
+      && result.retriesRemaining === 0 && result.image?.reviewed === true
+      && result.image.materialIndependent === true && result.image.sceneId === binding.sceneId
+      && url === `/prototype/img/fallback/${binding.sceneId}.jpg`;
+    if (result.source === 'scene_backup' && !sceneBackup) {
+      this.fail(active, {reason: 'invalid_scene_backup', retryable: false});
+      return;
+    }
     // A prepared choice is an intentional image result, separate from the
     // substitute picture attached to a failed live generation.
     if (result.source === 'prepared_choice' && !preparedChoice) {
@@ -201,7 +214,7 @@ class StoryMediaPlayer {
         if (this.active === active) {
           active.retrying = false;
           this.describePicture();
-          this.onState({state: generated ? 'generated' : preparedChoice ? 'prepared' :
+          this.onState({state: generated ? 'generated' : sceneBackup ? 'backup' : preparedChoice ? 'prepared' :
             result.generationRequested || active.live ? 'fallback' : 'prepared', image: result.image,
             source: result.source, video: result.video, reason, retryable});
         }

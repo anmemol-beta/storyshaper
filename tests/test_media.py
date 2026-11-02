@@ -1,6 +1,7 @@
 """Contract, concurrency and HTTP regression tests; no external provider calls."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 import http.client
 from itertools import product
 import json
@@ -129,6 +130,29 @@ class ContractTests(unittest.TestCase):
                                   {'file': '../../../.env'}}, 'clips': {}})
         self.assertIsNone(registry.image(normalize(snapshots()[2])))
         self.assertIsNone(registry._asset({'file': 'absent.mp4', 'reviewed': False}, 'video'))
+
+    def test_scene_backups_match_the_nine_prepared_assets_and_exclude_other_stories_and_the_main_scene(self):
+        registry = AssetRegistry()
+        spec = normalize(snapshots()[2])
+        manifest = json.loads((ROOT / 'prototype/img/fallback/manifest.json').read_text())
+        self.assertEqual(len(manifest['images']), 9)
+        for entry in manifest['images']:
+            backup = registry.backup_image(replace(spec, scene_id=entry['sceneId']))
+            self.assertEqual(backup['url'], '/prototype/img/fallback/' + entry['file'])
+            self.assertEqual(backup['cast'], entry['cast'])
+            self.assertTrue(backup['materialIndependent'] and backup['reviewed'])
+        self.assertIsNone(registry.backup_image(replace(spec, story_id='another-story')))
+        self.assertIsNone(registry.backup_image(replace(spec, scene_id='house1_choose')))
+
+    def test_missing_unreviewed_and_escaping_backups_cannot_be_used_to_open_the_next_turn(self):
+        registry = AssetRegistry()
+        spec = normalize(snapshots()[2])
+        entry = registry.data['backups'][spec.story_id][spec.scene_id]
+        for changes in ({'reviewed': False}, {'materialIndependent': False},
+                        {'file': 'fallback/missing.jpg'}, {'file': '../../../.env'}):
+            with self.subTest(changes=changes):
+                registry.data['backups'][spec.story_id][spec.scene_id] = {**entry, **changes}
+                self.assertIsNone(registry.backup_image(spec))
 
 
 class GateProvider:
@@ -419,8 +443,11 @@ class APITests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(skipped['version'], self.state['version'], 'The already approved page must not be skipped twice')
         self.assertEqual(self.app.media.get(old_job['jobId'], self.start['sessionId'])['status'], 'cancelled')
-        status, no_media = self.http('POST', '/api/media/jobs', self.binding())
-        self.assertEqual(no_media['reason'], 'manual_navigation')
+        status, backup = self.http('POST', '/api/media/jobs', self.binding())
+        self.assertEqual(backup['reason'], 'manual_navigation')
+        self.assertEqual(backup['source'], 'scene_backup')
+        self.assertEqual(backup['generationAttempts'], 0)
+        self.assertEqual(backup['image']['url'], '/prototype/img/fallback/house1_predict.jpg')
         choice = skipped['question']['choices'][0]
         status, newer = self.http('POST', '/api/answer', {'sessionId': skipped['sessionId'],
             'version': skipped['version'], 'questionId': skipped['question']['id'],
@@ -434,7 +461,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(replay, skipped)
         self.assertNotEqual(self.app.media.get(new_job['jobId'], skipped['sessionId'])['status'], 'cancelled')
 
-    def test_manual_next_can_finish_in_both_languages_without_any_images(self):
+    def test_manual_next_can_finish_with_scene_backups_in_both_languages_without_generation(self):
         for language in ('en', 'ko'):
             status, current = self.http('POST', '/api/sessions', {'mode': 'mock', 'language': language})
             self.assertEqual(status, 200)
@@ -447,7 +474,11 @@ class APITests(unittest.TestCase):
                 status, media = self.http('POST', '/api/media/jobs',
                     {key: current[key] for key in ('sessionId', 'sceneId', 'version')})
                 self.assertEqual(status, 200)
-                self.assertEqual(media['status'], 'no_new_media')
+                self.assertEqual(media['source'], 'scene_backup')
+                self.assertEqual(media['status'], 'fallback')
+                self.assertEqual(media['generationAttempts'], 0)
+                self.assertFalse(media['generationRequested'])
+                self.assertEqual(media['image']['url'], f'/prototype/img/fallback/{current["sceneId"]}.jpg')
             self.assertEqual(current['sceneId'], 'ending')
             self.assertIsNone(current['question'])
 

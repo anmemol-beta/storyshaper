@@ -42,6 +42,7 @@ const AgentLanguage = (() => {
     "Prepared illustration · offline mode": "준비된 그림 · 오프라인 모드",
     "Prepared illustration · your choice": "준비된 그림 · 고른 답의 장면",
     "Prepared illustration · live generation unavailable": "준비된 그림 · 실시간 그림 생성을 완료하지 못했습니다",
+    "Prepared scene backup · not generated for this answer": "준비된 장면별 백업 · 이번 답으로 새로 생성한 그림이 아닙니다",
     "Previous picture · picture update unavailable": "이전 그림 · 그림을 갱신하지 못했습니다",
     "Previous picture · choose an answer to continue": "이전 그림 · 답을 골라 이야기를 이어가세요",
     "Reference illustration · image service is not connected": "참고 그림 · 이미지 서비스가 연결되지 않았습니다",

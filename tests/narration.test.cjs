@@ -303,6 +303,59 @@ test('saved voices can be fetched without changing pages', async () => {
   assert.deepEqual(JSON.parse(JSON.stringify(await h.Narration.listVoices())), [{id:'saved-id',name:'Mom'}]);
 });
 
+test('a failed pack manifest is fetched again on the next sample click, with server fallback for the default voice', async () => {
+  const h = load(); let manifests = 0;
+  h.storage.set('story-voice', 'saved-id');
+  h.setFetch(async (url, options) => {
+    if (url === 'audio/pack/manifest.json') return ++manifests === 1 ? {ok:false} : {ok:true, json:async () => ({voices:{default:{
+      'en|narrator|narration|warm|calm|Once upon a time, three little pigs set out to build homes.':'first.mp3'
+    }}})};
+    assert.match(url, /\/api\/voice\/lines$/);
+    const body = JSON.parse(options.body);
+    assert.equal(body.voiceId, undefined, 'Explicit default sample must not use the selected parent voice');
+    return {ok:true, json:async () => ({clips:[{url:'/audio/default/first.mp3'}]})};
+  });
+  assert.match(await h.Narration.sample(null, 'en'), /\/audio\/default\/first.mp3\?wait=30$/);
+  assert.equal(await h.Narration.sample(null, 'en'), 'audio/pack/first.mp3');
+  assert.equal(manifests, 2);
+});
+
+test('sample requests wait for cold startup, can be cancelled, and start a fresh request on the next click', async () => {
+  const h = load(); const requests = [];
+  h.setFetch(async (url, options) => {
+    requests.push({url, signal:options.signal});
+    return new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(new Error('cancelled'))));
+  });
+  const controller = new AbortController();
+  const first = h.Narration.sample('000000007127', 'ko', {serverOnly:true, signal:controller.signal});
+  const cancelled = assert.rejects(first);
+  await tick();
+  assert.ok(h.timers.some(timer => timer.fn && timer.ms === 60000), 'User-triggered preview allows cold startup');
+  controller.abort(); await cancelled;
+  assert.equal(requests[0].signal.aborted, true);
+  h.setFetch(async url => {
+    assert.match(url, /\/api\/voices\/000000007127\/preview$/);
+    return {ok:true, json:async () => ({url:'/audio/male/first.mp3'})};
+  });
+  assert.match(await h.Narration.sample('000000007127', 'ko', {serverOnly:true}), /\/audio\/male\/first.mp3\?wait=30$/);
+});
+
+test('a stalled pack download times out and a sample can still be requested from the server', async () => {
+  const h = load(); let packSignal;
+  h.setFetch(async (url, options) => {
+    if (url === 'audio/pack/manifest.json') {
+      packSignal = options.signal;
+      return new Promise(() => {});
+    }
+    assert.match(url, /\/api\/voices\/000000007127\/preview$/);
+    return {ok:true, json:async () => ({url:'/audio/male/first.mp3'})};
+  });
+  const sample = h.Narration.sample('000000007127', 'ko');
+  h.runTimer(4000);
+  assert.match(await sample, /\/audio\/male\/first.mp3\?wait=30$/);
+  assert.equal(packSignal.aborted, true);
+});
+
 test('changing a paused browser reader cannot leave the next passage globally paused', async () => {
   const h = load({ready:false, autoEnd:false});
   const first = h.Narration.speak([{text:'The old voice.'}], {key:'old-pause'});

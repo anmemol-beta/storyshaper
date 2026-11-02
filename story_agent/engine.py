@@ -696,6 +696,8 @@ class StoryEngine:
             result["mediaPlan"] = self._media_plan(result, state, facts)
             result["mediaPlan"]["narration"] = deepcopy(result["lines"])
         result["diagnostics"].update(languageChanged=True, authoredFallback=True)
+        if "manualNavigation" in snapshot["diagnostics"]:
+            result["diagnostics"]["manualNavigation"] = deepcopy(snapshot["diagnostics"]["manualNavigation"])
         return result
 
     @staticmethod
