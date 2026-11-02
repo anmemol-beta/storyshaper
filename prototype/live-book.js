@@ -504,6 +504,11 @@
     preparation.failed = false;
     if (stagedPicture?.preparation === preparation) stagedPicture.reveal();
     finishPresentation(preparation); // without its picture yet: read now (readBeforePicture)
+    // Replaying or changing the voice must keep the existing picture gate.
+    if (pictureWait === preparation && !preparation.imageReady) {
+      narrate();
+      if (preparation.imageFailure) mediaState(preparation.imageFailure);
+    }
   }
 
   // Why a page's voice is missing decides what the parent is told: the voice server could not be reached,
@@ -585,6 +590,18 @@
 
   function preparePresentation(state, {remember = true, image = displayedImage, waitForImage = false,
     after = null, deferAudio = false} = {}) {
+    if (pictureWait?.state === state && !waitForImage) {
+      // The words are already displayed. Refresh only their voice, preserving
+      // the image request, staged decode and any failure/retry information.
+      const preparation = pictureWait;
+      stopNarration();
+      preparation.key = passageKey(state);
+      preparation.audioReady = false;
+      preparation.asset = null;
+      preparedPassage = null;
+      if (!deferAudio) prepareAudio(preparation);
+      return preparation;
+    }
     pictureWait = null;
     if (scenePreparation) {
       scenePreparation.cancelled = true;
@@ -656,6 +673,7 @@
   }
 
   function render(state, {remember = true} = {}) {
+    if (questionKey(displayed) !== questionKey(state)) typing = false;
     displayed = state;
     if (state === snapshot && state.question) voiceNextPages();
     if (remember) { rememberPage(state, displayedImage); pageIndex = pages.length - 1; }
@@ -756,6 +774,8 @@
       const preparation = scenePreparation;
       if (!preparation) return;
       preparation.imageReady = true;
+      preparation.imageFailure = null;
+      restartOnRetry = false;
       preparation.image = result.image?.url || displayedImage;
       preparation.video = result.video;
       finishPresentation(preparation);
@@ -768,14 +788,20 @@
       // A picture bound to another page (stale_snapshot) is replaced by that page's own request; nothing to restart.
       restartOnRetry = result.retryable === false && result.reason !== "stale_snapshot";
       const lost = ["session_not_found", "job_not_found"].includes(result.reason);
+      const reference = result.state === "fallback" && Boolean(result.image?.url);
+      const generationFailed = reference || result.reason !== "image_load_failed" && snapshot?.providerMode === "live";
       ui.retryMedia.textContent = restartOnRetry ? t("Start the story again", "처음부터 다시 시작")
-        : t("Reload picture", "그림 다시 불러오기");
+        : generationFailed ? t("Try generating again", "그림 생성 다시 시도") : t("Reload picture", "그림 다시 불러오기");
       ui.loadingText.textContent = lost
         ? t("The story server restarted, so this story was lost.", "이야기 서버가 다시 시작돼서 이 이야기가 끊겼어요.")
-        : t("The picture isn't ready yet.", "아직 그림을 완성하지 못했어요.");
+        : reference ? t("This is a reference picture. Your new picture couldn't be made.",
+          "지금 보이는 것은 기본 그림이에요. 새 그림을 만들지 못했어요.")
+        : generationFailed ? t("Your new picture couldn't be made.", "새 그림을 만들지 못했어요.")
+        : t("Couldn't load the picture.", "그림을 불러오지 못했어요.");
       ui.retryMedia.hidden = ui.retryMedia.disabled = result.retryable === false && !restartOnRetry;
       say(restartOnRetry
         ? t("Couldn't finish the picture. Start the story again to keep reading.", "그림을 완성하지 못했어요. 처음부터 다시 시작해 주세요.")
+        : generationFailed ? t("Try generating the picture again to continue.", "그림 생성을 다시 시도해 주세요.")
         : t("Reload the picture to continue.", "계속하려면 그림을 다시 불러와 주세요."));
       syncControls(); // A failed live generation's substitute picture keeps the next turn locked.
     }
@@ -995,8 +1021,10 @@
       activity = "idle";
       if (!text.trim()) { openChoices(); return; }
       ui.answer.value = text;
+      typing = true;
       say(t("Check your words and tap Send.", "네 말을 확인하고 답하기를 눌러 줘."));
       syncControls();
+      ui.freeInput.scrollIntoView?.({block: "nearest", behavior: "smooth"});
     } catch { if (current()) openChoices(); }
   };
 
@@ -1042,8 +1070,10 @@
       activity = "idle";
       if (!name.trim()) { openChoices(); return; }
       ui.answer.value = name;
+      typing = true;
       say(t("Check the object and tap Send.", "물건 이름을 확인하고 답하기를 눌러 줘."));
       syncControls();
+      ui.freeInput.scrollIntoView?.({block: "nearest", behavior: "smooth"});
     } catch { if (current()) openChoices(); }
   };
 
