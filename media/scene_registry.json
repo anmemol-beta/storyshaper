@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "images": {
     "house1/choose": {"file": "empty1.jpg", "cast": ["pig1"]},
     "house2/choose": {"file": "pig2_empty.jpg", "cast": ["pig2"]},

@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:03:26.430282+00:00",
+  "candidateSha256": "b78308b4f15dcd5a77b343f7f2c3fb7a6b13f3cd5733715596631f228cacf7ee",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "All 4 identities correct with beanie and bandana preserved, wolf slumped far left, pigs center-right in visible shoulder embrace, pure outdoor meadow with no structures or text."
+  },
+  "usage": {
+    "input_tokens": 5384,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 800,
+    "output_tokens_details": {
+      "reasoning_tokens": 698
+    },
+    "total_tokens": 6184
+  }
+}

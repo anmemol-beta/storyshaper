@@ -1,8 +1,8 @@
 # 재료에 종속되지 않는 백업 이미지
 
-2026-11-02 사용자 요청에 따라 메인 장면(`house1_choose`)을 제외한 **9장**을 사전 생성했다. 요청에서 중복된 3번 두 항목은 각각 `house1_reflect`와 `house2_choose`로 보존했다.
+2026-11-04 사용자 요청에 따라 메인 장면(`house1_choose`)을 제외한 **9장 전부를 Muse API로 다시 생성**했다. 기존 Muse 장면의 수채화 화풍과 SAM 3.1 캐릭터 영역을 함께 참조했다. 요청에서 중복된 3번 두 항목은 각각 `house1_reflect`와 `house2_choose`로 보존했다.
 
-[전체 미리보기](index.html) · [생성 프롬프트와 배역·장면 메타데이터](manifest.json)
+[전체 미리보기](index.html) · [9장 모아 보기](preview.jpg) · [전체 프롬프트·참조·원본·검수 기록](manifest.json)
 
 | 요청 번호 | 현재 엔진의 장면 ID | 이미지 |
 | --- | --- | --- |
@@ -18,18 +18,30 @@
 
 ## 제작과 확인
 
-- **생성 도구:** Codex 내장 `image_gen`. 기존 프로젝트 그림은 캐릭터·화풍 참조로 사용했다. 이번 자산을 Muse Image로 생성했다고 표시하지 않는다.
-- **저장 형식:** JPEG, 1536 × 1024, 3:2. 생성 원본 PNG는 도구 기본 저장 위치에 보존하고, 프로젝트에는 품질 90으로 변환한 최종 파일을 저장했다.
+- **생성 모델·API:** `muse-image-1.0`, `POST https://api.meta.ai/v1/images/edits`, `reasoning_strength: high`. [공식 다중 이미지 편집 규격](https://dev.meta.ai/docs/image-generation)에 따라 기존 이미지와 캐릭터 영역을 실제 요청의 `images` 배열로 전달했다. 내장 이미지 생성 도구는 이번 재생성에 사용하지 않았다.
+- **세그먼트 활용:** [기존 SAM 영역 목록](../motion/regions.json)의 `straw_house.pig.webp`(첫째), `pig2_empty.pig.webp`(둘째), `pig3_empty.pig.webp`(셋째), `wolf_paper.wolf.webp`(늑대)를 해당 배역이 있는 모든 생성에 참조 이미지로 넣었다. 이는 SAM 바운딩 박스의 가장자리를 부드럽게 처리한 크롭이며 정밀 전경 마스크가 아니다. 주변 픽셀의 집·소품은 복사하지 않도록 지시했다. 원본 Muse 전체 장면은 색감·붓질·종이 질감 참조로 따로 전달했다.
+- **구도 연결:** `house2_predict`에는 새 Muse 삽 장면 원본도 함께 넣어 배경·늑대·확대 구도를 유지하고, 첫째→둘째와 삽→망치만 바꾸도록 했다.
+- **저장 형식:** Muse 응답 그대로의 **1920 × 1280 PNG**와 서비스용 **1536 × 1024 JPEG**(품질 90, Lanczos 축소)를 모두 저장했다. 서비스용 JPEG 9장 합계는 약 **4.50 MiB**, 원본 PNG는 약 **34.50 MiB**다.
 - **캐릭터:** 첫째는 장식 없음, 둘째는 파란 털모자, 셋째는 빨간 스카프. 늑대는 기존 회색 캐릭터를 따른다.
 - 집·울타리·건축 재료 더미·잔해를 빼고, 요청한 도구·표정·물음표·손잡기·어깨동무로 장면을 구분했다. 결말은 요청에 따른 실내 예외이며 외관·노출된 건축 재료·벽 무늬 없이 식탁·의자·식기로 표현했다.
-- 9장을 직접 보며 배역 수·캐릭터 구분·표정·소품·좌우 배치·재료 독립성을 확인했다. 둘째에게 달려오는 첫째의 중복 꼬리를 제거한 수정 프롬프트도 `manifest.json`에 보존했다. 실제 서비스의 독립 모델 검수나 실기기 검증을 수행한 것은 아니다.
-- **파일 검증:** 9개 장면 ID의 중복·누락 없음, 전 파일 1536×1024, FFmpeg JPEG 디코딩 9개 통과, 미리보기의 이미지·원본 링크와 문서·참조 파일 경로를 확인했다. 이미지 합계는 약 5.97 MiB다.
+- **검수:** 최종 9장을 직접 확인했고 별도 `muse-spark-1.3` 호출로 원본·캐릭터 영역과 대조했다. 화풍·캐릭터·배역 수·장면 동작·재료 독립성·신체 표현·물음표·어린이 적합성 8개 기준을 전부 통과했다. 첫 둘째 질문 시안의 창틀·벽과 첫째 울음 시안의 귀 모양을 수정했다. 성공 응답 11장 중 9장을 채택했으며 제외한 시안은 서비스에 연결하지 않았다. 사전 제작 자산의 검수이며 실제 외부 모델 장애나 실기기 통합 시험을 의미하지 않는다.
+- 각 원본 옆 `.json`에는 프롬프트·설정·참조 경로·SAM 영역 좌표·SHA-256·API 사용량·소요 시간이, `.review.json`에는 독립 검수 결과가 있다. 비밀 키와 요청의 base64 본문은 저장하지 않았다.
+- **파일·연결 검증(11/4):** 최종 JPEG 9개와 원본 PNG 9개의 FFmpeg 디코딩·크기·SHA-256, 12개 참조 파일의 해시, 9개 장면·배역의 레지스트리 일치, 미리보기의 로컬 링크 49개를 확인했다. `tests.test_media`·`tests.test_live_images` **75개**가 통과했다.
+
+생성 재현은 저장소 루트에서 아래 명령을 사용한다. `--dry-run`은 API를 호출하지 않는다. 실제 생성은 `.env` 또는 환경변수의 `MODEL_API_KEY`가 필요하며 새 후보를 저장한다. 런타임 JPEG 교체는 직접 확인 후 별도로 한다.
+
+```bash
+python3 experiments/gen_fallback_images.py --dry-run
+python3 experiments/gen_fallback_images.py --only house1_predict house2_choose
+python3 experiments/gen_fallback_images.py --review --only house1_predict house2_choose
+```
 
 ## 이미지 원본 위치
 
-- **생성 원본 PNG:** 현재 Mac의 `~/.codex/generated_images/01a19c95-5d4c-7430-8c9b-98801ba7e28b/`에 있다. 최종 선택 9장과 `house2_choose`의 꼬리 수정 전 시안 1장, 총 10개이며 Git에는 포함하지 않았다.
-- **프로젝트용 JPEG:** 이 폴더(`prototype/img/fallback/`)의 9개 `.jpg`다. 원본과 동일한 1536×1024 크기로 JPEG 변환했고, 미리보기·프롬프트·문서와 함께 `jiho` 브랜치에 반영한다.
-- 각 JPEG에 대응하는 원본 PNG 이름은 `manifest.json`의 `images[].sourcePngFile`, 원본 폴더는 `generation.originalDirectory`에 기록했다. 원본 폴더는 로컬 경로이므로 향후 원격 `jiho` push에 포함되는 파일은 프로젝트 폴더의 JPEG·문서다.
+- **현재 Muse 원본 PNG:** 이 폴더의 [`sources/muse-20261104/`](sources/muse-20261104/)에 있다. 최종 9장과 요청·검수 JSON을 저장소 안에 보존하므로 이후 커밋·push 시 함께 반영할 수 있다.
+- **프로젝트용 JPEG:** 이 폴더의 기존 장면 이름 9개 `.jpg`다. 기존 두 번 실패·답변 전 다음 이동 경로가 이 새 파일을 사용한다. 레지스트리 리비전은 4로 갱신했다.
+- 각 JPEG의 원본은 `manifest.json`의 `images[].sourceImageFile`, 프롬프트는 `images[].prompt`, 실제 참조 목록·좌표·해시는 `images[].referenceDetails`에서 찾을 수 있다.
+- **11/2 이전판 보존:** 내장 도구로 만들었던 이전판의 프롬프트·원본 대응표는 [`sources/imagegen-20261102.manifest.json`](sources/imagegen-20261102.manifest.json)에 남겼다. 당시 원본은 Mac의 `~/.codex/generated_images/01a19c95-5d4c-7430-8c9b-98801ba7e28b/`에 있고 새 Muse 원본과 구분한다. 이전 JPEG는 Git 이력에 남아 있다.
 
 ## 자동 대체 동작 — 2026-11-03 연결
 

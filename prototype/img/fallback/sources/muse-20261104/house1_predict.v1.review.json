@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:00:16.624897+00:00",
+  "candidateSha256": "a162c4c9b4a7df8b7747e9fa0e89f5330af3557336b430fb6a90784ff19333ef",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "Matches 2-character composition: pig1 upright on right with one shovel, wolf on left with sly grin; no houses/materials, no text, anatomy clean, style consistent."
+  },
+  "usage": {
+    "input_tokens": 4982,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 710,
+    "output_tokens_details": {
+      "reasoning_tokens": 608
+    },
+    "total_tokens": 5692
+  }
+}

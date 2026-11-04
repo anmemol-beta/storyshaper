@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:02:57.624534+00:00",
+  "candidateSha256": "8d96ae62618211aea44e2316c67a1d938e43babbdfeaffb74492fc5872a8c87f",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "Matches 2-pig meadow scene: pig1 plain running from left, pig2 beanie puzzled on right with single ?; one tail each, no tools/wolf/houses, watercolor style consistent."
+  },
+  "usage": {
+    "input_tokens": 5082,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 504,
+    "output_tokens_details": {
+      "reasoning_tokens": 395
+    },
+    "total_tokens": 5586
+  }
+}
