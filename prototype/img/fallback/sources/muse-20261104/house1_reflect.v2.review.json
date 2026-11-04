@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:04:44.391045+00:00",
+  "candidateSha256": "cb02ac540aa7ad9d0c5c52a5dc09a519fce68ef71017f01e9927555777d7d034",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "Crying pig1 right with large upright ears and clean pink belly, laughing wolf left, outdoor meadow only, no houses/materials/tools/text, watercolor style matches."
+  },
+  "usage": {
+    "input_tokens": 5035,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 661,
+    "output_tokens_details": {
+      "reasoning_tokens": 561
+    },
+    "total_tokens": 5696
+  }
+}

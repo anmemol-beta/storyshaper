@@ -19,6 +19,8 @@
     img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: contain; }
     figcaption { padding: 15px 17px 18px; }
     figcaption span { display: block; margin-bottom: 7px; color: #88755c; font-size: 12px; }
+    figcaption small { display: block; margin-top: 10px; line-height: 1.7; }
+    figcaption small a { display: inline; color: #725a32; }
     figcaption strong { font-size: 15px; line-height: 1.5; }
     footer { padding-top: 0; font-size: 13px; color: #88755c; }
     @media (max-width: 1000px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -28,64 +30,64 @@
 <body>
   <header>
     <h1>장면별 백업 이미지</h1>
-    <p>메인 장면을 제외한 9장입니다. 재료와 집 외관을 생략하고, 마지막은 건축 재료가 보이지 않는 실내 식탁으로 표현했습니다.<br>그림을 누르면 원본 크기로 볼 수 있습니다. 요청에서 중복된 3번은 각각 따로 표시했습니다.</p>
+    <p>Muse API로 다시 만든 9장입니다. 기존 Muse 장면과 SAM 3.1 캐릭터 영역을 실제 참조 이미지로 사용했습니다. 재료와 집 외관을 생략하고, 마지막은 건축 재료가 보이지 않는 실내 식탁으로 표현했습니다.<br>그림을 누르면 서비스용 JPEG를 크게 볼 수 있습니다. 각 카드의 PNG 원본·요청 기록·검수 기록도 확인할 수 있습니다.<br><a href="../straw_house.jpg">기존 Muse 그림체 참조</a> · <a href="../motion/regions.json">기존 SAM 영역</a> · <a href="manifest.json">전체 프롬프트·참조 목록</a> · <a href="preview.jpg">9장 모아 보기</a></p>
   </header>
   <main aria-label="장면별 이미지">
     <figure>
       <a href="house1_predict.jpg" aria-label="삽을 든 첫째와 다가오는 늑대 크게 보기">
         <img src="house1_predict.jpg" width="1536" height="1024" alt="첫째가 삽을 들고 늠름하게 서 있고, 늑대가 씩 웃으며 다가온다." decoding="async">
       </a>
-      <figcaption><span>요청 2</span><strong>삽을 든 첫째와 다가오는 늑대</strong></figcaption>
+      <figcaption><span>요청 2</span><strong>삽을 든 첫째와 다가오는 늑대</strong><small><a href="sources/muse-20261104/house1_predict.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house1_predict.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house1_predict.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house1_reflect.jpg" aria-label="우는 첫째와 웃는 늑대 크게 보기">
         <img src="house1_reflect.jpg" width="1536" height="1024" alt="집이 사라진 뒤 첫째는 울고, 곁에 있는 늑대는 웃는다. 집의 흔적과 재료는 그리지 않는다." decoding="async">
       </a>
-      <figcaption><span>요청 3 (첫 번째)</span><strong>우는 첫째와 웃는 늑대</strong></figcaption>
+      <figcaption><span>요청 3 (첫 번째)</span><strong>우는 첫째와 웃는 늑대</strong><small><a href="sources/muse-20261104/house1_reflect.v2.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house1_reflect.v2.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house1_reflect.v2.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house2_choose.jpg" aria-label="궁금해하는 둘째와 달려오는 첫째 크게 보기">
         <img src="house2_choose.jpg" width="1536" height="1024" alt="파란 모자를 쓴 둘째가 물음표와 함께 궁금해하고, 첫째가 달려온다." decoding="async">
       </a>
-      <figcaption><span>요청 3 (두 번째)</span><strong>궁금해하는 둘째와 달려오는 첫째</strong></figcaption>
+      <figcaption><span>요청 3 (두 번째)</span><strong>궁금해하는 둘째와 달려오는 첫째</strong><small><a href="sources/muse-20261104/house2_choose.v2.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house2_choose.v2.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house2_choose.v2.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house2_predict.jpg" aria-label="망치를 든 둘째와 다가오는 늑대 크게 보기">
         <img src="house2_predict.jpg" width="1536" height="1024" alt="2번과 같은 구도에서 둘째가 망치를 들고 늠름하게 서 있고, 늑대가 씩 웃으며 다가온다." decoding="async">
       </a>
-      <figcaption><span>요청 4</span><strong>망치를 든 둘째와 다가오는 늑대</strong></figcaption>
+      <figcaption><span>요청 4</span><strong>망치를 든 둘째와 다가오는 늑대</strong><small><a href="sources/muse-20261104/house2_predict.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house2_predict.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house2_predict.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house2_reflect.jpg" aria-label="손잡고 달아나는 형제와 거들먹거리는 늑대 크게 보기">
         <img src="house2_reflect.jpg" width="1536" height="1024" alt="둘째는 울고, 놀란 첫째가 둘째 손을 잡고 도망간다. 늑대는 팔짱을 끼고 거들먹거린다." decoding="async">
       </a>
-      <figcaption><span>요청 5</span><strong>손잡고 달아나는 형제와 거들먹거리는 늑대</strong></figcaption>
+      <figcaption><span>요청 5</span><strong>손잡고 달아나는 형제와 거들먹거리는 늑대</strong><small><a href="sources/muse-20261104/house2_reflect.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house2_reflect.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house2_reflect.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house3_choose.jpg" aria-label="삽·망치를 든 형제들과 고민하는 막내 크게 보기">
         <img src="house3_choose.jpg" width="1536" height="1024" alt="첫째는 삽, 둘째는 망치를 들고, 빨간 스카프의 셋째는 물음표와 함께 고민한다." decoding="async">
       </a>
-      <figcaption><span>요청 6</span><strong>삽·망치를 든 형제들과 고민하는 막내</strong></figcaption>
+      <figcaption><span>요청 6</span><strong>삽·망치를 든 형제들과 고민하는 막내</strong><small><a href="sources/muse-20261104/house3_choose.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house3_choose.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house3_choose.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house3_predict.jpg" aria-label="왼쪽 늑대와 오른쪽의 자신만만한 삼형제 크게 보기">
         <img src="house3_predict.jpg" width="1536" height="1024" alt="나쁜 표정의 늑대는 왼쪽, 기고만장한 삼형제는 오른쪽에 서서 서로 마주 본다." decoding="async">
       </a>
-      <figcaption><span>요청 7</span><strong>왼쪽 늑대와 오른쪽의 자신만만한 삼형제</strong></figcaption>
+      <figcaption><span>요청 7</span><strong>왼쪽 늑대와 오른쪽의 자신만만한 삼형제</strong><small><a href="sources/muse-20261104/house3_predict.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house3_predict.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house3_predict.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="house3_reflect.jpg" aria-label="좌절한 늑대와 어깨동무하는 삼형제 크게 보기">
         <img src="house3_reflect.jpg" width="1536" height="1024" alt="늑대는 왼쪽 구석에서 좌절하고, 삼형제는 서로 웃으며 어깨동무한다." decoding="async">
       </a>
-      <figcaption><span>요청 8</span><strong>좌절한 늑대와 어깨동무하는 삼형제</strong></figcaption>
+      <figcaption><span>요청 8</span><strong>좌절한 늑대와 어깨동무하는 삼형제</strong><small><a href="sources/muse-20261104/house3_reflect.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/house3_reflect.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/house3_reflect.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
     <figure>
       <a href="ending.jpg" aria-label="실내 식탁에서 대화하는 삼형제 크게 보기">
         <img src="ending.jpg" width="1536" height="1024" alt="삼형제가 집 안 식탁에 앉아 웃으며 서로 대화한다. 실내 분위기만 남기고 건축 재료·외관은 드러내지 않는다." decoding="async">
       </a>
-      <figcaption><span>요청 9</span><strong>실내 식탁에서 대화하는 삼형제</strong></figcaption>
+      <figcaption><span>요청 9</span><strong>실내 식탁에서 대화하는 삼형제</strong><small><a href="sources/muse-20261104/ending.v1.png">Muse 원본 PNG</a> · <a href="sources/muse-20261104/ending.v1.json">프롬프트·참조</a> · <a href="sources/muse-20261104/ending.v1.review.json">독립 검수</a></small></figcaption>
     </figure>
   </main>
-  <footer>StoryShaper · 2026-11-02 · 수채화 그림책 · 1536 × 1024</footer>
+  <footer>StoryShaper · 2026-11-04 · Muse Image + SAM 캐릭터 참조 · JPEG 1536 × 1024 / 원본 PNG 1920 × 1280</footer>
 </body>
 </html>

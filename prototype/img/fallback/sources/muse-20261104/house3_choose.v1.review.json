@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:03:15.617991+00:00",
+  "candidateSha256": "4290e43a8beb47725f546d1d751203eb18aade6a39a640cb08be3a70f29cc6e9",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "All identities, left-middle-right composition, shovel/hammer/thinking pose with single ? , watercolor style and outdoor meadow setting match; no extra characters or materials."
+  },
+  "usage": {
+    "input_tokens": 5263,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 514,
+    "output_tokens_details": {
+      "reasoning_tokens": 414
+    },
+    "total_tokens": 5777
+  }
+}

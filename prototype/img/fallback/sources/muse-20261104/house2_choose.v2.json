@@ -1,0 +1,77 @@
+{
+  "sceneId": "house2_choose",
+  "endpoint": "https://api.meta.ai/v1/images/edits",
+  "requestedAt": "2026-11-04T14:01:01.355079+00:00",
+  "settings": {
+    "model": "muse-image-1.0",
+    "n": 1,
+    "size": "1536x1024",
+    "output_format": "png",
+    "response_format": "b64_json",
+    "reasoning_strength": "high",
+    "tool_enablement": {
+      "enable_image_search": false,
+      "enable_web_search": false,
+      "enable_shell": false
+    }
+  },
+  "references": [
+    {
+      "file": "prototype/img/pig2_empty.jpg",
+      "role": "original Muse page: style, palette and brushwork",
+      "sha256": "1c10b705a4c7a4e90cb139e4baf2881a611f0755ac5602f3ffbc0adc32118aee"
+    },
+    {
+      "file": "prototype/img/motion/straw_house.pig.webp",
+      "role": "identity: pig1; oldest: plain pink pig, no clothing or accessories",
+      "segmentationModel": "sam-3.1",
+      "sourceImage": "prototype/img/straw_house.jpg",
+      "box": [
+        275,
+        303,
+        511,
+        623
+      ],
+      "spriteBox": [
+        256,
+        284,
+        530,
+        642
+      ],
+      "regionKind": "feathered_box_crop",
+      "sha256": "ab0e03c22462f600b2724dbc6c4510a0a2300c2e489c8f4e203283a9963ed746"
+    },
+    {
+      "file": "prototype/img/motion/pig2_empty.pig.webp",
+      "role": "identity: pig2; middle: pink pig with the same blue knitted beanie",
+      "segmentationModel": "sam-3.1",
+      "sourceImage": "prototype/img/pig2_empty.jpg",
+      "box": [
+        275,
+        286,
+        510,
+        624
+      ],
+      "spriteBox": [
+        255,
+        266,
+        530,
+        644
+      ],
+      "regionKind": "feathered_box_crop",
+      "sha256": "a0200f48abae289dba41de96646d871c726948877010864dcc259c00bf428e04"
+    }
+  ],
+  "prompt": "Create a new page for this EXACT existing watercolor picture book, not a redesign.\nImage 1 is an original Muse-generated page: match its pigment, soft painted outlines, fine paper\ntexture, warm golden greens and pinks, natural shading, facial shapes, eye highlights and proportions.\nSubsequent images are the existing SAM 3.1 object-region crops of each required character.\nUse these crops actively as identity references: preserve each face, snout, ears, fur, colors and\naccessories. They contain incidental background pixels; do NOT copy those backgrounds or props.\nChange facial expressions and body poses as requested; pigs may stand upright to hold tools or hands.\nAvoid flat vector art, a new cartoon style, glossy 3D, heavy outlines or excessively simplified faces.\nThis must look like another page painted for the original book by the same illustrator.\nThe cast below is exhaustive: one of each listed identity, with no duplicates or extra characters.\nMATERIAL-INDEPENDENT BACKUP: absolutely no house, roof, doorway, fence, building materials, stacks,\nlogs, bricks, paper sheets, straw, rubble or construction debris, including in the far background.\nDo not copy the houses or fences in the original style reference. Only specifically requested hand\ntools, the blue beanie, red bandana and props explicitly listed for this scene are allowed.\nSafe and gentle for ages 4-7; playful storybook antagonism, no injury or frightening violence.\nNo writing, lettering, captions, speech bubbles, logo or watermark. Only the requested single question\nmark is allowed in the two thinking scenes; no question mark anywhere else. One full-bleed 3:2 image.\n\nImage 1: original Muse page: style, palette and brushwork.\nImage 2: identity: pig1; oldest: plain pink pig, no clothing or accessories.\nImage 3: identity: pig2; middle: pink pig with the same blue knitted beanie.\nScene: house2_choose. Exactly 2 characters: pig1, pig2.\nRequested composition and acting: The middle pig in his blue beanie stands on the right with a curious, puzzled face. Draw one clear question mark above his head. The plain oldest pig runs toward him from the left. Each pig has exactly one small curly tail. No wolf and no tools.\nSetting: Entire scene is OUTDOORS in an open woodland meadow, with distant foliage and sky across the full width, including both edges. Ground is natural grass and soil. No wall, window, architectural trim, tiled or wooden floor, or part of a building at any edge.",
+  "sourceFile": "prototype/img/fallback/sources/muse-20261104/house2_choose.v2.png",
+  "completedAt": "2026-11-04T14:01:17.179848+00:00",
+  "durationMs": 15824,
+  "responseCreated": 1793800875,
+  "usage": {
+    "input_tokens": 14109,
+    "output_tokens": 1356,
+    "total_tokens": 15465
+  },
+  "sha256": "8d96ae62618211aea44e2316c67a1d938e43babbdfeaffb74492fc5872a8c87f",
+  "bytes": 4283518
+}

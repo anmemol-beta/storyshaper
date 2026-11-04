@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:03:30.840843+00:00",
+  "candidateSha256": "57eb808f92f58adaaead70dbbcecacafa6379f42fe4ff22fac5279d0915ab996",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "Three pigs match identities around cream table with bowls/cup, plain warm interior, no building material or text, anatomy clean."
+  },
+  "usage": {
+    "input_tokens": 5233,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 440,
+    "output_tokens_details": {
+      "reasoning_tokens": 351
+    },
+    "total_tokens": 5673
+  }
+}

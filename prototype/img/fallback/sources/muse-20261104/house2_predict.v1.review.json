@@ -1,0 +1,27 @@
+{
+  "model": "muse-spark-1.3",
+  "reviewedAt": "2026-11-04T14:03:07.813714+00:00",
+  "candidateSha256": "ee7b45a5271b49761545765aa9b20ec19b7fdf70c78e959e9f908ac3455f26f8",
+  "verdict": {
+    "safe": true,
+    "styleMatches": true,
+    "identitiesMatch": true,
+    "castMatches": true,
+    "actionMatches": true,
+    "materialIndependent": true,
+    "anatomyAcceptable": true,
+    "symbolsCorrect": true,
+    "notes": "wolf left sly grin, pig2 right with blue beanie holding hammer, outdoors meadow, style and identities match, no defects"
+  },
+  "usage": {
+    "input_tokens": 8267,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 659,
+    "output_tokens_details": {
+      "reasoning_tokens": 577
+    },
+    "total_tokens": 8926
+  }
+}
