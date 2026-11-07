@@ -1,143 +1,155 @@
 # StoryShaper
 
-> Kids today *watch* stories on endless autoplay. They rarely get to *shape* one.
+> A picture book in your voice. A story your child helps shape.
 
-StoryShaper is an interactive picture book that a child steers with their voice.
-The story stops and asks a question, the child answers out loud, and the next page is redrawn to match their idea.
+**[Read the book](https://storyshaper.vercel.app) · [Watch the submitted demo](https://youtu.be/FXtuQ7iy4z0)**
 
-Built for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 26 – Nov 4, 2026).
-Indie Developer track, theme *Build for Your World*.
+Woojoo can't talk yet. Her dad is on our team. He wants to read her every bedtime story in his own voice, and when she can talk, he wants the story to talk back.
 
-![The paper house a child chose, redrawn by Muse Image](prototype/img/paper_house.jpg)
+StoryShaper is a picture book that does both. A parent records one short passage, once, and the book is narrated in their voice. Then it stops and asks the child what happens next. She says **“Thin paper!”** and the page is repainted with a thin-paper house. The wolf blows, the paper flutters apart, and the book asks her why.
 
-## How it works
+Children today watch stories on autoplay. Here, they shape one.
 
-In *The Three Little Pigs*, the child decides what each pig builds with.
+Built during the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon). **Development and submission of the hackathon build are complete.** The submitted experience is *The Three Little Pigs*, with English and Korean reading, parent-voice narration, child-directed illustrations and narration-synced animation.
 
-1. The page is read aloud while each word lights up.
-2. The story asks: *"What do you think he built his house with?"*
-3. The child holds the mic and says *"Paper!"*
-4. **Muse Voice Transcribe** turns the answer into text, **Muse Spark** writes the next lines around it, and **Muse Image** redraws the page with a paper house in the same style.
-5. The wolf blows, and the child sees why a light house flies away. By the third pig, they reason that it needs something heavy and strong.
+![A paper house in the book's watercolor style](prototype/img/paper_house.jpg)
 
-Silly answers are not blocked. They are folded back into the story: an ice cream house melts in the sun, so let's try something else.
+## Why we built it
 
-## Try the prototype
+- **A parent who is far away can still read every night.** The child hears a familiar voice, even when the parent cannot be there.
+- **The child takes a turn.** Choosing a material, predicting what will happen and explaining why make the child an active participant in the story.
+- **A parent's voice can cross a language barrier.** The same reference recording can narrate English and Korean. In our demo, an English recording reads the book in Korean.
 
-To test **live pictures for free answers and saved pictures for touch choices**, the microphone and camera together, install `ffmpeg`, copy `.env.example` to `.env`, set `MODEL_API_KEY` locally, and run (Python 3.10+):
+The book keeps its characters, main events and safe ending. The child changes the materials and reasons about their consequences: a paper house blows apart; a cookie house invites a different explanation. When an idea goes too far—“The wolf eats the pigs!”—the book gives a gentle reason and three pictures to tap.
+
+## What one answer goes through
+
+Our toughest users say their prompts out loud and expect the next page to understand them. Each model has a concrete job:
+
+| Model | Role in StoryShaper |
+| --- | --- |
+| **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Transcribes English/Korean answers. Voice registration also supports consent and reference-clip transcription when the narration service has a Meta API key. |
+| **Muse Spark 1.3** (`muse-spark-1.3`) | Interprets answers, writes dialogue/questions, reviews text when needed, recognizes camera objects and independently reviews every newly generated illustration. |
+| **Muse Image 1.0** (`muse-image-1.0`) | Edits a reference page to reflect the child's material while preserving the pigs and watercolor style. |
+| **SAM 3.1** (`sam-3.1`) | Located the wolf, pigs and houses in prepared illustrations; saved object regions guide narration-synced effects. |
+
+1. **Listen.** The browser records an answer; the server converts it with `ffmpeg` and sends it to Muse Voice Transcribe. The child can also show an object to the camera, type an answer, or use touch choices.
+2. **Understand and write.** One low-reasoning Spark call interprets the answer and drafts the next lines and question. The server owns story state and validates fixed events, material rules and safety constraints. The default adaptive pipeline adds a second Spark review for unfamiliar materials, complex answers and other turns needing review.
+3. **Repaint.** An accepted free answer starts an Image edit using approved story facts. Authored touch choices reuse a matching saved illustration when one exists.
+4. **Review before showing.** A separate Spark call checks safety, material, characters, action and expression. Rejected generated pictures are never displayed. The next answer stays locked until an approved picture or reviewed scene backup is on screen.
+5. **Read and animate.** Chatterbox narrates in the selected voice. Browser effects follow line and scene cues for the wolf's breath, fluttering paper and the house's reaction. Prepared pictures use SAM-derived regions; new generated pictures use default effect regions.
+
+Editing is what makes an unplanned page still feel like the same book. A new material changes the house while keeping the characters and style. Spark's review passes let the story welcome a cookie house while steering unsafe ideas toward its authored boundaries.
+
+SAM processing happens ahead of time on the prepared artwork. The shipped motion uses browser animation and saved object regions, rather than a video-generation request for every turn.
+
+## A parent's voice, in English and Korean
+
+Open **Add a parent's voice** from the reader. Record a short passage or upload an audio/video recording, choose a clear ten-second reference, preview a story line and save. The flow records permission and offers deletion. Where Muse transcription is configured on the narration service, it also checks the spoken permission sentence and shows what was heard in the reference clip.
+
+After saving, only the reference clip and profile remain; the full upload is removed. Deleting a voice removes its reference and generated narration cache. Hosted profiles require the access key issued to the creating browser.
+
+The parent voices the **narrator**. Each pig and the wolf has a distinct stock voice, with delivery controls derived from the script's personality, tone and emotion. English uses Chatterbox; Korean uses Chatterbox Multilingual with the same parent reference.
+
+The reader starts when the first sentence is ready, then prepares later sentences during playback. Fixed storybook-voice lines ship in the app's audio pack; new wording and parent-voice lines are synthesized and cached by the voice service. Upcoming authored choices are prepared ahead of time.
+
+During development, moving **six-line parent-voice scene synthesis from a Mac to a Modal L4 GPU reduced 67–106 seconds to 23–27 seconds**. These are whole-scene synthesis measurements, not the current time to first audio. Cold starts after idle time and container restarts on deploy were the main friction. See the [voice worklog](docs/internal/voice-worklog-2026-10-31.md) for measurements and playback changes.
+
+## Reading and recovery
+
+- **AI version:** live interpretation, speech transcription, camera recognition and image editing. Nine participation points cover choosing, predicting and explaining across the three houses.
+- **Offline version:** authored branches, prepared pictures and touch choices without a Meta API key. Fixed storybook narration is bundled with the app.
+- **Gentle recovery:** the first unaccepted answer or recording/recognition failure opens three active touch choices. Service errors offer choices without treating them as the child's mistake.
+- **Bounded image recovery:** a failed generation is retried once. After two failures, a pre-reviewed, material-independent scene backup lets reading continue. An unreviewed generated picture is never used as the fallback.
+- **Page controls:** go back, replay, pause, change speed or answer an earlier question again. A new answer replaces the later branch. Manual next-page navigation uses a server-authored safe choice and a prepared backup without generating an image.
+- **Reader settings:** English/한국어, built-in or saved narrator voices, light/dark appearance and an installable web-app manifest.
+
+Text and narration can begin while the next picture is being prepared. The previous picture stays visible with a drawing indicator; answer input opens after the new picture is displayed.
+
+## Run locally
+
+The integrated app needs **Python 3.10+** and **`ffmpeg` on your PATH**. From the repository root:
 
 ```bash
+cp .env.example .env
+# For AI version, set MODEL_API_KEY in .env using your own Meta Model API key.
 python3 -m src.server
 ```
 
-Run one app server at a time. If the port is already in use, open the existing app or stop that server with **Ctrl+C** in its terminal before running the command again. A port conflict exits with an explanation instead of a traceback.
+Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Choose **Offline version** to read without an API key, or **AI version** for live models. Keep API keys on the server. Microphone and camera access require localhost or HTTPS.
 
-**Manual page turns:** the white ◀ / ▶ arrows inside the picture interrupt picture generation, loading, narration, recording, transcription and pending answers. They skip the picture wait; with Read aloud enabled, the approved passage still waits for its complete scene audio before opening. At the latest question, ▶ continues using the server's first authored choice and shows that choice's name, without calling a story or image model. Skipped or unavailable art is replaced by a notice, so it cannot trap the reader. These explicit page turns override the picture gate described below; normal answer submission still waits for its picture. Restart an existing app server after updating to load the `/api/advance` route.
+Run one app server at a time. If port 8000 is occupied, use the existing server or stop it in its terminal before restarting.
 
-Open [StoryShaper](http://127.0.0.1:8000/) to see the child-facing picture book and choose **AI version**. Each accepted typed, spoken or camera answer starts one Muse Image edit and an independent Muse Spark image review. **Touch choices immediately reuse the matching offline illustration already stored in this repository**, without an image model call or queue wait. This includes material, prediction and explanation choices, house transitions and the ending. If a custom material has no exact saved illustration, its choice turn uses live generation. The previous page stays visible while the next picture loads. The next passage, question and answer controls open only after the picture has loaded, decoded and finished fading onto the screen. **Reload picture** reloads an existing picture when download or decoding failed, including saved choice pictures. If generation itself failed, this explicit click starts one replacement generation with independent review. Repeated clicks reuse that replacement; automatic retries remain disabled. Up to two manual generation retries are allowed per scene; exhausted or unavailable recovery directs the reader to restart. Generated pictures remain in this local server's memory and disappear on restart; saved illustrations remain in `prototype/img/` and `prototype/img/scenes/`.
+| Setting in `.env.example` | Default / purpose |
+| --- | --- |
+| `MODEL_API_KEY` | Your Meta Model API key for live story, image, speech and camera requests. |
+| `STORY_AGENT_MODEL` | `muse-spark-1.3` |
+| `STORY_AGENT_PIPELINE` | `adaptive`; `two_call` enables independent text review on every generated turn. |
+| `STORY_AGENT_COMPOSE_EFFORT` / `STORY_AGENT_REVIEW_EFFORT` | `low` |
+| `STORY_IMAGE_REASONING_STRENGTH` | `low`; generated images still receive independent review. |
 
-The microphone records up to eight seconds, transcribes with Muse Voice Transcribe, and puts editable words in the answer box. Press **Send** to submit. A first unaccepted answer, recording or recognition failure switches that question to **three keyword choices only**. Microphone, text and camera input stay hidden and disabled until a choice advances to a new question and its picture is displayed. Browser recording needs a secure context: `localhost` works; a tablet opening a plain HTTP LAN address does not.
+### Optional local parent-voice service
 
-Choose **Offline version** (formerly Demo) to test authored rules and prepared illustrations without an API key. **Choose** opens the three prepared keyword options without recording or calling Muse transcription. Camera recognition is available in AI version. The default server includes story generation, pictures, speech recognition and camera input at the same address.
+The reader defaults to the hosted Modal voice service, including when the app runs locally. To synthesize on your own machine, create the separate Chatterbox environment with Python 3.11:
 
-Use **English / 한국어** at the top to switch the interface, current story, questions and choices. The language is remembered across both prototype screens. Switching preserves story progress and uses authored translations for the current passage; later model responses use the selected language. Earlier test records retain their original wording. Korean reading in the clickable book uses browser speech instead of the existing English recordings.
+```bash
+python3.11 -m venv voice/.venv-chatterbox
+voice/.venv-chatterbox/bin/pip install -r narration/requirements.txt
+python3 -m src.server
+```
 
-The agent keeps each question's purpose and permitted story transitions in authored metadata. Its wording follows the chosen material and actual event: a cookie house leads to a question about the wolf eating its walls; a loosely assembled wood house leads to collapse. The first model call interprets the answer and drafts the next passage and question wording. The server determines and validates the transition, identifiers and choices; the default adaptive path accepts simple known-material turns after local validation and adds an independent model review for new materials, complex answers, uncertain process wording, house transitions and the ending. Diagnostics report the actual call count and whether independent review ran. Invalid model output leaves story progress unchanged. **The first unaccepted answer or speech failure immediately opens three touch choices.** A short spoken and written invitation guides the child to tap; the cards work before the invitation finishes. Microphone or recognition failures open the already-authored choices locally, without another request. A service failure also offers those choices without counting a child failure. One tap follows server-validated authored story text without a story model call and uses its matching saved illustration. The selected option and its original question context are included in `mediaPlan.selection`; the server selects art from the resulting scene, material and action.
+When that environment exists, the app starts narration on port 8100. Open [the reader with local narration](http://127.0.0.1:8000/?voiceServer=http://127.0.0.1:8100) to select it; the address is remembered. Model weights download on first use. The narration service also needs `MODEL_API_KEY` for Muse-backed consent/reference transcription.
 
-`python3 -m src.server` is the single app entry point and includes story text, live pictures, speech recognition and camera input. See [the speech setup](speech/README.md) and [media API](media/API.md) for component details.
+See [narration setup and APIs](narration/README.md), [speech input](speech/README.md) and [camera input](vision/README.md) for component details.
 
-Custom materials retain their server-approved identity in the generated picture request. Generation or review failure keeps the reader locked on its current passage and shows a recovery message; a failure fallback never unlocks AI progression. A matching saved choice illustration is a normal result and unlocks progression after display. Image prompts contain approved material, action and character facts; raw failed speech and camera frames do not enter the image request. Live story and transcription send their respective inputs to Meta. Live video generation, physical device validation and production family access controls remain unfinished. Parent-voice narration requires the separate narration service. The local server listens only on `127.0.0.1`; sessions and answers disappear on restart.
+## Deployment
+
+| Component | Hosting and responsibility |
+| --- | --- |
+| Web reader | Vercel serves `prototype/` and forwards `/api/*` to the story service through [`vercel.json`](vercel.json). |
+| Story service | A Modal CPU container runs the integrated server: story state, Meta calls, pictures, speech and camera. Sessions persist on a Volume. See [`deploy/modal_story.py`](deploy/modal_story.py). |
+| Voice service | A separate Modal GPU container runs Chatterbox, preferring L4 with A10G/T4 alternatives. Profiles, generated clips and models persist on a Volume. See [`deploy/modal_voice.py`](deploy/modal_voice.py). |
+
+Both services scale down after idle time and use per-second billing. The submitted product is a hosted web app; the repository also preserves development tools, model comparisons and image-to-video experiments.
+
+## Repository and verification
+
+| Path | Contents |
+| --- | --- |
+| [`prototype/`](prototype/) | Reader, narration playback, input controls, motion effects, PWA files and prepared artwork/audio. |
+| [`story_agent/`](story_agent/) | English/Korean story data, character scripts, material rules, state transitions and Spark generation/review. |
+| [`media/`](media/) | Image editing/review, asset selection, generation jobs, backups and SAM region preparation. |
+| [`speech/`](speech/) / [`vision/`](vision/) | Transcription, object recognition and integrated HTTP routes. |
+| [`narration/`](narration/) | Voice registration, character casting, Chatterbox synthesis, caching and recording tools. |
+| [`src/server.py`](src/server.py) | Single local app entry point. |
+| [`deploy/`](deploy/) | Modal story and voice deployments. |
+| [`tests/`](tests/) | Python and Node regression tests. |
+| [`experiments/`](experiments/) | Model probes, asset generation, narration comparisons and story checks. |
+| [`docs/internal/`](docs/internal/) | Planning history, detailed designs, benchmarks and worklogs, mainly in Korean. |
+
+Run automated checks without live model requests. Use a Python environment with `numpy` installed; the Chatterbox environment already includes it:
 
 ```bash
 python3 -m unittest discover -s tests -v
+# With the optional Chatterbox environment instead:
+# voice/.venv-chatterbox/bin/python -m unittest discover -s tests -v
+node --test tests/*.test.cjs
+node experiments/check_story.mjs
 ```
 
-See [the story-agent design and test guide](docs/internal/story-agent.md) for the API, scenario checks and current limits.
+Node tests use the built-in test runner. The suites cover both languages, material paths, safety/state validation, input recovery, image review/backups, branch navigation, voice handling and motion cues. `check_story.mjs` checks the earlier fixed-book fixtures and their assets.
 
-With **Read aloud** enabled, the reader prepares the passage and its question as one complete audio file before revealing the next scene. Picture loading and voice synthesis run in parallel. Once reading starts, there are no per-line synthesis or download waits. Cold voice generation happens before entering the scene and shows progress. A failed preparation offers **Prepare voice again** or turning off Read aloud; the reader does not start a partial passage or switch voices halfway through. See [the narration design](docs/internal/narration-design.md).
+Provider and browser mocks verify behavior under controlled responses; they do not measure live model quality or children's learning outcomes. The submitted demo shows the live product experience.
 
-The current English and Korean scripts include direct dialogue for all three pigs and the wolf. Character profiles define personality and speaking style; every delivered line carries its speaker, narration/dialogue kind, tone and emotion. The offline and AI readers use the same authored branches. The image generator now receives scene-specific facial expressions and gestures, and its independent review checks them. The voice server applies character and line-specific expression and tempo controls. A directed recording page collects the corresponding real performances for scoped training datasets. See [the script data guide](story_agent/README.md) and [expression and training details](docs/internal/model-performance.md). These controls and recording tools do not mean new model weights have been trained; training needs checked audio recordings.
+## Team and acknowledgments
 
-To compare with the always-reviewed story path, stop the current server and restart it with `STORY_AGENT_PIPELINE=two_call python3 -m src.server`. Both paths keep server validation and first-failure touch choices. Image generation uses `reasoning_strength: low` with independent image review; set `STORY_IMAGE_REASONING_STRENGTH=high` to compare refinement. See `.env.example` for settings. Call-count and prompt-size reductions are verified offline; live latency and generated quality still need comparison.
+| Team member | Contribution |
+| --- | --- |
+| 현준 | Parent and character voices, narration and voice infrastructure. |
+| 지호 | Story agent, material reasoning, dialogue/questions and guardrails. |
+| 수찬 | Reader UI/UX, app experience and image/motion integration. |
+| 형서 | Demo video and submission storytelling. |
 
-The main page, `prototype/index.html`, uses the child/iPad reader design from `live.html`; both files show the same reader. The developer diagnostics page `agent.html` is preserved separately and has no navigation link or button in the app UI. Open reader settings from the header to register or change a parent voice. The earlier fixed-story data and playback modules remain available as development fixtures.
+Meta's models handle understanding, story generation, image editing, visual review and prepared-art segmentation. Voice output uses [Chatterbox](https://github.com/resemble-ai/chatterbox). Stock character reference clips come from LibriTTS-R; source details and CC BY 4.0 attribution are in [`voice/characters/SOURCES.md`](voice/characters/SOURCES.md).
 
-## Meta models we use
-
-| Model | Role |
-|---|---|
-| `muse-voice-transcribe-1.0` | Understands the child's spoken answer |
-| `muse-spark-1.3` | Interprets the answer and writes the next lines |
-| `muse-image-1.0` | Edits the current page to match the child's idea, keeping characters and style |
-| `sam-3.1` | (Planned) Cuts a child's own drawing out of a photo to place it in the story |
-
-## Repository
-
-| Path | What's in it |
-|---|---|
-| `prototype/` | Clickable design prototype (HTML, CSS, JS) and the story pages |
-| `experiments/` | Scripts that test each Meta API, measure latency, generate the story pages and narration, and check the story data |
-| `docs/internal/` | Team planning notes (Korean) |
-| `voice/` | Voice-cloning samples and a blind comparison page (`compare.html`) |
-
-To rerun the experiments, put `MODEL_API_KEY=...` in a `.env` file at the repo root (it is git-ignored).
-
-After editing `prototype/story.js`, check that every scene, picture and narration clip it points to exists:
-
-```bash
-node experiments/narration_lines.mjs   # refresh the list of lines to narrate
-node experiments/check_story.mjs       # exits with an error if anything is missing
-```
-
-## Narration in a parent's voice
-
-The Meta Model API has no text-to-speech, so the story is read aloud by an open-source voice-cloning model.
-A parent records about 30 seconds once, and every page is read in their voice.
-
-We blind-tested three models on the same 6.5-second reference clip and the same five story lines (1–5 scores):
-
-| Model | Similarity | Naturalness | License |
-|---|---|---|---|
-| **Chatterbox** (chosen) | **4.0** | **4.2** | MIT |
-| F5-TTS | 3.2 | 2.6 | Weights CC BY-NC |
-| Qwen3-TTS 1.7B | 3.2 | 2.4 | Code Apache 2.0 |
-
-Chatterbox also adds an inaudible watermark to every clip it generates, which helps guard against misuse of a cloned voice.
-
-Each character has a voice that fits them. We compared four options by ear: the narrator and the three pigs are read in the parent's voice (the pigs a little livelier), and the wolf has a different stock voice (LibriTTS-R, CC BY 4.0), so a child always knows who is speaking. Changing only the pitch of the parent's voice scored lowest.
-
-**A parent who is away can still read.** On `prototype/voice.html` a parent chooses whose voice it is (their own, a family member who agreed, or someone the family misses), then adds a video or a voice message, or reads a short bedtime passage that ends with a spoken permission sentence ("I'm happy for my voice to read stories to my child"), which is checked with Muse Voice Transcribe. StoryShaper finds the clearest ten seconds on a waveform, shows what **Muse Voice Transcribe** heard, plays a story line in that voice, and keeps only that ten-second clip. **Delete** removes the clip and every line read with it.
-
-Lines are generated as the story needs them, newest first, and cached. The reader waits for every line and the question to be joined and fully downloaded as one scene before opening the page. A preparation failure offers an explicit retry or turning off Read aloud, so playback never starts with a cold tail of unfinished lines.
-
-The picture book then shows "Read by Dad" on its cover and reads in that voice; the reader can be changed in Settings.
-
-With `voice/.venv-chatterbox` installed, `python3 -m src.server` starts the voice service automatically. The registration API is ready before voice models load. If a recording upload fails, keep the setup page open and use **Try this recording again** to resend the same recording. See the [voice setup instructions](narration/README.md) for the one-time environment setup.
-
-```bash
-scripts/demo.sh          # both servers, and every saved voice reads the whole book ahead (needs Chatterbox and ffmpeg)
-scripts/demo.sh --wait   # the same, but wait until every line is voiced before recording a demo
-```
-
-Then open `http://127.0.0.1:8000/prototype/voice.html` to add a voice and `index.html` to hear the story. Details: [`narration/README.md`](narration/README.md).
-
-## Progress
-
-**Done**
-- Added a local text-input story-agent playground with material-dependent questions, server-owned transitions, model validation, three-choice recovery, and clearly labeled offline/live modes. Automated tests cover all 50 authored material paths in English and Korean, custom materials, and error handling. Earlier three-call Korean Muse Spark runs passed interpretation, generation and review; live quality and latency evaluation of the new two-call path remains pending.
-- Tested every Meta Model API capability we need: text, chat, image generation and editing, image understanding, speech to text (English and Korean), and SAM 3.1.
-- Measured one story turn: speech to text ~3 s, next lines ~3–7 s, page redraw 12–20 s. The redraw is the bottleneck, so the design hides it behind narration.
-- Built a clickable prototype of the full *Three Little Pigs* story with 13 pages generated by Muse Image, kept consistent by editing each page from the previous one.
-- Found that the image content filter rejects some wolf scenes inconsistently; the page generator retries with softer wording.
-- Picked Chatterbox for parent-voice narration after a blind test.
-- Narrated the prototype in a parent's cloned voice: 40 pre-generated clips, one per line and answer branch, with a reading speed slider.
-- Gave each character a voice (parent for the narrator and pigs, a stock voice for the wolf) through a local narration server that the story agent page uses, with a browser-voice fallback.
-- Let a parent register a voice from a video, a voice message or a read-aloud passage, with consent, a preview, and deletion of the voice and everything read with it.
-
-**Next**
-- [ ] Wire the real pipeline into the web app: microphone → Muse Voice Transcribe → Muse Spark → Muse Image.
-- [ ] Put the child's own words into the book as dialogue, with their recorded voice.
-- [ ] Safety: guide unexpected or unsafe answers back into the story.
-- [ ] Let a child draw themselves, cut the drawing out with SAM 3.1, and place it in the story.
-- [ ] Test with a real child and adjust questions and timing.
-- [ ] Record the 3-minute demo video and submit by Nov 4, 9:00 PM ET.
+Prepared scene backups include generation prompts, source images and independent review records in [`prototype/img/fallback/`](prototype/img/fallback/). The [story script guide](story_agent/README.md) and [narration design](docs/internal/narration-design.md) document shared character and delivery metadata.
